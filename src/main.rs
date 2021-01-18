@@ -1,4 +1,4 @@
-use pest::iterators::Pair;
+use pest::iterators::Pairs;
 use pest::Parser;
 use pest_derive::Parser;
 
@@ -7,11 +7,9 @@ use pest_derive::Parser;
 pub struct MyParser;
 
 fn main() {
-    let file: Pair<Rule> = MyParser::parse(Rule::file, "-273.15,3215\r\n")
-        .unwrap()
-        .next()
-        .unwrap();
-    for record in file.into_inner() {
+    let file: Pairs<Rule> =
+        MyParser::parse(Rule::file, "-273.15,3215\r\n-273.15,3215\r\n").unwrap();
+    for record in file {
         match record.as_rule() {
             Rule::record => {
                 let mut inner = record.into_inner();
@@ -20,7 +18,7 @@ fn main() {
                 println!("got record {}, {}", left, right);
             }
             Rule::EOI => (),
-            _ => unreachable!(),
+            rule => unreachable!("{:?}", rule),
         }
     }
 }
