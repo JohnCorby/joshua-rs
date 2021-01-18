@@ -7,7 +7,8 @@ use pest_derive::Parser;
 pub struct MyParser;
 
 fn main() {
-    let file: Pairs<Rule> = MyParser::parse(Rule::file, "-273.15,3215\r\n1,2,3,4,5\r\n").unwrap();
+    let file: Pairs<Rule> =
+        MyParser::parse(Rule::file, "  -273.15, 3215\r\n1,2,3,4,5\r\n").unwrap();
     for record in file {
         match record.as_rule() {
             Rule::record => {

@@ -1,3 +1,5 @@
 file = _{ SOI ~ record* ~ EOI }
 record = { field ~ ("," ~ field)* ~ NEWLINE }
-field = { (ASCII_DIGIT | "." | "-")+ }
+field = @{ (ASCII_DIGIT | "." | "-")+ }
+
+WHITESPACE = _{ " " | "\t" }
