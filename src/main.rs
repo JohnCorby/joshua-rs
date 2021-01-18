@@ -7,15 +7,15 @@ use pest_derive::Parser;
 pub struct MyParser;
 
 fn main() {
-    let file: Pairs<Rule> =
-        MyParser::parse(Rule::file, "-273.15,3215\r\n-273.15,3215\r\n").unwrap();
+    let file: Pairs<Rule> = MyParser::parse(Rule::file, "-273.15,3215\r\n1,2,3,4,5\r\n").unwrap();
     for record in file {
         match record.as_rule() {
             Rule::record => {
-                let mut inner = record.into_inner();
-                let left: f32 = inner.next().unwrap().as_str().parse().unwrap();
-                let right: f32 = inner.next().unwrap().as_str().parse().unwrap();
-                println!("got record {}, {}", left, right);
+                let fields: Vec<f32> = record
+                    .into_inner()
+                    .map(|pair| pair.as_str().parse().unwrap())
+                    .collect();
+                println!("got record with fields {:?}", fields);
             }
             Rule::EOI => (),
             rule => unreachable!("{:?}", rule),
