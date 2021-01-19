@@ -1,4 +1,5 @@
-use pest::iterators::Pairs;
+mod parse_expr;
+
 use pest::Parser;
 use pest_derive::Parser;
 
@@ -6,20 +7,22 @@ use pest_derive::Parser;
 #[grammar = "grammar.pest"]
 pub struct MyParser;
 
-fn main() {
-    let file: Pairs<Rule> =
-        MyParser::parse(Rule::file, "  -273.15, 3215\r\n1,2,3,4,5\r\n").unwrap();
-    for record in file {
-        match record.as_rule() {
-            Rule::record => {
-                let fields: Vec<f32> = record
-                    .into_inner()
-                    .map(|pair| pair.as_str().parse().unwrap())
-                    .collect();
-                println!("got record with fields {:?}", fields);
-            }
-            Rule::EOI => (),
-            rule => unreachable!("{:?}", rule),
+pub type Pair<'a> = pest::iterators::Pair<'a, Rule>;
+pub type Pairs<'a> = pest::iterators::Pairs<'a, Rule>;
+pub type Error = pest::error::Error<Rule>;
+
+fn parse(input: &str) -> Pairs {
+    let pairs: Result<Pairs, Error> = MyParser::parse(Rule::program, input);
+    match pairs {
+        Ok(pairs) => pairs,
+        Err(e) => {
+            println!("{}", e);
+            panic!()
         }
     }
+}
+
+const PROGRAM: &str = include_str!("../test/test.jo");
+fn main() {
+    println!("{}", parse(PROGRAM).to_json())
 }

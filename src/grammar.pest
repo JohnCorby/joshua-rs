@@ -1,5 +1,106 @@
-file = _{ SOI ~ record* ~ EOI }
-record = { field ~ ("," ~ field)* ~ NEWLINE }
-field = @{ (ASCII_DIGIT | "." | "-")+ }
+program = _{ SOI ~ define* ~ EOI }
 
-WHITESPACE = _{ " " | "\t" }
+define = _{
+    struct_define
+    | func_define
+    | var_define
+}
+
+statement = _{
+    ret
+    | brk
+    | cont
+    | iff
+    | until
+    | forr
+    | func_call
+    | var_assign
+    | var_define
+}
+
+
+
+
+block = { statement | "{" ~ statement* ~ "}" }
+
+func_define = { ident ~ ident ~ "(" ~ func_define_args ~ ")" ~ block }
+func_define_args = { (var_define ~ ("," ~ var_define)*)? }
+func_call = { ident ~ "(" ~ func_call_args ~ ")" }
+func_call_args = { (expr ~ ("," ~ expr)*)? }
+
+
+var_define = { ident ~ ident ~ ("=" ~ expr)? }
+var_assign = { ident ~ "=" ~ expr }
+
+
+struct_define = { "struct" ~ ident ~ struct_body }
+struct_body = { "{" ~ define* ~ "}" }
+
+
+iff = { "if" ~ "(" ~ expr ~ ")" ~ block ~ ("else" ~ block)? }
+until = { "until" ~ "(" ~ expr ~ ")" ~ block }
+forr = { "for" ~ "(" ~ var_define ~ ";" ~ expr ~ ";" ~ statement ~ ")" ~ block }
+
+
+ret = { "return" ~ expr? }
+brk = { "break" }
+cont = { "continue" }
+
+
+
+
+expr = { equality_expr }
+equality_expr = { compare_expr ~ (equality_expr_op ~ compare_expr)* }
+equality_expr_op = { "==" | "!=" }
+compare_expr = { add_expr ~ (compare_expr_op ~ add_expr)* }
+compare_expr_op = { "<" | "<=" | ">" | ">=" }
+add_expr = { mul_expr ~ (add_expr_op ~ mul_expr)* }
+add_expr_op = { "+" | "-" }
+mul_expr = { cast_expr ~ (mul_expr_op ~ cast_expr)* }
+mul_expr_op = { "*" | "/" | "%" }
+cast_expr = { unary_expr ~ ("as" ~ ident)? }
+unary_expr = { unary_expr_op? ~ primary_expr}
+unary_expr_op = { "-" | "!" }
+primary_expr = {
+    literal
+    | func_call
+    | ident
+    | paren_expr
+}
+literal = _{
+    float_literal
+    | int_literal
+    | bool_literal
+    | char_literal
+    | str_literal
+}
+paren_expr = _{ "(" ~ expr ~ ")" }
+
+
+
+
+int_literal = @{ ASCII_DIGIT+ }
+float_literal = @{ ASCII_DIGIT* ~ "." ~ ASCII_DIGIT* }
+bool_literal = @{ "true" | "false" }
+
+char_literal = ${ "'" ~ char_literal_inner ~ "'" }
+char_literal_inner = @{ char }
+str_literal = ${ "\"" ~ str_literal_inner ~ "\"" }
+str_literal_inner = @{ char* }
+char = {
+    !("\"" | "\\") ~ ANY
+    | "\\" ~ ("\'" | "\"" | "\\" | "n" | "r" | "t" | "0")
+    | "\\" ~ "x" ~ ASCII_HEX_DIGIT{2}
+    | "\\" ~ "u" ~ ASCII_HEX_DIGIT{4}
+}
+
+
+ident = @{ (LETTER | "_") ~ (LETTER | ASCII_DIGIT | "_")* }
+
+
+
+
+WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
+COMMENT = _{ comment | block_comment }
+comment = {"//" ~ (!NEWLINE ~ ANY)* ~ NEWLINE}
+block_comment = {"/*" ~ (!"*/" ~ ANY)* ~ "*/"}
