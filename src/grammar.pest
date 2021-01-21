@@ -23,18 +23,15 @@ statement = _{
 
 block = { statement | "{" ~ statement* ~ "}" }
 
-func_define = { ident ~ ident ~ "(" ~ func_define_args ~ ")" ~ block }
-func_define_args = { (var_define ~ ("," ~ var_define)*)? }
-func_call = { ident ~ "(" ~ func_call_args ~ ")" }
-func_call_args = { (expr ~ ("," ~ expr)*)? }
+func_define = { ident ~ ident ~ "(" ~ (var_define ~ ("," ~ var_define)*)? ~ ")" ~ block }
+func_call = { ident ~ "(" ~ (expr ~ ("," ~ expr)*)? ~ ")" }
 
 
 var_define = { ident ~ ident ~ ("=" ~ expr)? }
 var_assign = { ident ~ "=" ~ expr }
 
 
-struct_define = { "struct" ~ ident ~ struct_body }
-struct_body = { "{" ~ define* ~ "}" }
+struct_define = { "struct" ~ ident ~ ("{" ~ define* ~ "}") }
 
 
 iff = { "if" ~ "(" ~ expr ~ ")" ~ block ~ ("else" ~ block)? }

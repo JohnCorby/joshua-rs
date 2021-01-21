@@ -10,3 +10,4 @@ edition = "2018"
 pest = { version = "*", features = ["pretty-print"] }
 pest_derive = "*"
 anyhow = "*"
+thiserror = "*"
