@@ -1,12 +1,12 @@
-program = _{ SOI ~ define* ~ EOI }
+program = { SOI ~ define* ~ EOI }
 
-define = _{
+define = {
     struct_define
     | func_define
     | var_define
 }
 
-statement = _{
+statement = {
     ret
     | brk
     | cont

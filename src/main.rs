@@ -1,15 +1,20 @@
 #![feature(try_trait)]
+#![allow(unused)]
 
-mod ast;
+mod define;
 mod error;
 mod expr;
+mod gen;
+mod statement;
 mod util;
+mod visit;
 
 use crate::error::MyResult;
 use anyhow::*;
+use gen::gen_program;
 use pest::Parser;
 use pest_derive::Parser;
-use util::*;
+use visit::visit_program;
 
 #[derive(Parser)]
 #[grammar = "grammar.pest"]
@@ -18,10 +23,10 @@ pub struct MyParser;
 pub type Pair<'a> = pest::iterators::Pair<'a, Rule>;
 pub type Pairs<'a> = pest::iterators::Pairs<'a, Rule>;
 
-fn parse(input: &str) -> Pairs {
+fn parse(input: &str) -> Pair {
     let pairs: Result<Pairs, pest::error::Error<Rule>> = MyParser::parse(Rule::program, input);
     match pairs {
-        Ok(pairs) => pairs,
+        Ok(mut pairs) => pairs.next().unwrap(),
         Err(e) => {
             println!("{}", e);
             panic!()
@@ -31,12 +36,17 @@ fn parse(input: &str) -> Pairs {
 
 const PROGRAM: &str = include_str!("../test/expr.jo");
 fn main() -> MyResult<()> {
-    let pairs = parse(PROGRAM);
+    let pair = parse(PROGRAM);
+    println!("{:?}", pair);
+    let program = visit_program(pair)?;
+    println!("{:?}", program);
+    let c_code = gen_program(program);
+    println!("{:#?}", c_code);
 
-    let mut pairs = MyParser::parse(Rule::expr, r#"!1 + 2*-3 + 4 % "hello""#)?;
-    println!("{}", debug_pairs(&pairs));
-    let expr = expr::parse_expr(pairs.next().context("next is none")?)?;
-    println!("{:#?}", expr);
+    // let mut pairs = MyParser::parse(Rule::expr, r#"!1 + 2*-3 + 4 % "hello""#)?;
+    // println!("{}", debug_pairs(&pairs));
+    // let expr = expr::parse_expr(pairs.next()?)?;
+    // println!("{:#?}", expr);
 
     Ok(())
 }

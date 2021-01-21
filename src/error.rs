@@ -9,7 +9,7 @@ pub type MyResult<T> = Result<T, MyError>;
 
 #[derive(Error, Debug)]
 pub enum MyError {
-    #[error("option returend none")]
+    #[error("option returned none")]
     NoneError,
 
     #[error("rule {0:?} unreachable")]
@@ -27,12 +27,18 @@ pub enum MyError {
     #[error(transparent)]
     PestError(#[from] pest::error::Error<crate::Rule>),
 
-    #[error(transparent)]
-    AnyhowError(#[from] anyhow::Error),
+    #[error("error: {0}")]
+    Other(String),
 }
 
 impl From<NoneError> for MyError {
     fn from(_: NoneError) -> Self {
         MyError::NoneError
+    }
+}
+
+impl From<String> for MyError {
+    fn from(string: String) -> Self {
+        Self::Other(string)
     }
 }
