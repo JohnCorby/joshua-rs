@@ -50,31 +50,31 @@ cont = { "continue" }
 
 
 expr = { equality_expr }
-equality_expr = { compare_expr ~ (equality_expr_op ~ compare_expr)* }
-equality_expr_op = { "==" | "!=" }
-compare_expr = { add_expr ~ (compare_expr_op ~ add_expr)* }
-compare_expr_op = { "<" | "<=" | ">" | ">=" }
-add_expr = { mul_expr ~ (add_expr_op ~ mul_expr)* }
-add_expr_op = { "+" | "-" }
-mul_expr = { cast_expr ~ (mul_expr_op ~ cast_expr)* }
-mul_expr_op = { "*" | "/" | "%" }
-cast_expr = { unary_expr ~ ("as" ~ ident)? }
-unary_expr = { unary_expr_op? ~ primary_expr}
-unary_expr_op = { "-" | "!" }
+equality_expr = { compare_expr ~ (equality_op ~ compare_expr)* }
+equality_op = { "==" | "!=" }
+compare_expr = { add_expr ~ (compare_op ~ add_expr)* }
+compare_op = { "<" | "<=" | ">" | ">=" }
+add_expr = { mul_expr ~ (add_op ~ mul_expr)* }
+add_op = { "+" | "-" }
+mul_expr = { cast_expr ~ (mul_op ~ cast_expr)* }
+mul_op = { "*" | "/" | "%" }
+cast_expr = { unary_expr ~ ("as" ~ ident)+ }
+unary_expr = { unary_op* ~ primary_expr}
+unary_op = { "-" | "!" }
 primary_expr = {
     literal
     | func_call
     | ident
     | paren_expr
 }
-literal = _{
+literal = {
     float_literal
     | int_literal
     | bool_literal
     | char_literal
     | str_literal
 }
-paren_expr = _{ "(" ~ expr ~ ")" }
+paren_expr = { "(" ~ expr ~ ")" }
 
 
 

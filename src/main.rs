@@ -1,7 +1,12 @@
-mod parse_expr;
+#![feature(try_trait)]
 
+mod parse_expr;
+mod util;
+
+use anyhow::*;
 use pest::Parser;
 use pest_derive::Parser;
+use util::*;
 
 #[derive(Parser)]
 #[grammar = "grammar.pest"]
@@ -22,7 +27,13 @@ fn parse(input: &str) -> Pairs {
     }
 }
 
-const PROGRAM: &str = include_str!("../test/test.jo");
-fn main() {
-    println!("{}", parse(PROGRAM).to_json())
+const PROGRAM: &str = include_str!("../test/expr.jo");
+fn main() -> Result<()> {
+    // let pairs = parse(PROGRAM);
+    let mut pairs = MyParser::parse(Rule::expr, r#"!1 + 2*-3 + 4 % "hello""#)?;
+    println!("{}", debug_pairs(&pairs));
+    let expr = parse_expr::parse_expr(pairs.next().context("next is none")?)?;
+    println!("{:#?}", expr);
+
+    Ok(())
 }
