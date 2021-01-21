@@ -24,6 +24,9 @@ pub enum Define {
 
 impl Visit for Define {
     fn visit(pair: Pair) -> MyResult<Self> {
+        crate::check_pair!(pair, Rule::define);
+        let pair = pair.into_inner().next()?;
+
         match pair.as_rule() {
             Rule::struct_define => todo!(),
             Rule::func_define => {
