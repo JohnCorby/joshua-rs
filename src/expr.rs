@@ -27,7 +27,6 @@ pub enum Expr {
         args: Vec<Expr>,
     },
     Var(String),
-    Paren(Box<Expr>),
 }
 
 impl Visit for Expr {
@@ -119,16 +118,13 @@ impl Expr {
             Rule::func_call => {
                 let mut pairs = pair.into_inner();
 
-                let name = pairs.next()?.as_str();
+                let name = pairs.next()?.as_str().into();
                 let mut args = vec![];
                 for pair in pairs {
                     args.push(Self::visit(pair)?);
                 }
 
-                Ok(Self::FuncCall {
-                    name: name.into(),
-                    args,
-                })
+                Ok(Self::FuncCall { name, args })
             }
             Rule::ident => Ok(Self::Var(pair.as_str().into())),
             Rule::paren_expr => Self::visit(pair.into_inner().next()?),

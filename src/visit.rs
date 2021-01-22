@@ -1,4 +1,4 @@
-use crate::define::{Define, Program};
+use crate::define::Define;
 use crate::error::MyResult;
 use crate::util::pair_inner_checked;
 use crate::{Pair, Rule};
@@ -9,6 +9,8 @@ pub trait Visit {
     where
         Self: Sized;
 }
+
+pub type Program = Vec<Define>;
 
 /// visit the entire program
 pub fn visit_program(pair: Pair) -> MyResult<Program> {

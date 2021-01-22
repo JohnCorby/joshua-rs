@@ -1,6 +1,5 @@
 #![feature(try_trait)]
 #![feature(backtrace)]
-// #![allow(unused)]
 
 mod define;
 mod error;
@@ -35,7 +34,7 @@ fn parse(input: &str) -> Pair {
     }
 }
 
-const PROGRAM: &str = include_str!("../test/expr.jo");
+const PROGRAM: &str = include_str!("../test/test.jo");
 fn main() -> MyResult<()> {
     let pair = parse(PROGRAM);
     println!("{:?}", pair);
@@ -43,11 +42,6 @@ fn main() -> MyResult<()> {
     println!("{:?}", program);
     let c_code = gen_program(program);
     println!("{:#?}", c_code);
-
-    // let mut pairs = MyParser::parse(Rule::expr, r#"!1 + 2*-3 + 4 % "hello""#)?;
-    // println!("{}", debug_pairs(&pairs));
-    // let expr = expr::parse_expr(pairs.next()?)?;
-    // println!("{:#?}", expr);
 
     Ok(())
 }

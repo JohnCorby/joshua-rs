@@ -3,7 +3,7 @@ use crate::error::MyResult;
 use crate::{Pair, Pairs};
 use std::backtrace::Backtrace;
 
-pub fn debug_pairs(pairs: &Pairs) -> String {
+pub fn _debug_pairs(pairs: &Pairs) -> String {
     format!(
         "[{}]",
         pairs
@@ -12,7 +12,7 @@ pub fn debug_pairs(pairs: &Pairs) -> String {
                 "{:?}({:?}) {}",
                 pair.as_rule(),
                 pair.as_span().as_str(),
-                debug_pairs(&pair.into_inner())
+                _debug_pairs(&pair.into_inner())
             ))
             .collect::<Vec<_>>()
             .join(", ")
