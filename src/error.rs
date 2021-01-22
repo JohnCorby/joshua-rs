@@ -1,4 +1,4 @@
-use crate::Rule;
+use crate::parse::Rule;
 use std::backtrace::Backtrace;
 use std::char::ParseCharError;
 use std::fmt::{Debug, Formatter};
@@ -58,8 +58,8 @@ impl From<NoneError> for MyError {
 }
 
 impl From<String> for MyError {
-    fn from(string: String) -> Self {
-        Self::Other(string, Backtrace::capture())
+    fn from(s: String) -> Self {
+        Self::Other(s, Backtrace::capture())
     }
 }
 

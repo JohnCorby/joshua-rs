@@ -1,6 +1,7 @@
 use crate::error::{MyError, MyResult};
 use lazy_static::lazy_static;
 use std::convert::TryFrom;
+use std::str::FromStr;
 use std::sync::Mutex;
 
 lazy_static! {
@@ -55,15 +56,9 @@ impl Type {
     }
 }
 
-impl TryFrom<String> for Type {
-    type Error = MyError;
-    fn try_from(value: String) -> MyResult<Self> {
-        Self::resolve(value)
-    }
-}
-impl TryFrom<&str> for Type {
-    type Error = MyError;
-    fn try_from(value: &str) -> MyResult<Self> {
-        Self::resolve(value)
+impl FromStr for Type {
+    type Err = MyError;
+    fn from_str(s: &str) -> MyResult<Self> {
+        Self::resolve(s)
     }
 }

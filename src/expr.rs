@@ -1,10 +1,10 @@
 //! handle the painful process that is parsing expressions
 
 use crate::error::{unexpected_rule, MyResult};
+use crate::parse::{Pair, Rule};
 use crate::ty::Type;
 use crate::util::{PairExt, PairsExt};
 use crate::visit::Visit;
-use crate::{Pair, Rule};
 use std::convert::TryInto;
 
 #[derive(Debug, Clone)]
@@ -98,6 +98,7 @@ impl Visit for Expr {
     }
 }
 
+#[allow(clippy::unnecessary_wraps)]
 impl Expr {
     fn visit_binary(left: Self, op: impl AsRef<str>, right: Self) -> MyResult<Self> {
         // todo op check
@@ -121,7 +122,7 @@ impl Expr {
     fn visit_cast(thing: Self, ty: impl AsRef<str>) -> MyResult<Self> {
         Ok(Self::Cast {
             thing: thing.into(),
-            ty: ty.as_ref().try_into()?,
+            ty: ty.as_ref().parse()?,
         })
     }
 }

@@ -1,7 +1,7 @@
 use crate::error::MyError::WrongRule;
 use crate::error::MyResult;
+use crate::parse::{Pair, Pairs, Rule};
 use crate::visit::Visit;
-use crate::{Pair, Pairs, Rule};
 use std::backtrace::Backtrace;
 
 pub fn _debug_pairs(pairs: &Pairs) -> String {

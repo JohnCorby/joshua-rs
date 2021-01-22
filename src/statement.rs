@@ -1,9 +1,9 @@
 use crate::define::VarDefine;
 use crate::error::{unexpected_rule, MyResult};
 use crate::expr::Expr;
+use crate::parse::{Pair, Rule};
 use crate::util::{PairExt, PairsExt};
 use crate::visit::Visit;
-use crate::{Pair, Rule};
 
 pub type Block = Vec<Statement>;
 
