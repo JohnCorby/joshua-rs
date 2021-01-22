@@ -1,27 +1,24 @@
 use crate::define::Define;
 use crate::error::MyResult;
-use crate::util::pair_inner_checked;
+use crate::util::PairExt;
 use crate::{Pair, Rule};
 
 /// take a parser pair an turn it into ourselves
-pub trait Visit {
-    fn visit(pair: Pair) -> MyResult<Self>
-    where
-        Self: Sized;
+pub trait Visit<'a>: Sized {
+    fn visit(pair: Pair<'a>) -> MyResult<Self>;
 }
 
 pub type Program = Vec<Define>;
 
 /// visit the entire program
 pub fn visit_program(pair: Pair) -> MyResult<Program> {
-    let pairs = pair_inner_checked(pair, Rule::program)?;
-
-    let mut program = Program::new();
-    for pair in pairs {
-        if pair.as_rule() == Rule::EOI {
-            break;
-        }
-        program.push(Define::visit(pair)?);
-    }
-    Ok(program)
+    pair.into_inner_checked(Rule::program)?
+        .filter_map(|pair| {
+            // last rule is EOI. dont visit it
+            if pair.as_rule() == Rule::EOI {
+                return None;
+            }
+            Some(pair.visit())
+        })
+        .collect()
 }
