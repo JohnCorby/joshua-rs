@@ -2,6 +2,7 @@ use crate::error::MyError::UnreachableRule;
 use crate::error::MyResult;
 use crate::expr::Expr;
 use crate::statement::{visit_block, Block};
+use crate::util::pair_inner_checked;
 use crate::visit::Visit;
 use crate::{Pair, Rule};
 
@@ -24,8 +25,7 @@ pub enum Define {
 
 impl Visit for Define {
     fn visit(pair: Pair) -> MyResult<Self> {
-        crate::check_pair!(pair, Rule::define);
-        let pair = pair.into_inner().next()?;
+        let pair = pair_inner_checked(pair, Rule::define)?.next()?;
 
         match pair.as_rule() {
             Rule::struct_define => todo!(),
@@ -34,12 +34,10 @@ impl Visit for Define {
 
                 let ty = pairs.next()?.as_str();
                 let name = pairs.next()?.as_str();
-
                 let mut args = vec![];
                 while pairs.peek().is_some() && pairs.peek()?.as_rule() == Rule::var_define {
                     args.push(VarDefine::visit(pairs.next()?)?)
                 }
-
                 let body = visit_block(pairs.next()?)?;
 
                 Ok(Self::Func {
@@ -65,8 +63,7 @@ pub struct VarDefine {
 
 impl Visit for VarDefine {
     fn visit(pair: Pair) -> MyResult<Self> {
-        crate::check_pair!(pair, Rule::var_define);
-        let pairs = pair.into_inner();
+        let pairs = pair_inner_checked(pair, Rule::var_define)?;
         todo!()
     }
 }

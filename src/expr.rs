@@ -117,7 +117,20 @@ impl Expr {
         // fixme might refactor this back into parse_expr or something
         match pair.as_rule() {
             Rule::literal => Ok(Expr::Literal(Literal::visit(pair.into_inner().next()?)?)),
-            Rule::func_call => todo!(),
+            Rule::func_call => {
+                let mut pairs = pair.into_inner();
+
+                let name = pairs.next()?.as_str();
+                let mut args = vec![];
+                for pair in pairs {
+                    args.push(Self::visit(pair)?);
+                }
+
+                Ok(Expr::FuncCall {
+                    name: name.into(),
+                    args,
+                })
+            }
             Rule::ident => Ok(Expr::Ident(pair.as_str().into())),
             Rule::paren_expr => Expr::visit(pair.into_inner().next()?),
 

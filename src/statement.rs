@@ -1,14 +1,14 @@
 use crate::define::VarDefine;
 use crate::error::MyResult;
 use crate::expr::Expr;
+use crate::util::pair_inner_checked;
 use crate::visit::Visit;
 use crate::{Pair, Pairs, Rule};
 
 pub type Block = Vec<Statement>;
 
 pub fn visit_block(pair: Pair) -> MyResult<Block> {
-    crate::check_pair!(pair, Rule::block);
-    let pairs = pair.into_inner();
+    let pairs = pair_inner_checked(pair, Rule::block)?;
 
     let mut block = Block::new();
     for pair in pairs {
@@ -52,8 +52,7 @@ pub enum Statement {
 
 impl Visit for Statement {
     fn visit(pair: Pair) -> MyResult<Self> {
-        crate::check_pair!(pair, Rule::statement);
-        let pairs = pair.into_inner();
+        let pairs = pair_inner_checked(pair, Rule::statement)?;
         todo!()
     }
 }

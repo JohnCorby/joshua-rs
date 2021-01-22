@@ -1,3 +1,4 @@
+use crate::Rule;
 use std::char::ParseCharError;
 use std::fmt::Debug;
 use std::num::{ParseFloatError, ParseIntError};
@@ -13,7 +14,10 @@ pub enum MyError {
     NoneError,
 
     #[error("rule {0:?} unreachable")]
-    UnreachableRule(crate::Rule),
+    UnreachableRule(Rule),
+
+    #[error("expected rule {expected:?}, but got {actual:?}")]
+    UnexpectedRule { expected: Rule, actual: Rule },
 
     #[error(transparent)]
     ParseFloatError(#[from] ParseFloatError),
