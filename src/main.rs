@@ -5,38 +5,24 @@ mod define;
 mod error;
 mod expr;
 mod gen;
+mod parser;
 mod statement;
 mod util;
 mod visit;
 
 use crate::error::MyResult;
 use crate::gen::gen_program;
+use crate::parser::parse_program;
 use crate::visit::visit_program;
-use anyhow::*;
-use pest::Parser;
-use pest_derive::Parser;
 
-#[derive(Parser)]
-#[grammar = "grammar.pest"]
-pub struct MyParser;
-
+// nice types that will resolve :)
+pub type Rule = crate::parser::Rule;
 pub type Pair<'a> = pest::iterators::Pair<'a, Rule>;
 pub type Pairs<'a> = pest::iterators::Pairs<'a, Rule>;
 
-fn parse(input: &str) -> Pair {
-    let pairs: Result<Pairs, pest::error::Error<Rule>> = MyParser::parse(Rule::program, input);
-    match pairs {
-        Ok(mut pairs) => pairs.next().unwrap(),
-        Err(e) => {
-            println!("{}", e);
-            panic!()
-        }
-    }
-}
-
 const PROGRAM: &str = include_str!("../test/test.jo");
 fn main() -> MyResult<()> {
-    let pair = parse(PROGRAM);
+    let pair = parse_program(PROGRAM)?;
     println!("{:?}", pair);
     let program = visit_program(pair)?;
     println!("{:?}", program);

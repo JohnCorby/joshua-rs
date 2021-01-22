@@ -1,5 +1,5 @@
 use crate::define::VarDefine;
-use crate::error::MyResult;
+use crate::error::{rule_unreachable, MyResult};
 use crate::expr::Expr;
 use crate::util::{PairExt, PairsExt};
 use crate::visit::Visit;
@@ -44,62 +44,62 @@ pub enum Statement {
     VarDefine(VarDefine),
 }
 
-impl Visit<'_> for Statement {
+impl Visit for Statement {
     fn visit(pair: Pair) -> MyResult<Self> {
         let pair = pair.into_inner_checked(Rule::statement)?.next()?;
 
-        match pair.as_rule() {
-            Rule::ret => Ok(Self::Return {
+        Ok(match pair.as_rule() {
+            Rule::ret => Self::Return {
                 value: pair.into_inner().next().map(Pair::visit).transpose()?,
-            }),
-            Rule::brk => Ok(Self::Break),
-            Rule::cont => Ok(Self::Continue),
+            },
+            Rule::brk => Self::Break,
+            Rule::cont => Self::Continue,
             Rule::iff => {
                 let mut pairs = pair.into_inner();
 
-                Ok(Self::If {
+                Self::If {
                     cond: pairs.next()?.visit()?,
                     then: visit_block(pairs.next()?)?,
                     otherwise: visit_block(pairs.next()?)?,
-                })
+                }
             }
             Rule::until => {
                 let mut pairs = pair.into_inner();
 
-                Ok(Self::Until {
+                Self::Until {
                     cond: pairs.next()?.visit()?,
                     block: visit_block(pairs.next()?)?,
-                })
+                }
             }
             Rule::forr => {
                 let mut pairs = pair.into_inner();
 
-                Ok(Self::For {
+                Self::For {
                     init: pairs.next()?.visit()?,
                     cond: pairs.next()?.visit()?,
                     update: pairs.next()?.visit::<Statement>()?.into(),
                     block: visit_block(pairs.next()?)?,
-                })
+                }
             }
             Rule::func_call => {
                 let mut pairs = pair.into_inner();
 
-                Ok(Self::FuncCall {
+                Self::FuncCall {
                     name: pairs.next()?.as_str().into(),
                     args: pairs.visit_rest()?,
-                })
+                }
             }
             Rule::var_assign => {
                 let mut pairs = pair.into_inner();
 
-                Ok(Self::VarAssign {
+                Self::VarAssign {
                     name: pairs.next()?.as_str().into(),
                     value: pairs.next()?.visit()?,
-                })
+                }
             }
-            Rule::var_define => Ok(Self::VarDefine(pair.visit()?)),
+            Rule::var_define => Self::VarDefine(pair.visit()?),
 
-            rule => Err(rule.into()),
-        }
+            rule => rule_unreachable(rule)?,
+        })
     }
 }

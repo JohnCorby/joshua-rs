@@ -46,10 +46,8 @@ impl Debug for MyError {
     }
 }
 
-impl From<Rule> for MyError {
-    fn from(rule: Rule) -> Self {
-        Self::UnreachableRule(rule, Backtrace::capture())
-    }
+pub fn rule_unreachable<T>(rule: Rule) -> MyResult<T> {
+    Err(MyError::UnreachableRule(rule, Backtrace::capture()))
 }
 
 impl From<NoneError> for MyError {

@@ -1,6 +1,6 @@
 //! handle the painful process that is parsing expressions
 
-use crate::error::MyResult;
+use crate::error::{rule_unreachable, MyResult};
 use crate::util::{PairExt, PairsExt};
 use crate::visit::Visit;
 use crate::{Pair, Rule};
@@ -30,10 +30,10 @@ pub enum Expr {
     Var(String),
 }
 
-impl Visit<'_> for Expr {
+impl Visit for Expr {
     fn visit(pair: Pair) -> MyResult<Self> {
-        match pair.as_rule() {
-            Rule::expr => Ok(pair.into_inner().next()?.visit()?),
+        Ok(match pair.as_rule() {
+            Rule::expr => pair.into_inner().next()?.visit()?,
             Rule::equality_expr | Rule::compare_expr | Rule::add_expr | Rule::mul_expr => {
                 // left assoc
                 let mut pairs = pair.into_inner();
@@ -46,7 +46,7 @@ impl Visit<'_> for Expr {
                     left = Self::visit_binary(left, right, op)?;
                 }
 
-                Ok(left)
+                left
             }
             Rule::unary_expr => {
                 // right assoc
@@ -59,7 +59,7 @@ impl Visit<'_> for Expr {
                     thing = Self::visit_unary(thing, op)?;
                 }
 
-                Ok(thing)
+                thing
             }
             Rule::cast_expr => {
                 // left assoc
@@ -72,13 +72,13 @@ impl Visit<'_> for Expr {
                     thing = Self::visit_cast(thing, ty)?;
                 }
 
-                Ok(thing)
+                thing
             }
 
-            Rule::primary_expr => Self::visit_primary(pair.into_inner().next()?),
+            Rule::primary_expr => Self::visit_primary(pair.into_inner().next()?)?,
 
-            rule => Err(rule.into()),
-        }
+            rule => rule_unreachable(rule)?,
+        })
     }
 }
 
@@ -114,21 +114,21 @@ impl Expr {
 
     fn visit_primary(pair: Pair) -> MyResult<Self> {
         // fixme might refactor this back into parse_Self or something
-        match pair.as_rule() {
-            Rule::literal => Ok(Self::Literal(pair.into_inner().next()?.visit()?)),
+        Ok(match pair.as_rule() {
+            Rule::literal => Self::Literal(pair.into_inner().next()?.visit()?),
             Rule::func_call => {
                 let mut pairs = pair.into_inner();
 
-                Ok(Self::FuncCall {
+                Self::FuncCall {
                     name: pairs.next()?.as_str().into(),
                     args: pairs.visit_rest()?,
-                })
+                }
             }
-            Rule::ident => Ok(Self::Var(pair.as_str().into())),
-            Rule::paren_expr => Ok(pair.into_inner().next()?.visit()?),
+            Rule::ident => Self::Var(pair.as_str().into()),
+            Rule::paren_expr => pair.into_inner().next()?.visit()?,
 
-            rule => Err(rule.into()),
-        }
+            rule => rule_unreachable(rule)?,
+        })
     }
 }
 
@@ -141,16 +141,16 @@ pub enum Literal {
     Str(String),
 }
 
-impl Visit<'_> for Literal {
+impl Visit for Literal {
     fn visit(pair: Pair) -> MyResult<Self> {
-        match pair.as_rule() {
-            Rule::float_literal => Ok(Self::Float(pair.as_str().parse()?)),
-            Rule::int_literal => Ok(Self::Int(pair.as_str().parse()?)),
-            Rule::bool_literal => Ok(Self::Bool(pair.as_str().parse()?)),
-            Rule::char_literal => Ok(Self::Char(pair.into_inner().next()?.as_str().parse()?)),
-            Rule::str_literal => Ok(Self::Str(pair.into_inner().next()?.as_str().into())),
+        Ok(match pair.as_rule() {
+            Rule::float_literal => Self::Float(pair.as_str().parse()?),
+            Rule::int_literal => Self::Int(pair.as_str().parse()?),
+            Rule::bool_literal => Self::Bool(pair.as_str().parse()?),
+            Rule::char_literal => Self::Char(pair.into_inner().next()?.as_str().parse()?),
+            Rule::str_literal => Self::Str(pair.into_inner().next()?.as_str().into()),
 
-            rule => Err(rule.into()),
-        }
+            rule => rule_unreachable(rule)?,
+        })
     }
 }

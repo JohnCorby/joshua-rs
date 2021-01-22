@@ -4,8 +4,8 @@ use crate::util::PairExt;
 use crate::{Pair, Rule};
 
 /// take a parser pair an turn it into ourselves
-pub trait Visit<'a>: Sized {
-    fn visit(pair: Pair<'a>) -> MyResult<Self>;
+pub trait Visit: Sized {
+    fn visit(pair: Pair) -> MyResult<Self>;
 }
 
 pub type Program = Vec<Define>;
