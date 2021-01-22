@@ -4,6 +4,7 @@ use crate::error::MyError::UnreachableRule;
 use crate::error::MyResult;
 use crate::visit::Visit;
 use crate::{Pair, Rule};
+use std::backtrace::Backtrace;
 
 #[derive(Debug, Clone)]
 pub enum Expr {
@@ -27,7 +28,7 @@ pub enum Expr {
         name: String,
         args: Vec<Expr>,
     },
-    Ident(String),
+    Var(String),
     Paren(Box<Expr>),
 }
 
@@ -78,45 +79,45 @@ impl Visit for Expr {
 
             Rule::primary_expr => Self::visit_primary(pair.into_inner().next()?),
 
-            rule => Err(UnreachableRule(rule)),
+            rule => Err(rule.into()),
         }
     }
 }
 
 #[allow(clippy::unnecessary_wraps)]
 impl Expr {
-    fn visit_binary(left: Expr, right: Expr, op: &str) -> MyResult<Expr> {
+    fn visit_binary(left: Self, right: Self, op: &str) -> MyResult<Self> {
         // todo op check
 
-        Ok(Expr::Binary {
+        Ok(Self::Binary {
             left: left.into(),
             right: right.into(),
             op: op.into(),
         })
     }
 
-    fn visit_unary(thing: Expr, op: &str) -> MyResult<Expr> {
+    fn visit_unary(thing: Self, op: &str) -> MyResult<Self> {
         // todo op check
 
-        Ok(Expr::Unary {
+        Ok(Self::Unary {
             thing: thing.into(),
             op: op.into(),
         })
     }
 
-    fn visit_cast(thing: Expr, ty: &str) -> MyResult<Expr> {
+    fn visit_cast(thing: Self, ty: &str) -> MyResult<Self> {
         // todo type check
 
-        Ok(Expr::Cast {
+        Ok(Self::Cast {
             thing: thing.into(),
             ty: ty.into(),
         })
     }
 
-    fn visit_primary(pair: Pair) -> MyResult<Expr> {
-        // fixme might refactor this back into parse_expr or something
+    fn visit_primary(pair: Pair) -> MyResult<Self> {
+        // fixme might refactor this back into parse_Self or something
         match pair.as_rule() {
-            Rule::literal => Ok(Expr::Literal(Literal::visit(pair.into_inner().next()?)?)),
+            Rule::literal => Ok(Self::Literal(Literal::visit(pair.into_inner().next()?)?)),
             Rule::func_call => {
                 let mut pairs = pair.into_inner();
 
@@ -126,15 +127,15 @@ impl Expr {
                     args.push(Self::visit(pair)?);
                 }
 
-                Ok(Expr::FuncCall {
+                Ok(Self::FuncCall {
                     name: name.into(),
                     args,
                 })
             }
-            Rule::ident => Ok(Expr::Ident(pair.as_str().into())),
-            Rule::paren_expr => Expr::visit(pair.into_inner().next()?),
+            Rule::ident => Ok(Self::Var(pair.as_str().into())),
+            Rule::paren_expr => Self::visit(pair.into_inner().next()?),
 
-            rule => Err(UnreachableRule(rule)),
+            rule => Err(rule.into()),
         }
     }
 }
@@ -157,7 +158,7 @@ impl Visit for Literal {
             Rule::char_literal => Ok(Self::Char(pair.into_inner().next()?.as_str().parse()?)),
             Rule::str_literal => Ok(Self::Str(pair.into_inner().next()?.as_str().into())),
 
-            rule => Err(UnreachableRule(rule)),
+            rule => Err(rule.into()),
         }
     }
 }

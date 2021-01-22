@@ -1,4 +1,5 @@
 #![feature(try_trait)]
+#![feature(backtrace)]
 #![allow(unused)]
 
 mod define;
@@ -9,12 +10,12 @@ mod statement;
 mod util;
 mod visit;
 
-use crate::error::MyResult;
+use crate::error::{MyError, MyResult};
+use crate::gen::gen_program;
+use crate::visit::visit_program;
 use anyhow::*;
-use gen::gen_program;
 use pest::Parser;
 use pest_derive::Parser;
-use visit::visit_program;
 
 #[derive(Parser)]
 #[grammar = "grammar.pest"]
@@ -36,6 +37,10 @@ fn parse(input: &str) -> Pair {
 
 const PROGRAM: &str = include_str!("../test/expr.jo");
 fn main() -> MyResult<()> {
+    // let error = MyError::from("bruh".parse::<i32>().unwrap_err());
+    // println!("{}", error);
+    // return Ok(());
+
     let pair = parse(PROGRAM);
     println!("{:?}", pair);
     let program = visit_program(pair)?;

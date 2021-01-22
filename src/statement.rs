@@ -1,9 +1,11 @@
 use crate::define::VarDefine;
+use crate::error::MyError::UnreachableRule;
 use crate::error::MyResult;
 use crate::expr::Expr;
 use crate::util::pair_inner_checked;
 use crate::visit::Visit;
 use crate::{Pair, Pairs, Rule};
+use std::backtrace::Backtrace;
 
 pub type Block = Vec<Statement>;
 
@@ -52,7 +54,20 @@ pub enum Statement {
 
 impl Visit for Statement {
     fn visit(pair: Pair) -> MyResult<Self> {
-        let pairs = pair_inner_checked(pair, Rule::statement)?;
-        todo!()
+        let pair = pair_inner_checked(pair, Rule::statement)?.next()?;
+
+        match pair.as_rule() {
+            Rule::ret => todo!(),
+            Rule::brk => todo!(),
+            Rule::cont => todo!(),
+            Rule::iff => todo!(),
+            Rule::until => todo!(),
+            Rule::forr => todo!(),
+            Rule::func_call => todo!(),
+            Rule::var_assign => todo!(),
+            Rule::var_define => Ok(Self::VarDefine(VarDefine::visit(pair)?)),
+
+            rule => Err(rule.into()),
+        }
     }
 }

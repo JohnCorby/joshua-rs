@@ -5,6 +5,7 @@ use crate::statement::{visit_block, Block};
 use crate::util::pair_inner_checked;
 use crate::visit::Visit;
 use crate::{Pair, Rule};
+use std::backtrace::Backtrace;
 
 pub type Program = Vec<Define>;
 
@@ -49,7 +50,7 @@ impl Visit for Define {
             }
             Rule::var_define => todo!(),
 
-            rule => Err(UnreachableRule(rule)),
+            rule => Err(rule.into()),
         }
     }
 }
@@ -63,7 +64,19 @@ pub struct VarDefine {
 
 impl Visit for VarDefine {
     fn visit(pair: Pair) -> MyResult<Self> {
-        let pairs = pair_inner_checked(pair, Rule::var_define)?;
-        todo!()
+        let mut pairs = pair_inner_checked(pair, Rule::var_define)?;
+
+        let ty = pairs.next()?.as_str();
+        let name = pairs.next()?.as_str();
+        let value = match pairs.next() {
+            Some(pair) => Some(Expr::visit(pair)?),
+            None => None,
+        };
+
+        Ok(Self {
+            ty: ty.into(),
+            name: name.into(),
+            value,
+        })
     }
 }

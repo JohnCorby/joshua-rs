@@ -1,6 +1,7 @@
 use crate::error::MyError::UnexpectedRule;
 use crate::error::MyResult;
 use crate::{Pair, Pairs};
+use std::backtrace::Backtrace;
 
 pub fn debug_pairs(pairs: &Pairs) -> String {
     format!(
@@ -25,6 +26,7 @@ pub fn pair_inner_checked(pair: Pair, rule: crate::Rule) -> MyResult<Pairs> {
         other => Err(UnexpectedRule {
             expected: rule,
             actual: other,
+            backtrace: Backtrace::capture(),
         }),
     }
 }
