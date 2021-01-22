@@ -7,10 +7,6 @@ use crate::{Pair, Rule};
 
 pub type Block = Vec<Statement>;
 
-pub fn visit_block(pair: Pair) -> MyResult<Block> {
-    pair.into_inner().visit_rest()
-}
-
 #[derive(Debug, Clone)]
 pub enum Statement {
     Return {
@@ -57,8 +53,8 @@ impl Visit for Statement {
 
                 Self::If {
                     cond: pairs.next()?.visit()?,
-                    then: visit_block(pairs.next()?)?,
-                    otherwise: visit_block(pairs.next()?)?,
+                    then: Self::visit_block(pairs.next()?)?,
+                    otherwise: Self::visit_block(pairs.next()?)?,
                 }
             }
             Rule::until => {
@@ -66,7 +62,7 @@ impl Visit for Statement {
 
                 Self::Until {
                     cond: pairs.next()?.visit()?,
-                    block: visit_block(pairs.next()?)?,
+                    block: Self::visit_block(pairs.next()?)?,
                 }
             }
             Rule::forr => {
@@ -76,7 +72,7 @@ impl Visit for Statement {
                     init: pairs.next()?.visit()?,
                     cond: pairs.next()?.visit()?,
                     update: pairs.next()?.visit::<Statement>()?.into(),
-                    block: visit_block(pairs.next()?)?,
+                    block: Self::visit_block(pairs.next()?)?,
                 }
             }
             Rule::func_call => {
@@ -99,5 +95,11 @@ impl Visit for Statement {
 
             rule => unexpected_rule(rule)?,
         })
+    }
+}
+
+impl Statement {
+    pub fn visit_block(pair: Pair) -> MyResult<Block> {
+        pair.into_inner().visit_rest()
     }
 }

@@ -1,6 +1,6 @@
 use crate::error::{unexpected_rule, MyResult};
 use crate::expr::Expr;
-use crate::statement::{visit_block, Block};
+use crate::statement::{Block, Statement};
 use crate::util::{PairExt, PairsExt};
 use crate::visit::Visit;
 use crate::{Pair, Rule};
@@ -40,7 +40,7 @@ impl Visit for Define {
                 while pairs.peek().is_some() && pairs.peek()?.as_rule() == Rule::var_define {
                     args.push(pairs.next()?.visit()?)
                 }
-                let body = visit_block(pairs.next()?)?;
+                let body = Statement::visit_block(pairs.next()?)?;
 
                 Self::Func {
                     ty,
