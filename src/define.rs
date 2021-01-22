@@ -1,9 +1,11 @@
 use crate::error::{unexpected_rule, MyResult};
 use crate::expr::Expr;
 use crate::statement::{Block, Statement};
+use crate::ty::Type;
 use crate::util::{PairExt, PairsExt};
 use crate::visit::Visit;
 use crate::{Pair, Rule};
+use std::convert::TryInto;
 
 #[derive(Debug, Clone)]
 pub enum Define {
@@ -12,7 +14,7 @@ pub enum Define {
         body: Vec<Define>,
     },
     Func {
-        ty: String,
+        ty: Type,
         name: String,
         args: Vec<VarDefine>,
         body: Block,
@@ -34,7 +36,7 @@ impl Visit for Define {
             Rule::func_define => {
                 let mut pairs = pair.into_inner();
 
-                let ty = pairs.next()?.as_str().into();
+                let ty = pairs.next()?.as_str().try_into()?;
                 let name = pairs.next()?.as_str().into();
                 let mut args = vec![];
                 while pairs.peek().is_some() && pairs.peek()?.as_rule() == Rule::var_define {
@@ -58,7 +60,7 @@ impl Visit for Define {
 
 #[derive(Debug, Clone)]
 pub struct VarDefine {
-    ty: String,
+    ty: Type,
     name: String,
     value: Option<Expr>,
 }
@@ -68,7 +70,7 @@ impl Visit for VarDefine {
         let mut pairs = pair.into_inner_checked(Rule::var_define)?;
 
         Ok(Self {
-            ty: pairs.next()?.as_str().into(),
+            ty: pairs.next()?.as_str().try_into()?,
             name: pairs.next()?.as_str().into(),
             value: pairs.next().map(Pair::visit).transpose()?,
         })

@@ -9,5 +9,5 @@ edition = "2018"
 [dependencies]
 pest = { version = "*", features = ["pretty-print"] }
 pest_derive = "*"
-anyhow = "*"
 thiserror = "*"
+lazy_static = "*"

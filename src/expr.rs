@@ -1,24 +1,26 @@
 //! handle the painful process that is parsing expressions
 
 use crate::error::{unexpected_rule, MyResult};
+use crate::ty::Type;
 use crate::util::{PairExt, PairsExt};
 use crate::visit::Visit;
 use crate::{Pair, Rule};
+use std::convert::TryInto;
 
 #[derive(Debug, Clone)]
 pub enum Expr {
     Binary {
         left: Box<Expr>,
-        right: Box<Expr>,
         op: String,
+        right: Box<Expr>,
     },
     Unary {
-        thing: Box<Expr>,
         op: String,
+        thing: Box<Expr>,
     },
     Cast {
         thing: Box<Expr>,
-        ty: String,
+        ty: Type,
     },
 
     // primary
@@ -43,7 +45,7 @@ impl Visit for Expr {
                     let op = pair.as_str();
                     let right = pairs.next()?.visit()?;
 
-                    left = Self::visit_binary(left, right, op)?;
+                    left = Self::visit_binary(left, op, right)?;
                 }
 
                 left
@@ -56,7 +58,7 @@ impl Visit for Expr {
                 for pair in rev_pairs {
                     let op = pair.as_str();
 
-                    thing = Self::visit_unary(thing, op)?;
+                    thing = Self::visit_unary(op, thing)?;
                 }
 
                 thing
@@ -96,33 +98,30 @@ impl Visit for Expr {
     }
 }
 
-#[allow(clippy::unnecessary_wraps)]
 impl Expr {
-    fn visit_binary(left: Self, right: Self, op: &str) -> MyResult<Self> {
+    fn visit_binary(left: Self, op: impl AsRef<str>, right: Self) -> MyResult<Self> {
         // todo op check
 
         Ok(Self::Binary {
             left: left.into(),
             right: right.into(),
-            op: op.into(),
+            op: op.as_ref().into(),
         })
     }
 
-    fn visit_unary(thing: Self, op: &str) -> MyResult<Self> {
+    fn visit_unary(op: impl AsRef<str>, thing: Self) -> MyResult<Self> {
         // todo op check
 
         Ok(Self::Unary {
             thing: thing.into(),
-            op: op.into(),
+            op: op.as_ref().into(),
         })
     }
 
-    fn visit_cast(thing: Self, ty: &str) -> MyResult<Self> {
-        // todo type check
-
+    fn visit_cast(thing: Self, ty: impl AsRef<str>) -> MyResult<Self> {
         Ok(Self::Cast {
             thing: thing.into(),
-            ty: ty.into(),
+            ty: ty.as_ref().try_into()?,
         })
     }
 }

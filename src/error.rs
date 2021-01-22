@@ -5,6 +5,7 @@ use std::fmt::{Debug, Formatter};
 use std::num::{ParseFloatError, ParseIntError};
 use std::option::NoneError;
 use std::str::ParseBoolError;
+use std::sync::TryLockError;
 use thiserror::Error;
 
 pub type MyResult<T> = Result<T, MyError>;
@@ -59,5 +60,11 @@ impl From<NoneError> for MyError {
 impl From<String> for MyError {
     fn from(string: String) -> Self {
         Self::Other(string, Backtrace::capture())
+    }
+}
+
+impl<T> From<TryLockError<T>> for MyError {
+    fn from(e: TryLockError<T>) -> Self {
+        e.to_string().into()
     }
 }
