@@ -1,4 +1,4 @@
-use crate::error::{rule_unreachable, MyResult};
+use crate::error::{unexpected_rule, MyResult};
 use crate::expr::Expr;
 use crate::statement::{visit_block, Block};
 use crate::util::{PairExt, PairsExt};
@@ -22,8 +22,6 @@ pub enum Define {
 
 impl Visit for Define {
     fn visit(pair: Pair) -> MyResult<Self> {
-        let pair = pair.into_inner_checked(Rule::define)?.next()?;
-
         Ok(match pair.as_rule() {
             Rule::struct_define => {
                 let mut pairs = pair.into_inner();
@@ -53,7 +51,7 @@ impl Visit for Define {
             }
             Rule::var_define => Self::Var(pair.visit()?),
 
-            rule => rule_unreachable(rule)?,
+            rule => unexpected_rule(rule)?,
         })
     }
 }

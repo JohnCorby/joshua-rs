@@ -14,11 +14,11 @@ pub enum MyError {
     #[error("option returned none\n{0}")]
     NoneError(Backtrace),
 
-    #[error("rule {0:?} unreachable\n{1}")]
-    UnreachableRule(Rule, Backtrace),
+    #[error("unexpected rule {0:?}\n{1}")]
+    UnexpectedRule(Rule, Backtrace),
 
     #[error("expected rule {expected:?}, but got {actual:?}\n{backtrace}")]
-    UnexpectedRule {
+    WrongRule {
         expected: Rule,
         actual: Rule,
         backtrace: Backtrace,
@@ -46,8 +46,8 @@ impl Debug for MyError {
     }
 }
 
-pub fn rule_unreachable<T>(rule: Rule) -> MyResult<T> {
-    Err(MyError::UnreachableRule(rule, Backtrace::capture()))
+pub fn unexpected_rule<T>(rule: Rule) -> MyResult<T> {
+    Err(MyError::UnexpectedRule(rule, Backtrace::capture()))
 }
 
 impl From<NoneError> for MyError {

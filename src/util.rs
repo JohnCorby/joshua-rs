@@ -1,4 +1,4 @@
-use crate::error::MyError::UnexpectedRule;
+use crate::error::MyError::WrongRule;
 use crate::error::MyResult;
 use crate::visit::Visit;
 use crate::{Pair, Pairs, Rule};
@@ -37,7 +37,7 @@ impl<'a> PairExt<'a> for Pair<'a> {
         if expected == actual {
             Ok(self.into_inner())
         } else {
-            Err(UnexpectedRule {
+            Err(WrongRule {
                 expected,
                 actual,
                 backtrace: Backtrace::capture(),

@@ -1,5 +1,5 @@
 use crate::define::VarDefine;
-use crate::error::{rule_unreachable, MyResult};
+use crate::error::{unexpected_rule, MyResult};
 use crate::expr::Expr;
 use crate::util::{PairExt, PairsExt};
 use crate::visit::Visit;
@@ -8,7 +8,7 @@ use crate::{Pair, Rule};
 pub type Block = Vec<Statement>;
 
 pub fn visit_block(pair: Pair) -> MyResult<Block> {
-    pair.into_inner_checked(Rule::block)?.visit_rest()
+    pair.into_inner().visit_rest()
 }
 
 #[derive(Debug, Clone)]
@@ -46,8 +46,6 @@ pub enum Statement {
 
 impl Visit for Statement {
     fn visit(pair: Pair) -> MyResult<Self> {
-        let pair = pair.into_inner_checked(Rule::statement)?.next()?;
-
         Ok(match pair.as_rule() {
             Rule::ret => Self::Return {
                 value: pair.into_inner().next().map(Pair::visit).transpose()?,
@@ -99,7 +97,7 @@ impl Visit for Statement {
             }
             Rule::var_define => Self::VarDefine(pair.visit()?),
 
-            rule => rule_unreachable(rule)?,
+            rule => unexpected_rule(rule)?,
         })
     }
 }

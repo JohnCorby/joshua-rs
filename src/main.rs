@@ -22,9 +22,9 @@ pub type Pairs<'a> = pest::iterators::Pairs<'a, Rule>;
 
 const PROGRAM: &str = include_str!("../test/test.jo");
 fn main() -> MyResult<()> {
-    let pair = parse_program(PROGRAM)?;
-    println!("{:?}", pair);
-    let program = visit_program(pair)?;
+    let pairs = parse_program(PROGRAM)?;
+    println!("{:?}", pairs);
+    let program = visit_program(pairs)?;
     println!("{:?}", program);
     let c_code = gen_program(program);
     println!("{:#?}", c_code);

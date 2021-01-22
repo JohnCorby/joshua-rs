@@ -1,6 +1,6 @@
 //! handle the painful process that is parsing expressions
 
-use crate::error::{rule_unreachable, MyResult};
+use crate::error::{unexpected_rule, MyResult};
 use crate::util::{PairExt, PairsExt};
 use crate::visit::Visit;
 use crate::{Pair, Rule};
@@ -75,9 +75,23 @@ impl Visit for Expr {
                 thing
             }
 
-            Rule::primary_expr => Self::visit_primary(pair.into_inner().next()?)?,
+            // primary
+            Rule::float_literal
+            | Rule::int_literal
+            | Rule::bool_literal
+            | Rule::char_literal
+            | Rule::str_literal => Self::Literal(pair.visit()?),
+            Rule::func_call => {
+                let mut pairs = pair.into_inner();
 
-            rule => rule_unreachable(rule)?,
+                Self::FuncCall {
+                    name: pairs.next()?.as_str().into(),
+                    args: pairs.visit_rest()?,
+                }
+            }
+            Rule::ident => Self::Var(pair.as_str().into()),
+
+            rule => unexpected_rule(rule)?,
         })
     }
 }
@@ -111,25 +125,6 @@ impl Expr {
             ty: ty.into(),
         })
     }
-
-    fn visit_primary(pair: Pair) -> MyResult<Self> {
-        // fixme might refactor this back into parse_Self or something
-        Ok(match pair.as_rule() {
-            Rule::literal => Self::Literal(pair.into_inner().next()?.visit()?),
-            Rule::func_call => {
-                let mut pairs = pair.into_inner();
-
-                Self::FuncCall {
-                    name: pairs.next()?.as_str().into(),
-                    args: pairs.visit_rest()?,
-                }
-            }
-            Rule::ident => Self::Var(pair.as_str().into()),
-            Rule::paren_expr => pair.into_inner().next()?.visit()?,
-
-            rule => rule_unreachable(rule)?,
-        })
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -150,7 +145,7 @@ impl Visit for Literal {
             Rule::char_literal => Self::Char(pair.into_inner().next()?.as_str().parse()?),
             Rule::str_literal => Self::Str(pair.into_inner().next()?.as_str().into()),
 
-            rule => rule_unreachable(rule)?,
+            rule => unexpected_rule(rule)?,
         })
     }
 }

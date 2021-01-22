@@ -1,12 +1,12 @@
-program = { SOI ~ define* ~ EOI }
+program = _{ SOI ~ define* ~ EOI }
 
-define = {
+define = _{
     struct_define
     | func_define
     | var_define
 }
 
-statement = {
+statement = _{
     ret
     | brk
     | cont
@@ -58,20 +58,20 @@ mul_op = { "*" | "/" | "%" }
 cast_expr = { unary_expr ~ ("as" ~ ident)* }
 unary_expr = { unary_op* ~ primary_expr}
 unary_op = { "-" | "!" }
-primary_expr = {
+primary_expr = _{
     literal
     | func_call
     | ident
     | paren_expr
 }
-literal = {
+literal = _{
     float_literal
     | int_literal
     | bool_literal
     | char_literal
     | str_literal
 }
-paren_expr = { "(" ~ expr ~ ")" }
+paren_expr = _{ "(" ~ expr ~ ")" }
 
 
 
