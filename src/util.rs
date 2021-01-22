@@ -20,13 +20,15 @@ pub fn debug_pairs(pairs: &Pairs) -> String {
 }
 
 /// check that a pair matches a rule, and then return its inner pairs
-pub fn pair_inner_checked(pair: Pair, rule: crate::Rule) -> MyResult<Pairs> {
-    match pair.as_rule() {
-        rule => Ok(pair.into_inner()),
-        other => Err(UnexpectedRule {
-            expected: rule,
-            actual: other,
+pub fn pair_inner_checked(pair: Pair, expected: crate::Rule) -> MyResult<Pairs> {
+    let actual = pair.as_rule();
+    if expected == actual {
+        Ok(pair.into_inner())
+    } else {
+        Err(UnexpectedRule {
+            expected,
+            actual,
             backtrace: Backtrace::capture(),
-        }),
+        })
     }
 }

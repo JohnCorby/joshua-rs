@@ -1,10 +1,8 @@
 //! handle the painful process that is parsing expressions
 
-use crate::error::MyError::UnreachableRule;
 use crate::error::MyResult;
 use crate::visit::Visit;
 use crate::{Pair, Rule};
-use std::backtrace::Backtrace;
 
 #[derive(Debug, Clone)]
 pub enum Expr {

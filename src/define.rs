@@ -1,11 +1,9 @@
-use crate::error::MyError::UnreachableRule;
 use crate::error::MyResult;
 use crate::expr::Expr;
 use crate::statement::{visit_block, Block};
 use crate::util::pair_inner_checked;
 use crate::visit::Visit;
 use crate::{Pair, Rule};
-use std::backtrace::Backtrace;
 
 pub type Program = Vec<Define>;
 

@@ -36,7 +36,7 @@ pub enum MyError {
     #[error("{0}\n{1}")]
     PestError(#[from] pest::error::Error<Rule>, Backtrace),
 
-    #[error("error: {0}\n{1}")]
+    #[error("{0}\n{1}")]
     Other(String, Backtrace),
 }
 

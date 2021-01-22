@@ -16,6 +16,9 @@ pub fn visit_program(pair: Pair) -> MyResult<Program> {
 
     let mut program = Program::new();
     for pair in pairs {
+        if pair.as_rule() == Rule::EOI {
+            break;
+        }
         program.push(Define::visit(pair)?);
     }
     Ok(program)

@@ -1,6 +1,6 @@
 #![feature(try_trait)]
 #![feature(backtrace)]
-#![allow(unused)]
+// #![allow(unused)]
 
 mod define;
 mod error;
@@ -10,7 +10,7 @@ mod statement;
 mod util;
 mod visit;
 
-use crate::error::{MyError, MyResult};
+use crate::error::MyResult;
 use crate::gen::gen_program;
 use crate::visit::visit_program;
 use anyhow::*;
@@ -37,10 +37,6 @@ fn parse(input: &str) -> Pair {
 
 const PROGRAM: &str = include_str!("../test/expr.jo");
 fn main() -> MyResult<()> {
-    // let error = MyError::from("bruh".parse::<i32>().unwrap_err());
-    // println!("{}", error);
-    // return Ok(());
-
     let pair = parse(PROGRAM);
     println!("{:?}", pair);
     let program = visit_program(pair)?;
