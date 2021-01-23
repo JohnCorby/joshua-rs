@@ -5,21 +5,21 @@ use crate::parse::{Pair, Rule};
 use crate::ty::Type;
 use crate::util::{PairExt, PairsExt};
 use crate::visit::Visit;
-use std::convert::TryInto;
+use std::rc::Rc;
 
 #[derive(Debug, Clone)]
 pub enum Expr {
     Binary {
-        left: Box<Expr>,
+        left: Rc<Expr>,
         op: String,
-        right: Box<Expr>,
+        right: Rc<Expr>,
     },
     Unary {
         op: String,
-        thing: Box<Expr>,
+        thing: Rc<Expr>,
     },
     Cast {
-        thing: Box<Expr>,
+        thing: Rc<Expr>,
         ty: Type,
     },
 

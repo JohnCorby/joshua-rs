@@ -5,7 +5,6 @@ use crate::statement::{Block, Statement};
 use crate::ty::Type;
 use crate::util::{PairExt, PairsExt};
 use crate::visit::Visit;
-use std::convert::TryInto;
 
 #[derive(Debug, Clone)]
 pub enum Define {

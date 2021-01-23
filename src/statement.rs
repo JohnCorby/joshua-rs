@@ -4,6 +4,7 @@ use crate::expr::Expr;
 use crate::parse::{Pair, Rule};
 use crate::util::{PairExt, PairsExt};
 use crate::visit::Visit;
+use std::rc::Rc;
 
 pub type Block = Vec<Statement>;
 
@@ -26,7 +27,7 @@ pub enum Statement {
     For {
         init: VarDefine,
         cond: Expr,
-        update: Box<Statement>,
+        update: Rc<Statement>,
         block: Block,
     },
     FuncCall {

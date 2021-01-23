@@ -1,6 +1,5 @@
 use crate::error::{MyError, MyResult};
 use lazy_static::lazy_static;
-use std::convert::TryFrom;
 use std::str::FromStr;
 use std::sync::Mutex;
 
