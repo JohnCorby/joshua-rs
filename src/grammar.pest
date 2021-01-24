@@ -23,11 +23,11 @@ statement = _{
 
 block = { statement | "{" ~ statement* ~ "}" }
 
-func_define = { ident ~ ident ~ "(" ~ (var_define ~ ("," ~ var_define)*)? ~ ")" ~ block }
+func_define = { ty ~ ident ~ "(" ~ (var_define ~ ("," ~ var_define)*)? ~ ")" ~ block }
 func_call = { ident ~ "(" ~ (expr ~ ("," ~ expr)*)? ~ ")" }
 
 
-var_define = { ident ~ ident ~ ("=" ~ expr)? }
+var_define = { ty ~ ident ~ ("=" ~ expr)? }
 var_assign = { ident ~ "=" ~ expr }
 
 
@@ -45,6 +45,9 @@ cont = { "continue" }
 
 
 
+ty = { ident }
+
+
 
 expr = { equality_expr }
 equality_expr = { compare_expr ~ (equality_op ~ compare_expr)* }
@@ -55,7 +58,7 @@ add_expr = { mul_expr ~ (add_op ~ mul_expr)* }
 add_op = { "+" | "-" }
 mul_expr = { cast_expr ~ (mul_op ~ cast_expr)* }
 mul_op = { "*" | "/" | "%" }
-cast_expr = { unary_expr ~ ("as" ~ ident)* }
+cast_expr = { unary_expr ~ ("as" ~ ty)* }
 unary_expr = { unary_op* ~ primary_expr}
 unary_op = { "-" | "!" }
 primary_expr = _{
