@@ -8,9 +8,6 @@ pub trait Gen {
 
 impl Gen for Program {
     fn gen(self) -> MyResult<String> {
-        Ok(r#"void main() {
-    puts("hello, world!");
-}"#
-        .into())
+        Ok(r#"int main(){puts("hello, world!";}"#.into())
     }
 }

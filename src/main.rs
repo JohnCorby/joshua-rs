@@ -1,6 +1,7 @@
 #![feature(try_trait)]
 #![feature(backtrace)]
 
+mod compile;
 mod define;
 mod error;
 mod expr;
@@ -11,6 +12,7 @@ mod ty;
 mod util;
 mod visit;
 
+use crate::compile::compile_program;
 use crate::error::MyResult;
 use crate::gen::Gen;
 use crate::parse::parse_program;
@@ -32,6 +34,7 @@ fn main() -> MyResult<()> {
     println!("{:#?}", program);
     let c_code = program.gen()?;
     println!("{}", c_code);
+    compile_program(c_code)?;
 
     Ok(())
 }

@@ -109,3 +109,9 @@ impl From<pest::error::Error<Rule>> for MyError {
         e.to_string().into()
     }
 }
+
+impl From<std::io::Error> for MyError {
+    fn from(e: std::io::Error) -> Self {
+        e.to_string().into()
+    }
+}
