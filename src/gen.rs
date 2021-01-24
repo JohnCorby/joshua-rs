@@ -3,13 +3,14 @@ use crate::visit::Program;
 
 /// turn self into valid C code
 pub trait Gen {
-    fn gen(self) -> String;
+    fn gen(self) -> MyResult<String>;
 }
 
-/// gen the entire program
-pub fn gen_program(_program: Program) -> MyResult<String> {
-    Ok(r#"void main() {
+impl Gen for Program {
+    fn gen(self) -> MyResult<String> {
+        Ok(r#"void main() {
     puts("hello, world!");
 }"#
-    .into())
+        .into())
+    }
 }

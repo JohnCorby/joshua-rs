@@ -12,20 +12,25 @@ mod util;
 mod visit;
 
 use crate::error::MyResult;
-use crate::gen::gen_program;
+use crate::gen::Gen;
 use crate::parse::parse_program;
 use crate::ty::Type;
-use crate::visit::visit_program;
+use crate::util::PairExt;
+use crate::visit::Program;
+
+/// make every ref counted
+/// less rewriting if i wanna change it
+pub type Ref<T> = std::rc::Rc<T>;
 
 const PROGRAM: &str = include_str!("../test/test.jo");
 fn main() -> MyResult<()> {
     Type::init()?;
 
-    let pairs = parse_program(PROGRAM)?;
-    println!("{}", pairs);
-    let program = visit_program(pairs)?;
+    let pair = parse_program(PROGRAM)?;
+    println!("{}", pair);
+    let program = pair.visit::<Program>()?;
     println!("{:#?}", program);
-    let c_code = gen_program(program)?;
+    let c_code = program.gen()?;
     println!("{}", c_code);
 
     Ok(())

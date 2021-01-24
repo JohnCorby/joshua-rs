@@ -1,4 +1,4 @@
-program = _{ SOI ~ define* ~ EOI }
+program = { SOI ~ define* ~ EOI }
 
 define = _{
     struct_define

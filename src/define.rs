@@ -1,7 +1,7 @@
 use crate::error::{unexpected_rule, MyResult};
 use crate::expr::Expr;
 use crate::parse::{Pair, Rule};
-use crate::statement::{Block, Statement};
+use crate::statement::Block;
 use crate::ty::Type;
 use crate::util::{PairExt, PairsExt};
 use crate::visit::Visit;
@@ -35,13 +35,14 @@ impl Visit for Define {
             Rule::func_define => {
                 let mut pairs = pair.into_inner();
 
-                let ty = pairs.next()?.as_str().parse()?;
+                let ty = pairs.next()?.visit()?;
                 let name = pairs.next()?.as_str().into();
                 let mut args = vec![];
-                while pairs.peek().is_some() && pairs.peek()?.as_rule() == Rule::var_define {
-                    args.push(pairs.next()?.visit()?)
+                while pairs.peek().is_some() && pairs.peek().unwrap().as_rule() == Rule::var_define
+                {
+                    args.push(pairs.next().unwrap().visit()?)
                 }
-                let body = Statement::visit_block(pairs.next()?)?;
+                let body = pairs.next()?.visit()?;
 
                 Self::Func {
                     ty,
@@ -69,7 +70,7 @@ impl Visit for VarDefine {
         let mut pairs = pair.into_inner_checked(Rule::var_define)?;
 
         Ok(Self {
-            ty: pairs.next()?.as_str().parse()?,
+            ty: pairs.next()?.visit()?,
             name: pairs.next()?.as_str().into(),
             value: pairs.next().map(Pair::visit).transpose()?,
         })

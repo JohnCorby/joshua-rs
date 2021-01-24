@@ -4,9 +4,7 @@ use crate::expr::Expr;
 use crate::parse::{Pair, Rule};
 use crate::util::{PairExt, PairsExt};
 use crate::visit::Visit;
-use std::rc::Rc;
-
-pub type Block = Vec<Statement>;
+use crate::Ref;
 
 #[derive(Debug, Clone)]
 pub enum Statement {
@@ -27,7 +25,7 @@ pub enum Statement {
     For {
         init: VarDefine,
         cond: Expr,
-        update: Rc<Statement>,
+        update: Ref<Statement>,
         block: Block,
     },
     FuncCall {
@@ -54,8 +52,8 @@ impl Visit for Statement {
 
                 Self::If {
                     cond: pairs.next()?.visit()?,
-                    then: Self::visit_block(pairs.next()?)?,
-                    otherwise: Self::visit_block(pairs.next()?)?,
+                    then: pairs.next()?.visit()?,
+                    otherwise: pairs.next()?.visit()?,
                 }
             }
             Rule::until => {
@@ -63,7 +61,7 @@ impl Visit for Statement {
 
                 Self::Until {
                     cond: pairs.next()?.visit()?,
-                    block: Self::visit_block(pairs.next()?)?,
+                    block: pairs.next()?.visit()?,
                 }
             }
             Rule::forr => {
@@ -73,7 +71,7 @@ impl Visit for Statement {
                     init: pairs.next()?.visit()?,
                     cond: pairs.next()?.visit()?,
                     update: pairs.next()?.visit::<Statement>()?.into(),
-                    block: Self::visit_block(pairs.next()?)?,
+                    block: pairs.next()?.visit()?,
                 }
             }
             Rule::func_call => {
@@ -99,8 +97,10 @@ impl Visit for Statement {
     }
 }
 
-impl Statement {
-    pub fn visit_block(pair: Pair) -> MyResult<Block> {
-        pair.into_inner().visit_rest()
+pub type Block = Vec<Statement>;
+
+impl Visit for Block {
+    fn visit(pair: Pair) -> MyResult<Self> {
+        pair.into_inner_checked(Rule::block)?.visit_rest()
     }
 }

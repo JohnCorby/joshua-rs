@@ -1,6 +1,6 @@
 use crate::define::Define;
 use crate::error::MyResult;
-use crate::parse::{Pair, Pairs, Rule};
+use crate::parse::{Pair, Rule};
 use crate::util::PairExt;
 
 /// take a parser pair an turn it into ourselves
@@ -10,15 +10,16 @@ pub trait Visit: Sized {
 
 pub type Program = Vec<Define>;
 
-/// visit the entire program
-pub fn visit_program(pairs: Pairs) -> MyResult<Program> {
-    pairs
-        .filter_map(|pair| {
-            // last rule is EOI. dont visit it
-            if pair.as_rule() == Rule::EOI {
-                return None;
-            }
-            Some(pair.visit())
-        })
-        .collect()
+impl Visit for Program {
+    fn visit(pair: Pair) -> MyResult<Self> {
+        pair.into_inner_checked(Rule::program)?
+            .filter_map(|pair| {
+                // last rule is EOI. dont visit it
+                if pair.as_rule() == Rule::EOI {
+                    return None;
+                }
+                Some(pair.visit())
+            })
+            .collect()
+    }
 }

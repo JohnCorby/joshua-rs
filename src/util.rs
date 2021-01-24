@@ -34,7 +34,8 @@ impl<'a> PairExt<'a> for Pair<'a> {
     }
 
     fn track(self) -> Self {
-        Pos::update(self)
+        Pos::update(&self);
+        self
     }
 
     fn into_inner_checked(self, expected: Rule) -> MyResult<Pairs<'a>> {

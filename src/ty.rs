@@ -1,6 +1,7 @@
-use crate::error::{MyError, MyResult};
+use crate::error::MyResult;
+use crate::parse::Pair;
+use crate::visit::Visit;
 use parking_lot::Mutex;
-use std::str::FromStr;
 
 static TYPES: Mutex<Vec<Type>> = Mutex::new(Vec::new());
 
@@ -51,9 +52,8 @@ impl Type {
     }
 }
 
-impl FromStr for Type {
-    type Err = MyError;
-    fn from_str(s: &str) -> MyResult<Self> {
-        Self::resolve(s)
+impl Visit for Type {
+    fn visit(pair: Pair) -> MyResult<Self> {
+        Self::resolve(pair.as_str())
     }
 }

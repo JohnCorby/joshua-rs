@@ -5,21 +5,21 @@ use crate::parse::{Pair, Rule};
 use crate::ty::Type;
 use crate::util::{PairExt, PairsExt};
 use crate::visit::Visit;
-use std::rc::Rc;
+use crate::Ref;
 
 #[derive(Debug, Clone)]
 pub enum Expr {
     Binary {
-        left: Rc<Expr>,
+        left: Ref<Expr>,
         op: String,
-        right: Rc<Expr>,
+        right: Ref<Expr>,
     },
     Unary {
         op: String,
-        thing: Rc<Expr>,
+        thing: Ref<Expr>,
     },
     Cast {
-        thing: Rc<Expr>,
+        thing: Ref<Expr>,
         ty: Type,
     },
 
@@ -40,12 +40,13 @@ impl Visit for Expr {
                 // left assoc
                 let mut pairs = pair.into_inner();
 
-                let mut left = pairs.next()?.visit()?;
-                while let Some(pair) = pairs.next() {
-                    let op = pair.as_str();
-                    let right = pairs.next()?.visit()?;
-
-                    left = Self::visit_binary(left, op, right)?;
+                let mut left: Expr = pairs.next()?.visit()?;
+                while let Some(op) = pairs.next() {
+                    left = Self::Binary {
+                        left: left.into(),
+                        op: op.as_str().into(),
+                        right: pairs.next()?.visit::<Expr>()?.into(),
+                    };
                 }
 
                 left
@@ -54,11 +55,12 @@ impl Visit for Expr {
                 // right assoc
                 let mut rev_pairs = pair.into_inner().rev();
 
-                let mut thing = rev_pairs.next()?.visit()?;
-                for pair in rev_pairs {
-                    let op = pair.as_str();
-
-                    thing = Self::visit_unary(op, thing)?;
+                let mut thing: Expr = rev_pairs.next()?.visit()?;
+                for op in rev_pairs {
+                    thing = Self::Unary {
+                        op: op.as_str().into(),
+                        thing: thing.into(),
+                    };
                 }
 
                 thing
@@ -67,11 +69,12 @@ impl Visit for Expr {
                 // left assoc
                 let mut pairs = pair.into_inner();
 
-                let mut thing = pairs.next()?.visit()?;
-                for pair in pairs {
-                    let ty = pair.as_str();
-
-                    thing = Self::visit_cast(thing, ty)?;
+                let mut thing: Expr = pairs.next()?.visit()?;
+                for ty in pairs {
+                    thing = Self::Cast {
+                        thing: thing.into(),
+                        ty: ty.visit()?,
+                    };
                 }
 
                 thing
@@ -94,35 +97,6 @@ impl Visit for Expr {
             Rule::ident => Self::Var(pair.as_str().into()),
 
             rule => unexpected_rule(rule)?,
-        })
-    }
-}
-
-#[allow(clippy::unnecessary_wraps)]
-impl Expr {
-    fn visit_binary(left: Self, op: impl AsRef<str>, right: Self) -> MyResult<Self> {
-        // todo op check
-
-        Ok(Self::Binary {
-            left: left.into(),
-            right: right.into(),
-            op: op.as_ref().into(),
-        })
-    }
-
-    fn visit_unary(op: impl AsRef<str>, thing: Self) -> MyResult<Self> {
-        // todo op check
-
-        Ok(Self::Unary {
-            thing: thing.into(),
-            op: op.as_ref().into(),
-        })
-    }
-
-    fn visit_cast(thing: Self, ty: impl AsRef<str>) -> MyResult<Self> {
-        Ok(Self::Cast {
-            thing: thing.into(),
-            ty: ty.as_ref().parse()?,
         })
     }
 }
