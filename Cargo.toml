@@ -10,4 +10,6 @@ edition = "2018"
 pest = { version = "*", features = ["pretty-print"] }
 pest_derive = "*"
 thiserror = "*"
+anyhow = "*"
 lazy_static = "*"
+parking_lot = { version = "*", features = ["nightly"] }

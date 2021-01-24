@@ -1,11 +1,8 @@
 use crate::error::{MyError, MyResult};
-use lazy_static::lazy_static;
+use parking_lot::Mutex;
 use std::str::FromStr;
-use std::sync::Mutex;
 
-lazy_static! {
-    static ref TYPES: Mutex<Vec<Type>> = Mutex::new(Vec::new());
-}
+static TYPES: Mutex<Vec<Type>> = Mutex::new(Vec::new());
 
 #[derive(Debug, Clone)]
 pub struct Type(String);

@@ -1,70 +1,104 @@
-use crate::parse::Rule;
-use std::backtrace::Backtrace;
+use crate::parse::{Pair, Rule};
+use parking_lot::Mutex;
+use pest::Span;
+use std::backtrace::{Backtrace, BacktraceStatus};
 use std::char::ParseCharError;
 use std::fmt::{Debug, Formatter};
 use std::num::{ParseFloatError, ParseIntError};
 use std::option::NoneError;
 use std::str::ParseBoolError;
-use std::sync::TryLockError;
-use thiserror::Error;
 
-pub type MyResult<T> = Result<T, MyError>;
+static CURRENT_BACKTRACE: Mutex<Option<Backtrace>> = Mutex::new(None);
+static CURRENT_POS: Mutex<Option<Pos>> = Mutex::new(None);
 
-#[derive(Error)]
-pub enum MyError {
-    #[error("option returned none\n{0}")]
-    NoneError(Backtrace),
-
-    #[error("unexpected rule {0:?}\n{1}")]
-    UnexpectedRule(Rule, Backtrace),
-
-    #[error("expected rule {expected:?}, but got {actual:?}\n{backtrace}")]
-    WrongRule {
-        expected: Rule,
-        actual: Rule,
-        backtrace: Backtrace,
-    },
-
-    #[error("{0}\n{1}")]
-    ParseFloatError(#[from] ParseFloatError, Backtrace),
-    #[error("{0}\n{1}")]
-    ParseIntError(#[from] ParseIntError, Backtrace),
-    #[error("{0}\n{1}")]
-    ParseBoolError(#[from] ParseBoolError, Backtrace),
-    #[error("{0}\n{1}")]
-    ParseCharError(#[from] ParseCharError, Backtrace),
-
-    #[error("{0}\n{1}")]
-    PestError(#[from] pest::error::Error<Rule>, Backtrace),
-
-    #[error("{0}\n{1}")]
-    Other(String, Backtrace),
+pub struct Pos {
+    input: String,
+    start: usize,
+    end: usize,
 }
+impl Pos {
+    pub fn update(pair: Pair) -> Pair {
+        let (start_pos, end_pos) = pair.as_span().split();
 
-impl Debug for MyError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&self.to_string())
+        let input = start_pos.line_of().to_string();
+        let start = start_pos.line_col().1 - 1;
+        let end = end_pos.line_col().1 - 1;
+        *CURRENT_POS.lock() = Some(Pos { input, start, end });
+
+        pair
+    }
+
+    pub fn to_string(&self, err: impl AsRef<str>) -> String {
+        let span = Span::new(&self.input, self.start, self.end).unwrap();
+        let error = pest::error::Error::new_from_span(
+            pest::error::ErrorVariant::<Rule>::CustomError {
+                message: err.as_ref().into(),
+            },
+            span,
+        );
+        error.to_string()
     }
 }
 
-pub fn unexpected_rule<T>(rule: Rule) -> MyResult<T> {
-    Err(MyError::UnexpectedRule(rule, Backtrace::capture()))
-}
+pub type MyResult<T> = Result<T, MyError>;
+pub struct MyError(String);
 
-impl From<NoneError> for MyError {
-    fn from(_: NoneError) -> Self {
-        Self::NoneError(Backtrace::capture())
+impl Debug for MyError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "{}", self.0)?;
+        if let Some(pos) = &*CURRENT_POS.lock() {
+            write!(f, "{}", pos.to_string(&self.0))?;
+        }
+        if let Some(backtrace) = &*CURRENT_BACKTRACE.lock() {
+            write!(f, "{}", backtrace)?;
+        }
+        Ok(())
     }
 }
 
 impl From<String> for MyError {
     fn from(s: String) -> Self {
-        Self::Other(s, Backtrace::capture())
+        let backtrace = Backtrace::capture();
+        if backtrace.status() == BacktraceStatus::Captured {
+            *CURRENT_BACKTRACE.lock() = Some(backtrace);
+        }
+        Self(s)
     }
 }
 
-impl<T> From<TryLockError<T>> for MyError {
-    fn from(e: TryLockError<T>) -> Self {
+pub fn unexpected_rule<T>(rule: Rule) -> MyResult<T> {
+    Err(format!("unexpected rule {:?}", rule).into())
+}
+
+impl From<NoneError> for MyError {
+    fn from(_: NoneError) -> Self {
+        "option returned none".to_string().into()
+    }
+}
+
+impl From<ParseFloatError> for MyError {
+    fn from(e: ParseFloatError) -> Self {
+        e.to_string().into()
+    }
+}
+impl From<ParseIntError> for MyError {
+    fn from(e: ParseIntError) -> Self {
+        e.to_string().into()
+    }
+}
+impl From<ParseBoolError> for MyError {
+    fn from(e: ParseBoolError) -> Self {
+        e.to_string().into()
+    }
+}
+impl From<ParseCharError> for MyError {
+    fn from(e: ParseCharError) -> Self {
+        e.to_string().into()
+    }
+}
+
+impl From<pest::error::Error<Rule>> for MyError {
+    fn from(e: pest::error::Error<Rule>) -> Self {
         e.to_string().into()
     }
 }

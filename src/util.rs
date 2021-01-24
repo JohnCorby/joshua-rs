@@ -1,8 +1,6 @@
-use crate::error::MyError::WrongRule;
-use crate::error::MyResult;
+use crate::error::{MyResult, Pos};
 use crate::parse::{Pair, Pairs, Rule};
 use crate::visit::Visit;
-use std::backtrace::Backtrace;
 
 pub fn _debug_pairs(pairs: &Pairs) -> String {
     format!(
@@ -24,12 +22,19 @@ pub trait PairExt<'a> {
     /// turns visit into an extension method for pair
     fn visit<T: Visit>(self) -> MyResult<T>;
 
+    /// update pos (for errors)
+    fn track(self) -> Self;
+
     /// check that a pair matches a rule, and then return its inner pairs
     fn into_inner_checked(self, expected: Rule) -> MyResult<Pairs<'a>>;
 }
 impl<'a> PairExt<'a> for Pair<'a> {
     fn visit<T: Visit>(self) -> MyResult<T> {
-        T::visit(self)
+        T::visit(self.track())
+    }
+
+    fn track(self) -> Self {
+        Pos::update(self)
     }
 
     fn into_inner_checked(self, expected: Rule) -> MyResult<Pairs<'a>> {
@@ -37,11 +42,7 @@ impl<'a> PairExt<'a> for Pair<'a> {
         if expected == actual {
             Ok(self.into_inner())
         } else {
-            Err(WrongRule {
-                expected,
-                actual,
-                backtrace: Backtrace::capture(),
-            })
+            Err(format!("expected rule {:?}, but got {:?}", expected, actual).into())
         }
     }
 }
