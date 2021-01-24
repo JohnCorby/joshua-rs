@@ -9,40 +9,39 @@ pub struct Type(String);
 
 impl Type {
     pub fn init() -> MyResult<()> {
-        TYPES.try_lock()?.clear();
+        TYPES.lock().clear();
 
-        Self::add("byte")?;
-        Self::add("ubyte")?;
-        Self::add("short")?;
-        Self::add("ushort")?;
-        Self::add("int")?;
-        Self::add("uint")?;
-        Self::add("long")?;
-        Self::add("ulong")?;
+        Self::add("byte");
+        Self::add("ubyte");
+        Self::add("short");
+        Self::add("ushort");
+        Self::add("int");
+        Self::add("uint");
+        Self::add("long");
+        Self::add("ulong");
 
-        Self::add("float")?;
-        Self::add("double")?;
+        Self::add("float");
+        Self::add("double");
 
-        Self::add("bool")?;
-        Self::add("char")?;
-        Self::add("string")?;
-        Self::add("void")?;
+        Self::add("bool");
+        Self::add("char");
+        Self::add("string");
+        Self::add("void");
 
-        Self::add("addr")?;
+        Self::add("addr");
 
         Ok(())
     }
 
-    pub fn add(ty: impl AsRef<str>) -> MyResult<()> {
+    pub fn add(ty: impl AsRef<str>) {
         let ty = Self(ty.as_ref().into());
 
-        TYPES.try_lock()?.push(ty);
-        Ok(())
+        TYPES.lock().push(ty);
     }
 
     fn resolve(ty: impl AsRef<str>) -> MyResult<Self> {
         match TYPES
-            .try_lock()?
+            .lock()
             .iter()
             .find(|existing| existing.0 == ty.as_ref())
         {
