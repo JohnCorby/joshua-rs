@@ -3,8 +3,8 @@ use pest::Parser;
 
 // nice types that will resolve :)
 pub type Rule = inner::Rule;
-pub type Pair<'a> = pest::iterators::Pair<'a, Rule>;
-pub type Pairs<'a> = pest::iterators::Pairs<'a, Rule>;
+pub type Pair<'i> = pest::iterators::Pair<'i, Rule>;
+pub type Pairs<'i> = pest::iterators::Pairs<'i, Rule>;
 
 pub fn parse_program(input: &str) -> MyResult<Pair> {
     Ok(inner::Parser::parse(Rule::program, input)?.next()?)

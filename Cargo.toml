@@ -9,7 +9,6 @@ edition = "2018"
 [dependencies]
 pest = { version = "*", features = ["pretty-print"] }
 pest_derive = "*"
-thiserror = "*"
-anyhow = "*"
 lazy_static = "*"
 parking_lot = { version = "*", features = ["nightly"] }
+extend = "*"
