@@ -29,9 +29,9 @@ fn main() -> MyResult<()> {
     Type::init()?;
 
     let pair = parse_program(PROGRAM)?;
-    println!("{}", pair);
+    println!("{}", pair.to_pretty_string());
     let program = pair.visit::<Program>()?;
-    println!("{:#?}", program);
+    println!("{:?}", program);
     let c_code = program.gen()?;
     println!("{}", c_code);
     compile_program(c_code)?;

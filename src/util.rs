@@ -1,23 +1,8 @@
 use crate::error::{MyResult, Pos};
 use crate::parse::{Pair, Pairs, Rule};
 use crate::visit::Visit;
+use console::style;
 use extend::ext;
-
-pub fn _debug_pairs(pairs: &Pairs) -> String {
-    format!(
-        "[{}]",
-        pairs
-            .clone()
-            .map(|pair| format!(
-                "{:?}({:?}) {}",
-                pair.as_rule(),
-                pair.as_span().as_str(),
-                _debug_pairs(&pair.into_inner())
-            ))
-            .collect::<Vec<_>>()
-            .join(", ")
-    )
-}
 
 #[ext(pub, name = PairExt)]
 impl<'i> Pair<'i> {
@@ -41,6 +26,19 @@ impl<'i> Pair<'i> {
             Err(format!("expected rule {:?}, but got {:?}", expected, actual).into())
         }
     }
+
+    fn to_pretty_string(&self) -> String {
+        let rule = style(self.as_rule()).red();
+        let str = style(self.as_str()).blue();
+        let inner = self.clone().into_inner().to_pretty_strings();
+        if inner.is_empty() {
+            format!("{:?}({:?})", rule, str)
+        } else if inner.len() == 1 {
+            format!("{:?}.{}", rule, inner[0])
+        } else {
+            format!("{:?}[{}]", rule, inner.join(", "))
+        }
+    }
 }
 
 #[ext(pub, name = PairsExt)]
@@ -49,5 +47,9 @@ impl<'i> Pairs<'i> {
     /// short circuiting if any of them error
     fn visit_rest<T: Visit>(self) -> MyResult<Vec<T>> {
         self.map(Pair::visit).collect()
+    }
+
+    fn to_pretty_strings(&self) -> Vec<String> {
+        self.clone().map(|pair| pair.to_pretty_string()).collect()
     }
 }
