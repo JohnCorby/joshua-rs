@@ -11,5 +11,4 @@ pest = { version = "*", features = ["pretty-print"] }
 pest_derive = "*"
 lazy_static = "*"
 parking_lot = { version = "*", features = ["nightly"] }
-extend = "*"
 console = "*"
