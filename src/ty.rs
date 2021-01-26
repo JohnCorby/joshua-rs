@@ -1,4 +1,5 @@
 use crate::error::{MyError, MyResult};
+use crate::gen::Gen;
 use crate::parse::{parse, Pair, Rule};
 use crate::util::PairExt;
 use crate::visit::Visit;
@@ -7,7 +8,7 @@ use std::str::FromStr;
 
 static TYPES: Mutex<Vec<Type>> = Mutex::new(Vec::new());
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Type {
     name: String,
 }
@@ -58,11 +59,15 @@ impl Visit for Type {
         Ok(Self {
             name: pairs.next()?.as_str().into(),
         })
+    }
+}
 
-        // // todo checking stage
-        // match TYPES.lock().iter().find(|existing| existing.name == name) {
-        //     Some(ty) => Ok(ty.clone()),
-        //     None => Err(format!("cannot resolve type {:?}", name).into()),
-        // }
+impl Gen for Type {
+    fn gen(self) -> MyResult<String> {
+        if !TYPES.lock().contains(&self) {
+            return Err(format!("cannot resolve type {:?}", self).into());
+        }
+
+        Ok(self.name)
     }
 }
