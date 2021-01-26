@@ -1,5 +1,5 @@
 use crate::error::{MyError, MyResult};
-use crate::parse::{Pair, Rule};
+use crate::parse::{parse, Pair, Rule};
 use crate::util::PairExt;
 use crate::visit::Visit;
 use parking_lot::Mutex;
@@ -8,8 +8,9 @@ use std::str::FromStr;
 static TYPES: Mutex<Vec<Type>> = Mutex::new(Vec::new());
 
 #[derive(Debug, Clone)]
-pub struct Type(String);
-
+pub struct Type {
+    name: String,
+}
 impl Type {
     pub fn init() -> MyResult<()> {
         TYPES.lock().clear();
@@ -46,20 +47,22 @@ impl Type {
 impl FromStr for Type {
     type Err = MyError;
     fn from_str(s: &str) -> MyResult<Self> {
-        Ok(Self(s.into()))
+        parse(Rule::ty, s)?.visit()
     }
 }
 
 impl Visit for Type {
     fn visit(pair: Pair) -> MyResult<Self> {
-        // parsing stage
         let mut pairs = pair.into_inner_checked(Rule::ty)?;
-        let ty = pairs.next()?.as_str().parse::<Type>()?;
 
-        // checking stage
-        match TYPES.lock().iter().find(|existing| existing.0 == ty.0) {
-            Some(ty) => Ok(ty.clone()),
-            None => Err(format!("cannot resolve type {:?}", ty).into()),
-        }
+        Ok(Self {
+            name: pairs.next()?.as_str().into(),
+        })
+
+        // // todo checking stage
+        // match TYPES.lock().iter().find(|existing| existing.name == name) {
+        //     Some(ty) => Ok(ty.clone()),
+        //     None => Err(format!("cannot resolve type {:?}", name).into()),
+        // }
     }
 }
