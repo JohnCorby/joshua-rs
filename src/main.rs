@@ -15,7 +15,7 @@ mod visit;
 use crate::compile::compile_program;
 use crate::error::MyResult;
 use crate::gen::Gen;
-use crate::parse::parse_program;
+use crate::parse::{parse, Rule};
 use crate::ty::Type;
 use crate::util::PairExt;
 use crate::visit::Program;
@@ -28,7 +28,7 @@ const PROGRAM: &str = include_str!("../test/test.jo");
 fn main() -> MyResult<()> {
     Type::init()?;
 
-    let pair = parse_program(PROGRAM)?;
+    let pair = parse(Rule::program, PROGRAM)?;
     println!("{}", pair.to_pretty_string());
     let program = pair.visit::<Program>()?;
     println!("{:?}", program);

@@ -6,8 +6,8 @@ pub type Rule = inner::Rule;
 pub type Pair<'i> = pest::iterators::Pair<'i, Rule>;
 pub type Pairs<'i> = pest::iterators::Pairs<'i, Rule>;
 
-pub fn parse_program(input: &str) -> MyResult<Pair> {
-    Ok(inner::Parser::parse(Rule::program, input)?.next()?)
+pub fn parse(rule: Rule, input: &str) -> MyResult<Pair> {
+    Ok(inner::Parser::parse(rule, input)?.next()?)
 }
 
 mod inner {
