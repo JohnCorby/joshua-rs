@@ -103,6 +103,11 @@ impl From<ParseCharError> for MyError {
         e.to_string().into()
     }
 }
+impl From<std::fmt::Error> for MyError {
+    fn from(e: std::fmt::Error) -> Self {
+        e.to_string().into()
+    }
+}
 
 impl From<pest::error::Error<Rule>> for MyError {
     fn from(e: pest::error::Error<Rule>) -> Self {

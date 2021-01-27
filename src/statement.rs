@@ -1,6 +1,7 @@
 use crate::define::VarDefine;
 use crate::error::{unexpected_rule, MyResult};
 use crate::expr::Expr;
+use crate::gen::Gen;
 use crate::parse::{Pair, Rule};
 use crate::util::{PairExt, PairsExt};
 use crate::visit::Visit;
@@ -16,7 +17,7 @@ pub enum Statement {
     If {
         cond: Expr,
         then: Block,
-        otherwise: Block,
+        otherwise: Option<Block>,
     },
     Until {
         cond: Expr,
@@ -53,7 +54,7 @@ impl Visit for Statement {
                 Self::If {
                     cond: pairs.next()?.visit()?,
                     then: pairs.next()?.visit()?,
-                    otherwise: pairs.next()?.visit()?,
+                    otherwise: pairs.next().map(Pair::visit).transpose()?,
                 }
             }
             Rule::until => {
@@ -97,10 +98,75 @@ impl Visit for Statement {
     }
 }
 
+impl Gen for Statement {
+    fn gen(self) -> MyResult<String> {
+        Ok(match self {
+            Statement::Return { value } => {
+                let mut s = String::from("return");
+                if let Some(value) = value {
+                    s.push_str(&value.gen()?);
+                }
+                s.push(';');
+                s
+            }
+            Statement::Break => "break;".into(),
+            Statement::Continue => "continue".into(),
+            Statement::If {
+                cond,
+                then,
+                otherwise,
+            } => {
+                let mut s = format!("if({}) {}", cond.gen()?, then.gen()?);
+                if let Some(otherwise) = otherwise {
+                    s.push_str(&otherwise.gen()?);
+                }
+                s
+            }
+            Statement::Until { cond, block } => {
+                format!("while(!({})) {}", cond.gen()?, block.gen()?)
+            }
+            Statement::For {
+                init,
+                cond,
+                update,
+                block,
+            } => format!(
+                "for({}; {}; {}) {}",
+                init.gen()?,
+                cond.gen()?,
+                Statement::clone(&update).gen()?,
+                block.gen()?
+            ),
+            Statement::FuncCall { name, args } => format!(
+                "{}({})",
+                name,
+                args.into_iter()
+                    .map(Expr::gen)
+                    .collect::<MyResult<Vec<_>>>()?
+                    .join(", "),
+            ),
+            Statement::VarAssign { name, value } => format!("{} = {};", name, value.gen()?),
+            Statement::VarDefine(var_define) => var_define.gen()?,
+        })
+    }
+}
+
 pub type Block = Vec<Statement>;
 
 impl Visit for Block {
     fn visit_impl(pair: Pair) -> MyResult<Self> {
         pair.into_inner_checked(Rule::block)?.visit_rest()
+    }
+}
+
+impl Gen for Block {
+    fn gen(self) -> MyResult<String> {
+        Ok(format!(
+            "{{\n{}\n}}",
+            self.into_iter()
+                .map(Statement::gen)
+                .collect::<MyResult<Vec<_>>>()?
+                .join("\n")
+        ))
     }
 }

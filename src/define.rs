@@ -1,5 +1,6 @@
 use crate::error::{unexpected_rule, MyResult};
 use crate::expr::Expr;
+use crate::gen::Gen;
 use crate::parse::{Pair, Rule};
 use crate::statement::Block;
 use crate::ty::Type;
@@ -58,6 +59,37 @@ impl Visit for Define {
     }
 }
 
+impl Gen for Define {
+    fn gen(self) -> MyResult<String> {
+        Ok(match self {
+            Define::Struct { name, body } => format!(
+                "typedef struct {{\n{}\n}} {};",
+                body.into_iter()
+                    .map(Define::gen)
+                    .collect::<MyResult<Vec<_>>>()?
+                    .join("\n"),
+                name
+            ),
+            Define::Func {
+                ty,
+                name,
+                args,
+                body,
+            } => format!(
+                "{} {}({}) {}",
+                ty.gen()?,
+                name,
+                args.into_iter()
+                    .map(VarDefine::gen)
+                    .collect::<MyResult<Vec<_>>>()?
+                    .join(", "),
+                body.gen()?
+            ),
+            Define::Var(var_define) => var_define.gen()?,
+        })
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct VarDefine {
     ty: Type,
@@ -74,5 +106,16 @@ impl Visit for VarDefine {
             name: pairs.next()?.as_str().into(),
             value: pairs.next().map(Pair::visit).transpose()?,
         })
+    }
+}
+
+impl Gen for VarDefine {
+    fn gen(self) -> MyResult<String> {
+        let mut s = format!("{} {}", self.ty.gen()?, self.name);
+        if let Some(value) = self.value {
+            s.push_str(&value.gen()?);
+        }
+        s.push(';');
+        Ok(s)
     }
 }

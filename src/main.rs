@@ -18,10 +18,11 @@ use crate::gen::Gen;
 use crate::parse::{parse, Rule};
 use crate::util::PairExt;
 use crate::visit::Program;
+use std::rc::Rc;
 
 /// make every ref counted
 /// less rewriting if i wanna change it
-pub type Ref<T> = std::rc::Rc<T>;
+pub type Ref<T> = Rc<T>;
 
 const PROGRAM: &str = include_str!("../test/test.jo");
 fn main() -> MyResult<()> {

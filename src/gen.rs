@@ -1,3 +1,4 @@
+use crate::define::Define;
 use crate::error::MyResult;
 use crate::ty::Type;
 use crate::visit::Program;
@@ -10,6 +11,11 @@ pub trait Gen {
 impl Gen for Program {
     fn gen(self) -> MyResult<String> {
         Type::init()?;
-        Ok(r#"int main(){puts("hello, world!";}"#.into())
+
+        Ok(self
+            .into_iter()
+            .map(Define::gen)
+            .collect::<MyResult<Vec<_>>>()?
+            .join("\n"))
     }
 }

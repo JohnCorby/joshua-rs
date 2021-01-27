@@ -1,6 +1,7 @@
 //! handle the painful process that is parsing expressions
 
 use crate::error::{unexpected_rule, MyResult};
+use crate::gen::Gen;
 use crate::parse::{Pair, Rule};
 use crate::ty::Type;
 use crate::util::{PairExt, PairsExt};
@@ -101,6 +102,24 @@ impl Visit for Expr {
     }
 }
 
+impl Gen for Expr {
+    fn gen(self) -> MyResult<String> {
+        Ok(match self {
+            Expr::Binary { left, op, right } => format!(
+                "{} {} {}",
+                Expr::clone(&left).gen()?,
+                op,
+                Expr::clone(&right).gen()?
+            ),
+            Expr::Unary { op, thing } => format!("{}{}", op, Expr::clone(&thing).gen()?),
+            Expr::Cast { thing, ty } => format!(""),
+            Expr::Literal(literal) => format!(""),
+            Expr::FuncCall { name, args } => format!(""),
+            Expr::Var(var) => var,
+        })
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum Literal {
     Float(f64),
@@ -120,6 +139,18 @@ impl Visit for Literal {
             Rule::str_literal => Self::Str(pair.into_inner().next()?.as_str().into()),
 
             rule => unexpected_rule(rule)?,
+        })
+    }
+}
+
+impl Gen for Literal {
+    fn gen(self) -> MyResult<String> {
+        Ok(match self {
+            Literal::Float(float) => float.to_string(),
+            Literal::Int(int) => int.to_string(),
+            Literal::Bool(bool) => bool.to_string(),
+            Literal::Char(char) => format!("'{}'", char),
+            Literal::Str(str) => format!("\"{}\"", str),
         })
     }
 }
