@@ -33,7 +33,7 @@ pub enum Expr {
 }
 
 impl Visit for Expr {
-    fn visit(pair: Pair) -> MyResult<Self> {
+    fn visit_impl(pair: Pair) -> MyResult<Self> {
         Ok(match pair.as_rule() {
             Rule::expr => pair.into_inner().next()?.visit()?,
             Rule::equality_expr | Rule::compare_expr | Rule::add_expr | Rule::mul_expr => {
@@ -111,7 +111,7 @@ pub enum Literal {
 }
 
 impl Visit for Literal {
-    fn visit(pair: Pair) -> MyResult<Self> {
+    fn visit_impl(pair: Pair) -> MyResult<Self> {
         Ok(match pair.as_rule() {
             Rule::float_literal => Self::Float(pair.as_str().parse()?),
             Rule::int_literal => Self::Int(pair.as_str().parse()?),

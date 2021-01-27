@@ -53,7 +53,7 @@ impl FromStr for Type {
 }
 
 impl Visit for Type {
-    fn visit(pair: Pair) -> MyResult<Self> {
+    fn visit_impl(pair: Pair) -> MyResult<Self> {
         let mut pairs = pair.into_inner_checked(Rule::ty)?;
 
         Ok(Self {

@@ -31,7 +31,7 @@ var_define = { ty ~ ident ~ ("=" ~ expr)? }
 var_assign = { ident ~ "=" ~ expr }
 
 
-struct_define = { "struct" ~ ident ~ ("{" ~ define* ~ "}") }
+struct_define = { "struct" ~ ident ~ "{" ~ define* ~ "}" }
 
 
 iff = { "if" ~ "(" ~ expr ~ ")" ~ block ~ ("else" ~ block)? }

@@ -40,7 +40,7 @@ pub enum Statement {
 }
 
 impl Visit for Statement {
-    fn visit(pair: Pair) -> MyResult<Self> {
+    fn visit_impl(pair: Pair) -> MyResult<Self> {
         Ok(match pair.as_rule() {
             Rule::ret => Self::Return {
                 value: pair.into_inner().next().map(Pair::visit).transpose()?,
@@ -100,7 +100,7 @@ impl Visit for Statement {
 pub type Block = Vec<Statement>;
 
 impl Visit for Block {
-    fn visit(pair: Pair) -> MyResult<Self> {
+    fn visit_impl(pair: Pair) -> MyResult<Self> {
         pair.into_inner_checked(Rule::block)?.visit_rest()
     }
 }

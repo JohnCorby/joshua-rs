@@ -17,7 +17,7 @@ pub trait PairExt<'i> {
 }
 impl<'i> PairExt<'i> for Pair<'i> {
     fn visit<T: Visit>(self) -> MyResult<T> {
-        T::visit(self.track())
+        T::visit_impl(self.track())
     }
 
     fn track(self) -> Self {
@@ -37,7 +37,11 @@ impl<'i> PairExt<'i> for Pair<'i> {
     fn to_pretty_string(&self) -> String {
         let rule = style(self.as_rule()).red();
         let str = style(self.as_str()).blue();
-        let inner = self.clone().into_inner().to_pretty_strings();
+        let inner = self
+            .clone()
+            .into_inner()
+            .map(|pair| pair.to_pretty_string())
+            .collect::<Vec<_>>();
         if inner.is_empty() {
             format!("{:?}({:?})", rule, str)
         } else if inner.len() == 1 {
@@ -52,15 +56,9 @@ pub trait PairsExt {
     /// visits any not iterated pairs,
     /// short circuiting if any of them error
     fn visit_rest<T: Visit>(self) -> MyResult<Vec<T>>;
-
-    fn to_pretty_strings(&self) -> Vec<String>;
 }
 impl PairsExt for Pairs<'_> {
     fn visit_rest<T: Visit>(self) -> MyResult<Vec<T>> {
         self.map(Pair::visit).collect()
-    }
-
-    fn to_pretty_strings(&self) -> Vec<String> {
-        self.clone().map(|pair| pair.to_pretty_string()).collect()
     }
 }

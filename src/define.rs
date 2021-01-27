@@ -22,7 +22,7 @@ pub enum Define {
 }
 
 impl Visit for Define {
-    fn visit(pair: Pair) -> MyResult<Self> {
+    fn visit_impl(pair: Pair) -> MyResult<Self> {
         Ok(match pair.as_rule() {
             Rule::struct_define => {
                 let mut pairs = pair.into_inner();
@@ -66,7 +66,7 @@ pub struct VarDefine {
 }
 
 impl Visit for VarDefine {
-    fn visit(pair: Pair) -> MyResult<Self> {
+    fn visit_impl(pair: Pair) -> MyResult<Self> {
         let mut pairs = pair.into_inner_checked(Rule::var_define)?;
 
         Ok(Self {

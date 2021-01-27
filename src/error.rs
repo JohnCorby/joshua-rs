@@ -52,12 +52,12 @@ pub struct MyError(String);
 
 impl Debug for MyError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "{}", self.0)?;
-        if let Some(pos) = &*CURRENT_POS.lock() {
-            write!(f, "{}", pos.to_string(&self.0))?;
+        match &*CURRENT_POS.lock() {
+            Some(pos) => writeln!(f, "{}", pos.to_string(&self.0))?,
+            _ => writeln!(f, "{}", self.0)?,
         }
         if let Some(backtrace) = &*CURRENT_BACKTRACE.lock() {
-            write!(f, "{}", backtrace)?;
+            writeln!(f, "{}", backtrace)?;
         }
         Ok(())
     }
