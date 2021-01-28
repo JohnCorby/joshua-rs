@@ -17,6 +17,10 @@ pub struct Pos {
     end: usize,
 }
 impl Pos {
+    pub fn reset() {
+        *CURRENT_POS.lock() = None;
+    }
+
     pub fn update(pair: &Pair) {
         let (start_pos, end_pos) = pair.as_span().split();
 
@@ -117,6 +121,12 @@ impl From<pest::error::Error<Rule>> for MyError {
 
 impl From<std::io::Error> for MyError {
     fn from(e: std::io::Error) -> Self {
+        e.to_string().into()
+    }
+}
+
+impl From<cc::Error> for MyError {
+    fn from(e: cc::Error) -> Self {
         e.to_string().into()
     }
 }

@@ -1,8 +1,6 @@
 use crate::error::{MyResult, Pos};
-use crate::gen::Gen;
 use crate::parse::{Pair, Pairs, Rule};
 use crate::visit::Visit;
-use crate::Ref;
 use console::style;
 
 pub trait PairExt<'i> {
@@ -65,6 +63,6 @@ impl PairsExt for Pairs<'_> {
     }
 }
 
-impl<T: Gen> Clone for Ref<T> {
-    fn clone(&self) -> Self {}
-}
+// impl<T: Gen> Clone for Ref<T> {
+//     fn clone(&self) -> Self {}
+// }

@@ -1,5 +1,5 @@
 use crate::define::Define;
-use crate::error::MyResult;
+use crate::error::{MyResult, Pos};
 use crate::ty::Type;
 use crate::visit::Program;
 
@@ -11,6 +11,7 @@ pub trait Gen {
 impl Gen for Program {
     fn gen(self) -> MyResult<String> {
         Type::init()?;
+        Pos::reset();
 
         Ok(self
             .into_iter()

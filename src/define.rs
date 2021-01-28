@@ -6,6 +6,7 @@ use crate::statement::Block;
 use crate::ty::Type;
 use crate::util::{PairExt, PairsExt};
 use crate::visit::Visit;
+use std::fmt::Write;
 
 #[derive(Debug, Clone)]
 pub enum Define {
@@ -62,7 +63,7 @@ impl Visit for Define {
 impl Gen for Define {
     fn gen(self) -> MyResult<String> {
         Ok(match self {
-            Define::Struct { name, body } => format!(
+            Self::Struct { name, body } => format!(
                 "typedef struct {{\n{}\n}} {};",
                 body.into_iter()
                     .map(Define::gen)
@@ -70,7 +71,7 @@ impl Gen for Define {
                     .join("\n"),
                 name
             ),
-            Define::Func {
+            Self::Func {
                 ty,
                 name,
                 args,
@@ -85,7 +86,7 @@ impl Gen for Define {
                     .join(", "),
                 body.gen()?
             ),
-            Define::Var(var_define) => var_define.gen()?,
+            Self::Var(var_define) => format!("{};", var_define.gen()?),
         })
     }
 }
@@ -113,9 +114,8 @@ impl Gen for VarDefine {
     fn gen(self) -> MyResult<String> {
         let mut s = format!("{} {}", self.ty.gen()?, self.name);
         if let Some(value) = self.value {
-            s.push_str(&value.gen()?);
+            write!(s, " = {}", value.gen()?)?;
         }
-        s.push(';');
         Ok(s)
     }
 }

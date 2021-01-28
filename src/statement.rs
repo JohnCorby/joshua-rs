@@ -6,6 +6,7 @@ use crate::parse::{Pair, Rule};
 use crate::util::{PairExt, PairsExt};
 use crate::visit::Visit;
 use crate::Ref;
+use std::fmt::Write;
 
 #[derive(Debug, Clone)]
 pub enum Statement {
@@ -29,10 +30,7 @@ pub enum Statement {
         update: Ref<Statement>,
         block: Block,
     },
-    FuncCall {
-        name: String,
-        args: Vec<Expr>,
-    },
+    FuncCall(FuncCall),
     VarAssign {
         name: String,
         value: Expr,
@@ -75,14 +73,7 @@ impl Visit for Statement {
                     block: pairs.next()?.visit()?,
                 }
             }
-            Rule::func_call => {
-                let mut pairs = pair.into_inner();
-
-                Self::FuncCall {
-                    name: pairs.next()?.as_str().into(),
-                    args: pairs.visit_rest()?,
-                }
-            }
+            Rule::func_call => Self::FuncCall(pair.visit()?),
             Rule::var_assign => {
                 let mut pairs = pair.into_inner();
 
@@ -101,17 +92,17 @@ impl Visit for Statement {
 impl Gen for Statement {
     fn gen(self) -> MyResult<String> {
         Ok(match self {
-            Statement::Return { value } => {
+            Self::Return { value } => {
                 let mut s = String::from("return");
                 if let Some(value) = value {
-                    s.push_str(&value.gen()?);
+                    write!(s, " {}", value.gen()?)?;
                 }
                 s.push(';');
                 s
             }
-            Statement::Break => "break;".into(),
-            Statement::Continue => "continue".into(),
-            Statement::If {
+            Self::Break => "break;".into(),
+            Self::Continue => "continue;".into(),
+            Self::If {
                 cond,
                 then,
                 otherwise,
@@ -122,10 +113,10 @@ impl Gen for Statement {
                 }
                 s
             }
-            Statement::Until { cond, block } => {
+            Self::Until { cond, block } => {
                 format!("while(!({})) {}", cond.gen()?, block.gen()?)
             }
-            Statement::For {
+            Self::For {
                 init,
                 cond,
                 update,
@@ -137,16 +128,9 @@ impl Gen for Statement {
                 Statement::clone(&update).gen()?,
                 block.gen()?
             ),
-            Statement::FuncCall { name, args } => format!(
-                "{}({})",
-                name,
-                args.into_iter()
-                    .map(Expr::gen)
-                    .collect::<MyResult<Vec<_>>>()?
-                    .join(", "),
-            ),
-            Statement::VarAssign { name, value } => format!("{} = {};", name, value.gen()?),
-            Statement::VarDefine(var_define) => var_define.gen()?,
+            Self::FuncCall(func_call) => format!("{};", func_call.gen()?),
+            Self::VarAssign { name, value } => format!("{} = {};", name, value.gen()?),
+            Self::VarDefine(var_define) => format!("{};", var_define.gen()?),
         })
     }
 }
@@ -167,6 +151,37 @@ impl Gen for Block {
                 .map(Statement::gen)
                 .collect::<MyResult<Vec<_>>>()?
                 .join("\n")
+        ))
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct FuncCall {
+    name: String,
+    args: Vec<Expr>,
+}
+
+impl Visit for FuncCall {
+    fn visit_impl(pair: Pair) -> MyResult<Self> {
+        let mut pairs = pair.into_inner_checked(Rule::func_call)?;
+
+        Ok(Self {
+            name: pairs.next()?.as_str().into(),
+            args: pairs.visit_rest()?,
+        })
+    }
+}
+
+impl Gen for FuncCall {
+    fn gen(self) -> MyResult<String> {
+        Ok(format!(
+            "{}({})",
+            self.name,
+            self.args
+                .into_iter()
+                .map(Expr::gen)
+                .collect::<MyResult<Vec<_>>>()?
+                .join(", "),
         ))
     }
 }

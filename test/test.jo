@@ -1,13 +1,13 @@
-struct bruh {
-    int hi
-
-    void hello(int suck, byte my, addr balls) {
-//        <<printf("this = %p\n", this)>>
-//        <<puts("fuck you")>>
-    }
-}
-
-int goo() {}
+//struct bruh {
+//    int hi
+//
+//    void hello(int suck, byte my, addr balls) {
+////        <<printf("this = %p\n", this)>>
+////        <<puts("fuck you")>>
+//    }
+//}
+//
+//int goo() {}
 
 int main() {
     for (int i = 0; i < 10; i = i + 1)
@@ -16,6 +16,6 @@ int main() {
 //    <<bruh$hello(&hi,0,0,0)>>
     float i = 1 as float
     int e = 1 + i as int + 2
-    void bruh = (1 + 1 + 1) + (2 + 2) + hello
+    int bruh = (1 + 1 + 1) + (2 + 2)
     return (-i) as int
 }

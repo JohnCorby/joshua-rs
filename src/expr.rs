@@ -3,8 +3,9 @@
 use crate::error::{unexpected_rule, MyResult};
 use crate::gen::Gen;
 use crate::parse::{Pair, Rule};
+use crate::statement::FuncCall;
 use crate::ty::Type;
-use crate::util::{PairExt, PairsExt};
+use crate::util::PairExt;
 use crate::visit::Visit;
 use crate::Ref;
 
@@ -26,10 +27,7 @@ pub enum Expr {
 
     // primary
     Literal(Literal),
-    FuncCall {
-        name: String,
-        args: Vec<Expr>,
-    },
+    FuncCall(FuncCall),
     Var(String),
 }
 
@@ -87,14 +85,7 @@ impl Visit for Expr {
             | Rule::bool_literal
             | Rule::char_literal
             | Rule::str_literal => Self::Literal(pair.visit()?),
-            Rule::func_call => {
-                let mut pairs = pair.into_inner();
-
-                Self::FuncCall {
-                    name: pairs.next()?.as_str().into(),
-                    args: pairs.visit_rest()?,
-                }
-            }
+            Rule::func_call => Self::FuncCall(pair.visit()?),
             Rule::ident => Self::Var(pair.as_str().into()),
 
             rule => unexpected_rule(rule)?,
@@ -105,17 +96,17 @@ impl Visit for Expr {
 impl Gen for Expr {
     fn gen(self) -> MyResult<String> {
         Ok(match self {
-            Expr::Binary { left, op, right } => format!(
-                "{} {} {}",
+            Self::Binary { left, op, right } => format!(
+                "({} {} {})",
                 Expr::clone(&left).gen()?,
                 op,
                 Expr::clone(&right).gen()?
             ),
-            Expr::Unary { op, thing } => format!("{}{}", op, Expr::clone(&thing).gen()?),
-            Expr::Cast { thing, ty } => format!(""),
-            Expr::Literal(literal) => format!(""),
-            Expr::FuncCall { name, args } => format!(""),
-            Expr::Var(var) => var,
+            Self::Unary { op, thing } => format!("({}{})", op, Expr::clone(&thing).gen()?),
+            Self::Cast { thing, ty } => format!("(({}) {})", ty.gen()?, Expr::clone(&thing).gen()?),
+            Self::Literal(literal) => literal.gen()?,
+            Self::FuncCall(func_call) => func_call.gen()?,
+            Self::Var(name) => name,
         })
     }
 }
