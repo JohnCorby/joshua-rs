@@ -76,17 +76,19 @@ impl Gen for Define {
                 name,
                 args,
                 body,
-            } => format!(
-                "{} {}({}) {}",
-                ty.gen()?,
-                name,
-                args.into_iter()
-                    .map(VarDefine::gen)
-                    .collect::<MyResult<Vec<_>>>()?
-                    .join(", "),
-                body.gen()?
-            ),
-            Self::Var(var_define) => format!("{};", var_define.gen()?),
+            } => {
+                format!(
+                    "{} {}({}) {}",
+                    ty.gen()?,
+                    name,
+                    args.into_iter()
+                        .map(VarDefine::gen)
+                        .collect::<MyResult<Vec<_>>>()?
+                        .join(", "),
+                    body.gen()?
+                )
+            }
+            Self::Var(var_define) => var_define.gen()?,
         })
     }
 }

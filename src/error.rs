@@ -124,9 +124,3 @@ impl From<std::io::Error> for MyError {
         e.to_string().into()
     }
 }
-
-impl From<cc::Error> for MyError {
-    fn from(e: cc::Error) -> Self {
-        e.to_string().into()
-    }
-}

@@ -125,7 +125,7 @@ impl Gen for Statement {
                 "for({}; {}; {}) {}",
                 init.gen()?,
                 cond.gen()?,
-                Statement::clone(&update).gen()?,
+                Statement::clone(&update).gen()?.strip_suffix(';')?,
                 block.gen()?
             ),
             Self::FuncCall(func_call) => format!("{};", func_call.gen()?),

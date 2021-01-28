@@ -27,11 +27,11 @@ pub type Ref<T> = Rc<T>;
 const PROGRAM: &str = include_str!("../test/test.jo");
 fn main() -> MyResult<()> {
     let pair = parse(Rule::program, PROGRAM)?;
-    println!("{}", pair.to_pretty_string());
+    // println!("{}", pair.to_pretty_string());
     let program = pair.visit::<Program>()?;
-    println!("{:?}", program);
+    // println!("{:?}", program);
     let c_code = program.gen()?;
-    println!("{}", c_code);
+    // println!("{}", c_code);
     compile_program(c_code)?;
 
     Ok(())
