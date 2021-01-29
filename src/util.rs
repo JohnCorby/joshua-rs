@@ -8,9 +8,6 @@ pub trait PairExt<'i> {
     /// turns visit into an extension method for pair
     fn visit<T: Visit>(self) -> MyResult<T>;
 
-    /// update pos (for errors)
-    fn track(self) -> Self;
-
     /// check that a pair matches a rule, and then return its inner pairs
     fn into_inner_checked(self, expected: Rule) -> MyResult<Pairs<'i>>;
 
@@ -18,12 +15,7 @@ pub trait PairExt<'i> {
 }
 impl<'i> PairExt<'i> for Pair<'i> {
     fn visit<T: Visit>(self) -> MyResult<T> {
-        T::visit_impl(self.track())
-    }
-
-    fn track(self) -> Self {
-        Pos::update(&self);
-        self
+        T::visit(self)
     }
 
     fn into_inner_checked(self, expected: Rule) -> MyResult<Pairs<'i>> {

@@ -21,11 +21,6 @@ use crate::parse::{parse, Rule};
 use crate::util::PairExt;
 use crate::visit::Program;
 use std::path::Path;
-use std::rc::Rc;
-
-/// make every ref counted
-/// less rewriting if i wanna change it
-pub type Ref<T> = Rc<T>;
 
 fn main() -> MyResult<()> {
     let path = Path::new("test/test.jo");

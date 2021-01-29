@@ -2,6 +2,7 @@ use crate::error::{unexpected_rule, MyResult};
 use crate::expr::Expr;
 use crate::gen::Gen;
 use crate::parse::{Pair, Rule};
+use crate::pos::{AsPos, Pos};
 use crate::scope::{Scope, ScopeItem};
 use crate::statement::Block;
 use crate::ty::Type;
@@ -12,10 +13,12 @@ use std::fmt::Write;
 #[derive(Debug, Clone)]
 pub enum Define {
     Struct {
+        pos: Pos,
         name: String,
         body: Vec<Define>,
     },
     Func {
+        pos: Pos,
         ty: Type,
         name: String,
         args: Vec<VarDefine>,
@@ -28,14 +31,17 @@ impl Visit for Define {
     fn visit_impl(pair: Pair) -> MyResult<Self> {
         Ok(match pair.as_rule() {
             Rule::struct_define => {
+                let pos = pair.as_pos();
                 let mut pairs = pair.into_inner();
 
                 Self::Struct {
+                    pos,
                     name: pairs.next()?.as_str().into(),
                     body: pairs.visit_rest()?,
                 }
             }
             Rule::func_define => {
+                let pos = pair.as_pos();
                 let mut pairs = pair.into_inner();
 
                 let ty = pairs.next()?.visit()?;
@@ -48,6 +54,7 @@ impl Visit for Define {
                 let body = pairs.next()?.visit()?;
 
                 Self::Func {
+                    pos,
                     ty,
                     name,
                     args,
@@ -62,9 +69,17 @@ impl Visit for Define {
 }
 
 impl Gen for Define {
-    fn gen(self) -> MyResult<String> {
+    fn pos(&self) -> Pos {
+        match self {
+            Define::Struct { pos, .. } => pos.clone(),
+            Define::Func { pos, .. } => pos.clone(),
+            Define::Var(var_define) => var_define.pos(),
+        }
+    }
+
+    fn gen_impl(self) -> MyResult<String> {
         Ok(match self {
-            Self::Struct { name, body } => {
+            Self::Struct { name, body, .. } => {
                 Scope::add_item(ScopeItem::Struct { name: name.clone() })?;
 
                 format!(
@@ -81,6 +96,7 @@ impl Gen for Define {
                 name,
                 args,
                 body,
+                ..
             } => {
                 Scope::add_item(ScopeItem::Func {
                     ty: ty.clone(),
@@ -106,6 +122,7 @@ impl Gen for Define {
 
 #[derive(Debug, Clone)]
 pub struct VarDefine {
+    pos: Pos,
     ty: Type,
     name: String,
     value: Option<Expr>,
@@ -113,9 +130,11 @@ pub struct VarDefine {
 
 impl Visit for VarDefine {
     fn visit_impl(pair: Pair) -> MyResult<Self> {
+        let pos = pair.as_pos();
         let mut pairs = pair.into_inner_checked(Rule::var_define)?;
 
         Ok(Self {
+            pos,
             ty: pairs.next()?.visit()?,
             name: pairs.next()?.as_str().into(),
             value: pairs.next().map(Pair::visit).transpose()?,
@@ -124,7 +143,11 @@ impl Visit for VarDefine {
 }
 
 impl Gen for VarDefine {
-    fn gen(self) -> MyResult<String> {
+    fn pos(&self) -> Pos {
+        self.pos.clone()
+    }
+
+    fn gen_impl(self) -> MyResult<String> {
         Scope::add_item(ScopeItem::Var {
             ty: self.ty.clone(),
             name: self.name.clone(),

@@ -1,6 +1,7 @@
 use crate::error::{MyError, MyResult};
 use crate::gen::Gen;
 use crate::parse::{parse, Pair, Rule};
+use crate::pos::{AsPos, Pos};
 use crate::util::PairExt;
 use crate::visit::Visit;
 use parking_lot::Mutex;
@@ -8,8 +9,9 @@ use std::str::FromStr;
 
 static TYPES: Mutex<Vec<Type>> = Mutex::new(Vec::new());
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct Type {
+    pos: Pos,
     name: String,
 }
 impl Type {
@@ -45,6 +47,12 @@ impl Type {
     }
 }
 
+impl PartialEq for Type {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+    }
+}
+
 impl FromStr for Type {
     type Err = MyError;
     fn from_str(s: &str) -> MyResult<Self> {
@@ -54,16 +62,22 @@ impl FromStr for Type {
 
 impl Visit for Type {
     fn visit_impl(pair: Pair) -> MyResult<Self> {
+        let pos = pair.as_pos();
         let mut pairs = pair.into_inner_checked(Rule::ty)?;
 
         Ok(Self {
+            pos,
             name: pairs.next()?.as_str().into(),
         })
     }
 }
 
 impl Gen for Type {
-    fn gen(self) -> MyResult<String> {
+    fn pos(&self) -> Pos {
+        self.pos.clone()
+    }
+
+    fn gen_impl(self) -> MyResult<String> {
         if !TYPES.lock().contains(&self) {
             return Err(format!("cannot resolve type {:?}", self).into());
         }

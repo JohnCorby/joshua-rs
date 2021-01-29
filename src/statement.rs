@@ -3,11 +3,12 @@ use crate::error::{unexpected_rule, MyResult};
 use crate::expr::Expr;
 use crate::gen::Gen;
 use crate::parse::{Pair, Rule};
+use crate::pos::{AsPos, Pos};
 use crate::scope::Scope;
 use crate::util::{PairExt, PairsExt};
 use crate::visit::Visit;
-use crate::Ref;
 use std::fmt::Write;
+use std::rc::Rc;
 
 #[derive(Debug, Clone)]
 pub enum Statement {
@@ -28,7 +29,7 @@ pub enum Statement {
     For {
         init: VarDefine,
         cond: Expr,
-        update: Ref<Statement>,
+        update: Rc<Statement>,
         block: Block,
     },
     FuncCall(FuncCall),
@@ -91,7 +92,11 @@ impl Visit for Statement {
 }
 
 impl Gen for Statement {
-    fn gen(self) -> MyResult<String> {
+    fn pos(&self) -> Pos {
+        Pos::unknown()
+    }
+
+    fn gen_impl(self) -> MyResult<String> {
         Ok(match self {
             Self::Return { value } => {
                 let mut s = String::from("return");
@@ -148,7 +153,11 @@ impl Visit for Block {
 }
 
 impl Gen for Block {
-    fn gen(self) -> MyResult<String> {
+    fn pos(&self) -> Pos {
+        Pos::unknown()
+    }
+
+    fn gen_impl(self) -> MyResult<String> {
         Scope::push();
         let result = Ok(format!(
             "{{\n{}\n}}",
@@ -164,15 +173,18 @@ impl Gen for Block {
 
 #[derive(Debug, Clone)]
 pub struct FuncCall {
+    pos: Pos,
     name: String,
     args: Vec<Expr>,
 }
 
 impl Visit for FuncCall {
     fn visit_impl(pair: Pair) -> MyResult<Self> {
+        let pos = pair.as_pos();
         let mut pairs = pair.into_inner_checked(Rule::func_call)?;
 
         Ok(Self {
+            pos,
             name: pairs.next()?.as_str().into(),
             args: pairs.visit_rest()?,
         })
@@ -180,7 +192,11 @@ impl Visit for FuncCall {
 }
 
 impl Gen for FuncCall {
-    fn gen(self) -> MyResult<String> {
+    fn pos(&self) -> Pos {
+        self.pos.clone()
+    }
+
+    fn gen_impl(self) -> MyResult<String> {
         Ok(format!(
             "{}({})",
             self.name,

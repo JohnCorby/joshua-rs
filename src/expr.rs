@@ -3,26 +3,27 @@
 use crate::error::{unexpected_rule, MyResult};
 use crate::gen::Gen;
 use crate::parse::{Pair, Rule};
+use crate::pos::Pos;
 use crate::scope::Scope;
 use crate::statement::FuncCall;
 use crate::ty::Type;
 use crate::util::PairExt;
 use crate::visit::Visit;
-use crate::Ref;
+use std::rc::Rc;
 
 #[derive(Debug, Clone)]
 pub enum Expr {
     Binary {
-        left: Ref<Expr>,
+        left: Rc<Expr>,
         op: String,
-        right: Ref<Expr>,
+        right: Rc<Expr>,
     },
     Unary {
         op: String,
-        thing: Ref<Expr>,
+        thing: Rc<Expr>,
     },
     Cast {
-        thing: Ref<Expr>,
+        thing: Rc<Expr>,
         ty: Type,
     },
 
@@ -95,7 +96,11 @@ impl Visit for Expr {
 }
 
 impl Gen for Expr {
-    fn gen(self) -> MyResult<String> {
+    fn pos(&self) -> Pos {
+        Pos::unknown()
+    }
+
+    fn gen_impl(self) -> MyResult<String> {
         Ok(match self {
             Self::Binary { left, op, right } => format!(
                 "({} {} {})",
@@ -104,7 +109,9 @@ impl Gen for Expr {
                 Expr::clone(&right).gen()?
             ),
             Self::Unary { op, thing } => format!("({}{})", op, Expr::clone(&thing).gen()?),
-            Self::Cast { thing, ty } => format!("(({}) {})", ty.gen()?, Expr::clone(&thing).gen()?),
+            Self::Cast { thing, ty } => {
+                format!("(({}) {})", ty.gen()?, Expr::clone(&thing).gen()?)
+            }
             Self::Literal(literal) => literal.gen()?,
             Self::FuncCall(func_call) => func_call.gen()?,
             Self::Var(name) => {
@@ -139,7 +146,11 @@ impl Visit for Literal {
 }
 
 impl Gen for Literal {
-    fn gen(self) -> MyResult<String> {
+    fn pos(&self) -> Pos {
+        Pos::unknown()
+    }
+
+    fn gen_impl(self) -> MyResult<String> {
         Ok(match self {
             Literal::Float(float) => float.to_string(),
             Literal::Int(int) => int.to_string(),

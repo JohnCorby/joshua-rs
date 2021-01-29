@@ -5,7 +5,6 @@ use std::backtrace::{Backtrace, BacktraceStatus};
 use std::char::ParseCharError;
 use std::fmt::{Debug, Formatter};
 use std::num::{ParseFloatError, ParseIntError};
-use std::ops::Deref;
 use std::option::NoneError;
 use std::str::ParseBoolError;
 
@@ -16,10 +15,7 @@ pub struct MyError(String);
 
 impl Debug for MyError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match Pos::current().deref() {
-            Some(pos) => writeln!(f, "{}", pos.to_string(&self.0))?,
-            _ => writeln!(f, "{}", self.0)?,
-        }
+        writeln!(f, "{}", Pos::make_error(&self.0))?;
         if let Some(backtrace) = &*CURRENT_BACKTRACE.lock() {
             writeln!(f, "{}", backtrace)?;
         }

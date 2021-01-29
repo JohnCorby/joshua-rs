@@ -6,12 +6,23 @@ use crate::ty::Type;
 use crate::visit::Program;
 
 /// turn self into valid C code
-pub trait Gen {
-    fn gen(self) -> MyResult<String>;
+pub trait Gen: Sized {
+    fn pos(&self) -> Pos;
+
+    fn gen(self) -> MyResult<String> {
+        self.pos().set_current();
+        self.gen_impl()
+    }
+
+    fn gen_impl(self) -> MyResult<String>;
 }
 
 impl Gen for Program {
-    fn gen(self) -> MyResult<String> {
+    fn pos(&self) -> Pos {
+        Pos::unknown()
+    }
+
+    fn gen_impl(self) -> MyResult<String> {
         Scope::push();
 
         Type::init()?;

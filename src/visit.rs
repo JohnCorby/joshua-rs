@@ -1,12 +1,16 @@
 use crate::define::Define;
 use crate::error::MyResult;
 use crate::parse::{Pair, Rule};
+use crate::pos::{AsPos, Pos};
 use crate::util::PairExt;
 
 /// take a parser pair an turn it into ourselves
-/// call Pair.visit instead of this (hence the name)
-/// todo track pos for each node so it will also work in `gen`
 pub trait Visit: Sized {
+    fn visit(pair: Pair) -> MyResult<Self> {
+        pair.as_pos().set_current();
+        Self::visit_impl(pair)
+    }
+
     fn visit_impl(pair: Pair) -> MyResult<Self>;
 }
 
