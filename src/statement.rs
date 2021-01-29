@@ -3,6 +3,7 @@ use crate::error::{unexpected_rule, MyResult};
 use crate::expr::Expr;
 use crate::gen::Gen;
 use crate::parse::{Pair, Rule};
+use crate::scope::Scope;
 use crate::util::{PairExt, PairsExt};
 use crate::visit::Visit;
 use crate::Ref;
@@ -145,13 +146,16 @@ impl Visit for Block {
 
 impl Gen for Block {
     fn gen(self) -> MyResult<String> {
-        Ok(format!(
+        Scope::push();
+        let result = Ok(format!(
             "{{\n{}\n}}",
             self.into_iter()
                 .map(Statement::gen)
                 .collect::<MyResult<Vec<_>>>()?
                 .join("\n")
-        ))
+        ));
+        Scope::pop()?;
+        result
     }
 }
 

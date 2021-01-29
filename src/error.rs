@@ -76,6 +76,11 @@ impl From<String> for MyError {
         Self(s)
     }
 }
+impl From<&str> for MyError {
+    fn from(s: &str) -> Self {
+        s.to_string().into()
+    }
+}
 
 pub fn unexpected_rule<T>(rule: Rule) -> MyResult<T> {
     Err(format!("unexpected rule {:?}", rule).into())

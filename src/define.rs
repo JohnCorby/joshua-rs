@@ -2,6 +2,7 @@ use crate::error::{unexpected_rule, MyResult};
 use crate::expr::Expr;
 use crate::gen::Gen;
 use crate::parse::{Pair, Rule};
+use crate::scope::{Scope, ScopeItem};
 use crate::statement::Block;
 use crate::ty::Type;
 use crate::util::{PairExt, PairsExt};
@@ -63,20 +64,26 @@ impl Visit for Define {
 impl Gen for Define {
     fn gen(self) -> MyResult<String> {
         Ok(match self {
-            Self::Struct { name, body } => format!(
-                "typedef struct {{\n{}\n}} {};",
-                body.into_iter()
-                    .map(Define::gen)
-                    .collect::<MyResult<Vec<_>>>()?
-                    .join("\n"),
-                name
-            ),
+            Self::Struct { name, body } => {
+                Scope::add_item(ScopeItem::Struct)?;
+
+                format!(
+                    "typedef struct {{\n{}\n}} {};",
+                    body.into_iter()
+                        .map(Define::gen)
+                        .collect::<MyResult<Vec<_>>>()?
+                        .join("\n"),
+                    name
+                )
+            }
             Self::Func {
                 ty,
                 name,
                 args,
                 body,
             } => {
+                Scope::add_item(ScopeItem::Func)?;
+
                 format!(
                     "{} {}({}) {}",
                     ty.gen()?,
@@ -114,6 +121,8 @@ impl Visit for VarDefine {
 
 impl Gen for VarDefine {
     fn gen(self) -> MyResult<String> {
+        Scope::add_item(ScopeItem::Var)?;
+
         let mut s = format!("{} {}", self.ty.gen()?, self.name);
         if let Some(value) = self.value {
             write!(s, " = {}", value.gen()?)?;

@@ -1,5 +1,6 @@
 use crate::define::Define;
 use crate::error::{MyResult, Pos};
+use crate::scope::Scope;
 use crate::ty::Type;
 use crate::visit::Program;
 
@@ -10,13 +11,19 @@ pub trait Gen {
 
 impl Gen for Program {
     fn gen(self) -> MyResult<String> {
+        Pos::reset();
+        Scope::push();
+
         Type::init()?;
         Pos::reset();
 
-        Ok(self
+        let result = Ok(self
             .into_iter()
             .map(Define::gen)
             .collect::<MyResult<Vec<_>>>()?
-            .join("\n"))
+            .join("\n"));
+
+        Scope::pop()?;
+        result
     }
 }
