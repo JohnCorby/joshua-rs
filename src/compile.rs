@@ -1,6 +1,7 @@
 //! take c code string, write it to a c file, and compile that file
 
-use crate::error::{MyResult, Pos};
+use crate::error::MyResult;
+use crate::pos::Pos;
 use std::path::Path;
 use std::process::Command;
 

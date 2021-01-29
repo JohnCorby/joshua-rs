@@ -7,6 +7,7 @@ mod error;
 mod expr;
 mod gen;
 mod parse;
+mod pos;
 mod scope;
 mod statement;
 mod ty;

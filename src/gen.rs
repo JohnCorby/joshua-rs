@@ -1,5 +1,6 @@
 use crate::define::Define;
-use crate::error::{MyResult, Pos};
+use crate::error::MyResult;
+use crate::pos::Pos;
 use crate::scope::Scope;
 use crate::ty::Type;
 use crate::visit::Program;
