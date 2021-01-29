@@ -15,11 +15,11 @@ mod util;
 mod visit;
 
 use crate::compile::compile_program;
+use crate::define::Program;
 use crate::error::MyResult;
 use crate::gen::Gen;
 use crate::parse::{parse, Rule};
 use crate::util::PairExt;
-use crate::visit::Program;
 use std::path::Path;
 
 fn main() -> MyResult<()> {

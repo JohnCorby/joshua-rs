@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 static CURRENT_POS: Mutex<Option<Pos>> = Mutex::new(None);
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct Pos {
     input: Arc<String>,
     start: usize,
@@ -14,27 +14,13 @@ pub struct Pos {
 }
 
 impl Pos {
-    pub fn unknown() -> Self {
-        Self {
-            input: "[unknown pos]".to_string().into(),
-            start: 0,
-            end: 0,
-        }
-    }
-
-    pub fn reset() {
-        *CURRENT_POS.lock() = None;
-    }
     pub fn current() -> Option<Pos> {
         match &*CURRENT_POS.lock() {
             Some(pos) => Some(pos.clone()),
             None => None,
         }
     }
-    pub fn set_current(&mut self) {
-        // if self == &mut Default::default() {
-        //     *self = Self::current().unwrap()
-        // }
+    pub fn set_current(&self) {
         *CURRENT_POS.lock() = Some(self.clone());
     }
 

@@ -18,6 +18,7 @@ impl Type {
     pub fn init() -> MyResult<()> {
         TYPES.lock().clear();
 
+        let pos = Pos::current()?;
         Self::add("byte")?;
         Self::add("ubyte")?;
         Self::add("short")?;
@@ -36,6 +37,7 @@ impl Type {
         Self::add("void")?;
 
         Self::add("addr")?;
+        pos.set_current();
 
         Ok(())
     }

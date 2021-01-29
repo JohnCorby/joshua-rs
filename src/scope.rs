@@ -69,6 +69,7 @@ impl Scope {
         .into_result()
         .map_err(|_| format!("unable to find var `{}`", name.as_ref()).into())
     }
+    #[allow(dead_code)]
     pub fn get_func(name: impl AsRef<str>, arg_types: impl AsRef<[Type]>) -> MyResult<ScopeItem> {
         Self::find(|item| {
             if let ScopeItem::Func {

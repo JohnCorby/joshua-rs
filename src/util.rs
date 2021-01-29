@@ -1,6 +1,5 @@
 use crate::error::MyResult;
 use crate::parse::{Pair, Pairs, Rule};
-use crate::pos::Pos;
 use crate::visit::Visit;
 use console::style;
 

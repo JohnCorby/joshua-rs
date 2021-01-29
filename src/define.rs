@@ -11,6 +11,52 @@ use crate::visit::Visit;
 use std::fmt::Write;
 
 #[derive(Debug, Clone)]
+pub struct Program {
+    pos: Pos,
+    defines: Vec<Define>,
+}
+
+impl Visit for Program {
+    fn visit_impl(pair: Pair) -> MyResult<Self> {
+        Ok(Self {
+            pos: pair.as_pos(),
+            defines: pair
+                .into_inner_checked(Rule::program)?
+                .filter_map(|pair| {
+                    // last rule is EOI. dont visit it
+                    if pair.as_rule() == Rule::EOI {
+                        return None;
+                    }
+                    Some(pair.visit())
+                })
+                .collect::<MyResult<Vec<_>>>()?,
+        })
+    }
+}
+
+impl Gen for Program {
+    fn pos(&self) -> Pos {
+        self.pos.clone()
+    }
+
+    fn gen_impl(self) -> MyResult<String> {
+        Scope::push();
+
+        Type::init()?;
+
+        let result = Ok(self
+            .defines
+            .into_iter()
+            .map(Define::gen)
+            .collect::<MyResult<Vec<_>>>()?
+            .join("\n"));
+
+        Scope::pop()?;
+        result
+    }
+}
+
+#[derive(Debug, Clone)]
 pub enum Define {
     Struct {
         pos: Pos,
