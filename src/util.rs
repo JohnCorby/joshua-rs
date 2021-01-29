@@ -62,7 +62,3 @@ impl PairsExt for Pairs<'_> {
         self.map(Pair::visit).collect()
     }
 }
-
-// impl<T: Gen> Clone for Ref<T> {
-//     fn clone(&self) -> Self {}
-// }

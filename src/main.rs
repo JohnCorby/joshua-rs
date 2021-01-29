@@ -30,11 +30,11 @@ fn main() -> MyResult<()> {
     let program = std::fs::read_to_string(path)?;
 
     let pair = parse(Rule::program, &program)?;
-    // println!("{}", pair.to_pretty_string());
+    println!("{}", pair.to_pretty_string());
     let program = pair.visit::<Program>()?;
-    // println!("{:?}", program);
+    println!("{:?}", program);
     let c_code = program.gen()?;
-    // println!("{}", c_code);
+    println!("{}", c_code);
     compile_program(c_code, path)?;
 
     Ok(())

@@ -19,6 +19,7 @@ pub fn compile_program(c_code: impl AsRef<str>, path: impl AsRef<Path>) -> MyRes
         .arg(out_path)
         .status()?;
     println!("{}", status);
+    std::fs::remove_file(c_path)?;
 
     println!("running");
     let status = Command::new(out_path).status()?;
