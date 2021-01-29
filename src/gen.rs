@@ -12,7 +12,6 @@ pub trait Gen {
 
 impl Gen for Program {
     fn gen(self) -> MyResult<String> {
-        Pos::reset();
         Scope::push();
 
         Type::init()?;

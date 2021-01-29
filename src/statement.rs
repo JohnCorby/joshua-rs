@@ -130,7 +130,10 @@ impl Gen for Statement {
                 block.gen()?
             ),
             Self::FuncCall(func_call) => format!("{};", func_call.gen()?),
-            Self::VarAssign { name, value } => format!("{} = {};", name, value.gen()?),
+            Self::VarAssign { name, value } => {
+                Scope::get_var(&name)?;
+                format!("{} = {};", name, value.gen()?)
+            }
             Self::VarDefine(var_define) => format!("{};", var_define.gen()?),
         })
     }

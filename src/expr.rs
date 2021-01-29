@@ -3,6 +3,7 @@
 use crate::error::{unexpected_rule, MyResult};
 use crate::gen::Gen;
 use crate::parse::{Pair, Rule};
+use crate::scope::Scope;
 use crate::statement::FuncCall;
 use crate::ty::Type;
 use crate::util::PairExt;
@@ -106,7 +107,10 @@ impl Gen for Expr {
             Self::Cast { thing, ty } => format!("(({}) {})", ty.gen()?, Expr::clone(&thing).gen()?),
             Self::Literal(literal) => literal.gen()?,
             Self::FuncCall(func_call) => func_call.gen()?,
-            Self::Var(name) => name,
+            Self::Var(name) => {
+                Scope::get_var(&name)?;
+                name
+            }
         })
     }
 }

@@ -65,7 +65,7 @@ impl Gen for Define {
     fn gen(self) -> MyResult<String> {
         Ok(match self {
             Self::Struct { name, body } => {
-                Scope::add_item(ScopeItem::Struct)?;
+                Scope::add_item(ScopeItem::Struct { name: name.clone() })?;
 
                 format!(
                     "typedef struct {{\n{}\n}} {};",
@@ -82,7 +82,11 @@ impl Gen for Define {
                 args,
                 body,
             } => {
-                Scope::add_item(ScopeItem::Func)?;
+                Scope::add_item(ScopeItem::Func {
+                    ty: ty.clone(),
+                    name: name.clone(),
+                    arg_types: args.iter().map(|arg| arg.ty.clone()).collect(),
+                })?;
 
                 format!(
                     "{} {}({}) {}",
@@ -121,7 +125,10 @@ impl Visit for VarDefine {
 
 impl Gen for VarDefine {
     fn gen(self) -> MyResult<String> {
-        Scope::add_item(ScopeItem::Var)?;
+        Scope::add_item(ScopeItem::Var {
+            ty: self.ty.clone(),
+            name: self.name.clone(),
+        })?;
 
         let mut s = format!("{} {}", self.ty.gen()?, self.name);
         if let Some(value) = self.value {
