@@ -1,1 +1,9 @@
-struct bruh{signed int hi;};void bruh$hello(void* this,signed int suck,signed char my,void* balls){};signed int goo(){};signed int main(){for(signed int i=(signed int)(0);(signed char)((signed int)(i)<(signed int)(10));i=(signed int)((signed int)(i)+(signed int)(1))){break;};float i=(float)((signed int)(1));signed int e=(signed int)((signed int)((signed int)(1)+(signed int)((float)(i)))+(signed int)(2));return(signed int)((float)(-(float)(i)));};
+int main() {
+for(int i = 0; (i < 10); i = (i + 1)) {
+break;
+}
+float i = ((float) 1);
+int e = ((1 + ((int) i)) + 2);
+int bruh = (((1 + 1) + 1) + (2 + 2));
+return ((int) (-i));
+}

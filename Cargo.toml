@@ -12,4 +12,3 @@ pest_derive = "*"
 lazy_static = "*"
 parking_lot = { version = "*", features = ["nightly"] }
 console = "*"
-tcc = "*"

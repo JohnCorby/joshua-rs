@@ -1,49 +1,28 @@
 //! take c code string, write it to a c file, and compile that file
 
-use crate::error::{MyError, MyResult, Pos};
-use std::cell::Cell;
+use crate::error::{MyResult, Pos};
 use std::path::Path;
-use std::rc::Rc;
-use tcc::{Symbol, Tcc};
+use std::process::Command;
 
-pub fn compile_program(c_code: impl AsRef<str>) -> MyResult<()> {
-    const OUT_PATH: &str = "test/test2.c";
-    let path = Path::new(OUT_PATH);
+pub fn compile_program(c_code: impl AsRef<str>, path: impl AsRef<Path>) -> MyResult<()> {
+    let c_path = &path.as_ref().with_extension("c");
+    let out_path = &path.as_ref().with_extension("");
 
     Pos::reset();
 
-    std::fs::write(path, c_code.as_ref())?;
+    std::fs::write(c_path, c_code.as_ref())?;
 
-    let mut tcc = Tcc::new();
-    let errored = Rc::new(Cell::new(false));
-    {
-        let errored = errored.clone();
-        tcc.set_error_func(Some(Box::new(move |str| {
-            println!("compiler error: {}", str);
-            errored.set(true);
-        })));
-    }
+    println!("compiling");
+    let status = Command::new("gcc")
+        .arg(c_path)
+        .arg("-o")
+        .arg(out_path)
+        .status()?;
+    println!("{}", status);
 
-    // let _ = tcc.add_file(path);
-    // let _ = tcc.output_file(path.with_extension(""));
-    let _ = tcc.compile_string(c_code.as_ref());
-    let mut relocated = tcc
-        .relocate()
-        .map_err(|_| MyError::from("error relocating tcc".to_string()))?;
-    let symbol = relocated
-        .get_symbol("main")
-        .map_err(|_| MyError::from("error getting main symbol".to_string()))?;
-    unsafe {
-        let ptr = symbol.as_ptr();
-        dbg!(ptr);
-        let ptr: fn() -> i32 = std::mem::transmute(ptr);
-        let return_code = ptr();
-        println!("return code is {}", return_code);
-    }
+    println!("running");
+    let status = Command::new(out_path).status()?;
+    println!("{}", status);
 
-    if errored.get() {
-        Err("".to_string().into())
-    } else {
-        Ok(())
-    }
+    Ok(())
 }

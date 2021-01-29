@@ -108,7 +108,6 @@ dependencies = [
  "parking_lot",
  "pest",
  "pest_derive",
- "tcc",
 ]
 
 [[package]]
@@ -310,12 +309,6 @@ dependencies = [
  "quote",
  "unicode-xid",
 ]
-
-[[package]]
-name = "tcc"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "61047a14e2e7a6760eae71536e6871e76fee3cb982a687bbb65266fba5b20866"
 
 [[package]]
 name = "terminal_size"
