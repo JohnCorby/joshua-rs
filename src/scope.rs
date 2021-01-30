@@ -1,3 +1,7 @@
+//! scope stack contains scopes
+//! scopes contain symbols
+//! symbols allow us to check for existence and type of stuff we define
+
 use crate::error::MyResult;
 use crate::ty::Type;
 use parking_lot::Mutex;
@@ -7,11 +11,11 @@ static SCOPES: Mutex<Vec<Scope>> = Mutex::new(Vec::new());
 
 #[derive(Debug, Clone, Default)]
 pub struct Scope {
-    items: Vec<ScopeItem>,
+    items: Vec<Symbol>,
 }
 
 #[derive(Debug, Clone)]
-pub enum ScopeItem {
+pub enum Symbol {
     Func {
         ty: Type,
         name: String,
@@ -21,7 +25,7 @@ pub enum ScopeItem {
         ty: Type,
         name: String,
     },
-    Struct {
+    Type {
         name: String,
     },
 }
@@ -38,16 +42,16 @@ impl Scope {
             .expect("tried to pop an empty scope stack");
     }
 
-    pub fn add_item(item: ScopeItem) {
+    pub fn add(symbol: Symbol) {
         SCOPES
             .lock()
             .last_mut()
             .expect("tried to get current scope from empty scope stack")
             .items
-            .push(item);
+            .push(symbol);
     }
 
-    fn find(mut predicate: impl FnMut(&ScopeItem) -> bool) -> Option<ScopeItem> {
+    fn find(mut predicate: impl FnMut(&Symbol) -> bool) -> Option<Symbol> {
         for scope in SCOPES.lock().iter().rev() {
             if let Some(item) = scope.items.iter().find(|item| predicate(item)) {
                 return Some(item.clone());
@@ -56,9 +60,9 @@ impl Scope {
         None
     }
 
-    pub fn get_var(name: impl AsRef<str>) -> MyResult<ScopeItem> {
+    pub fn get_var(name: impl AsRef<str>) -> MyResult<Symbol> {
         Self::find(|item| {
-            if let ScopeItem::Var { name: n, .. } = item {
+            if let Symbol::Var { name: n, .. } = item {
                 return n == name.as_ref();
             }
             false
@@ -67,9 +71,9 @@ impl Scope {
         .map_err(|_| format!("unable to find var `{}`", name.as_ref()).into())
     }
     #[allow(dead_code)]
-    pub fn get_func(name: impl AsRef<str>, arg_types: impl AsRef<[Type]>) -> MyResult<ScopeItem> {
+    pub fn get_func(name: impl AsRef<str>, arg_types: impl AsRef<[Type]>) -> MyResult<Symbol> {
         Self::find(|item| {
-            if let ScopeItem::Func {
+            if let Symbol::Func {
                 name: n,
                 arg_types: at,
                 ..

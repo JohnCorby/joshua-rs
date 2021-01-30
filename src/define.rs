@@ -3,7 +3,7 @@ use crate::expr::Expr;
 use crate::gen::Gen;
 use crate::parse::{Pair, Rule};
 use crate::pos::{AsPos, HasPos, Pos};
-use crate::scope::{Scope, ScopeItem};
+use crate::scope::{Scope, Symbol};
 use crate::statement::Block;
 use crate::ty::Type;
 use crate::util::{PairExt, PairsExt};
@@ -128,7 +128,7 @@ impl Gen for Define {
     fn gen_impl(self) -> MyResult<String> {
         Ok(match self {
             Self::Struct { name, body, .. } => {
-                Scope::add_item(ScopeItem::Struct { name: name.clone() });
+                Scope::add(Symbol::Type { name: name.clone() });
 
                 format!(
                     "typedef struct {{\n{}\n}} {};",
@@ -146,7 +146,7 @@ impl Gen for Define {
                 body,
                 ..
             } => {
-                Scope::add_item(ScopeItem::Func {
+                Scope::add(Symbol::Func {
                     ty: ty.clone(),
                     name: name.clone(),
                     arg_types: args.iter().map(|arg| arg.ty.clone()).collect(),
@@ -197,7 +197,7 @@ impl HasPos for VarDefine {
 }
 impl Gen for VarDefine {
     fn gen_impl(self) -> MyResult<String> {
-        Scope::add_item(ScopeItem::Var {
+        Scope::add(Symbol::Var {
             ty: self.ty.clone(),
             name: self.name.clone(),
         });
