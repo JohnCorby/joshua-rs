@@ -9,6 +9,7 @@ edition = "2018"
 [dependencies]
 pest = "*"
 pest_derive = "*"
-parking_lot = { version = "*", features = ["nightly"] }
+parking_lot = { version = "*", features = ["nightly", "owning_ref"] }
 mangling = "*"
 console = "*"
+owning_ref = "*"

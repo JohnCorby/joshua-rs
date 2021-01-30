@@ -4,7 +4,8 @@
 
 use crate::error::MyResult;
 use crate::ty::Type;
-use parking_lot::Mutex;
+use owning_ref::OwningRefMut;
+use parking_lot::{Mutex, MutexGuard};
 use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
 
@@ -84,11 +85,12 @@ impl Scope {
             .expect("tried to pop an empty scope stack");
     }
 
-    pub fn current<'a>() -> &'a mut Scope {
-        SCOPES
-            .lock()
-            .last_mut()
-            .expect("tried to get current scope from empty scope stack")
+    pub fn current() -> OwningRefMut<MutexGuard<'static, Vec<Scope>>, Scope> {
+        OwningRefMut::new(SCOPES.lock()).map_mut(|scopes| {
+            scopes
+                .last_mut()
+                .expect("tried to get current scope from empty scope stack")
+        })
     }
 
     pub fn is_loop(&self) -> bool {
