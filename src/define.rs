@@ -52,7 +52,7 @@ impl Gen for Program {
             .collect::<MyResult<Vec<_>>>()?
             .join("\n"));
 
-        Scope::pop()?;
+        Scope::pop();
         result
     }
 }
@@ -110,7 +110,7 @@ impl Visit for Define {
             }
             Rule::var_define => Self::Var(pair.visit()?),
 
-            rule => unexpected_rule(rule)?,
+            rule => unexpected_rule(rule),
         })
     }
 }
@@ -128,7 +128,7 @@ impl Gen for Define {
     fn gen_impl(self) -> MyResult<String> {
         Ok(match self {
             Self::Struct { name, body, .. } => {
-                Scope::add_item(ScopeItem::Struct { name: name.clone() })?;
+                Scope::add_item(ScopeItem::Struct { name: name.clone() });
 
                 format!(
                     "typedef struct {{\n{}\n}} {};",
@@ -150,7 +150,7 @@ impl Gen for Define {
                     ty: ty.clone(),
                     name: name.clone(),
                     arg_types: args.iter().map(|arg| arg.ty.clone()).collect(),
-                })?;
+                });
 
                 format!(
                     "{} {}({}) {}",
@@ -200,11 +200,11 @@ impl Gen for VarDefine {
         Scope::add_item(ScopeItem::Var {
             ty: self.ty.clone(),
             name: self.name.clone(),
-        })?;
+        });
 
         let mut s = format!("{} {}", self.ty.gen()?, self.name);
         if let Some(value) = self.value {
-            write!(s, " = {}", value.gen()?)?;
+            write!(s, " = {}", value.gen()?).unwrap();
         }
         Ok(s)
     }

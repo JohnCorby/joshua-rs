@@ -1,4 +1,4 @@
-use crate::error::{MyError, MyResult};
+use crate::error::MyResult;
 use crate::ty::Type;
 use parking_lot::Mutex;
 use std::ops::Try;
@@ -31,23 +31,20 @@ impl Scope {
         SCOPES.lock().push(Scope::default());
     }
 
-    pub fn pop() -> MyResult<()> {
+    pub fn pop() {
         SCOPES
             .lock()
             .pop()
-            .into_result()
-            .map(|_| ())
-            .map_err(|_| "tried to pop an empty scope stack".into())
+            .expect("tried to pop an empty scope stack");
     }
 
-    pub fn add_item(item: ScopeItem) -> MyResult<()> {
-        let mut scopes = SCOPES.lock();
-        let scope = scopes
+    pub fn add_item(item: ScopeItem) {
+        SCOPES
+            .lock()
             .last_mut()
-            .into_result()
-            .map_err(|_| MyError::from("tried to get current scope from empty scope stack"))?;
-        scope.items.push(item);
-        Ok(())
+            .expect("tried to get current scope from empty scope stack")
+            .items
+            .push(item);
     }
 
     fn find(mut predicate: impl FnMut(&ScopeItem) -> bool) -> Option<ScopeItem> {

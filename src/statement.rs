@@ -104,7 +104,7 @@ impl Visit for Statement {
             }
             Rule::var_define => Self::VarDefine(pair.visit()?),
 
-            rule => unexpected_rule(rule)?,
+            rule => unexpected_rule(rule),
         })
     }
 }
@@ -130,7 +130,7 @@ impl Gen for Statement {
             Self::Return { value, .. } => {
                 let mut s = String::from("return");
                 if let Some(value) = value {
-                    write!(s, " {}", value.gen()?)?;
+                    write!(s, " {}", value.gen()?).unwrap();
                 }
                 s.push(';');
                 s
@@ -206,7 +206,7 @@ impl Gen for Block {
                 .collect::<MyResult<Vec<_>>>()?
                 .join("\n")
         ));
-        Scope::pop()?;
+        Scope::pop();
         result
     }
 }

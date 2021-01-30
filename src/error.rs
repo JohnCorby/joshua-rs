@@ -15,9 +15,9 @@ pub struct MyError(String);
 
 impl Debug for MyError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "{}", Pos::make_error(&self.0))?;
+        writeln!(f, "{}", Pos::make_error(&self.0)).unwrap();
         if let Some(backtrace) = &*CURRENT_BACKTRACE.lock() {
-            writeln!(f, "{}", backtrace)?;
+            writeln!(f, "{}", backtrace).unwrap();
         }
         Ok(())
     }
@@ -38,8 +38,8 @@ impl From<&str> for MyError {
     }
 }
 
-pub fn unexpected_rule<T>(rule: Rule) -> MyResult<T> {
-    Err(format!("unexpected rule {:?}", rule).into())
+pub fn unexpected_rule(rule: Rule) -> ! {
+    panic!("expected rule {:?}", rule)
 }
 
 impl From<NoneError> for MyError {
@@ -68,20 +68,9 @@ impl From<ParseCharError> for MyError {
         e.to_string().into()
     }
 }
-impl From<std::fmt::Error> for MyError {
-    fn from(e: std::fmt::Error) -> Self {
-        e.to_string().into()
-    }
-}
 
 impl From<pest::error::Error<Rule>> for MyError {
     fn from(e: pest::error::Error<Rule>) -> Self {
-        e.to_string().into()
-    }
-}
-
-impl From<std::io::Error> for MyError {
-    fn from(e: std::io::Error) -> Self {
         e.to_string().into()
     }
 }

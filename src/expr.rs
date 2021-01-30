@@ -105,7 +105,7 @@ impl Visit for Expr {
                 name: pair.as_str().into(),
             },
 
-            rule => unexpected_rule(rule)?,
+            rule => unexpected_rule(rule),
         })
     }
 }
@@ -181,7 +181,7 @@ impl Visit for Literal {
                 value: pair.into_inner().next()?.as_str().into(),
             },
 
-            rule => unexpected_rule(rule)?,
+            rule => unexpected_rule(rule),
         })
     }
 }

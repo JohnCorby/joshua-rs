@@ -27,16 +27,16 @@ use std::path::Path;
 pub static PROGRAM: SyncOnceCell<String> = SyncOnceCell::new();
 fn main() -> MyResult<()> {
     let path = Path::new("test/test.jo");
-    let program = std::fs::read_to_string(path)?;
+    let program = std::fs::read_to_string(path).unwrap();
     PROGRAM.set(program)?;
 
-    let pair = parse(Rule::program, PROGRAM.get().unwrap())?;
+    let pair = parse(Rule::program, PROGRAM.get().unwrap()).unwrap();
     println!("{}", pair.to_pretty_string());
-    let program = pair.visit::<Program>()?;
+    let program = pair.visit::<Program>().unwrap();
     println!("{:?}", program);
-    let c_code = program.gen()?;
+    let c_code = program.gen().unwrap();
     println!("{}", c_code);
-    compile_program(c_code, path)?;
+    compile_program(c_code, path);
 
     Ok(())
 }
