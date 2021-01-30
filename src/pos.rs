@@ -1,14 +1,14 @@
 use crate::parse::{Pair, Rule};
+use crate::PROGRAM;
 use parking_lot::Mutex;
-use pest::error::{Error, ErrorVariant};
+use pest::error::Error;
+use pest::error::ErrorVariant::CustomError;
 use pest::Span;
-use std::sync::Arc;
 
 static CURRENT_POS: Mutex<Option<Pos>> = Mutex::new(None);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct Pos {
-    input: Arc<String>,
     start: usize,
     end: usize,
 }
@@ -16,31 +16,25 @@ pub struct Pos {
 impl Pos {
     pub fn current() -> Option<Pos> {
         match &*CURRENT_POS.lock() {
-            Some(pos) => Some(pos.clone()),
+            Some(pos) => Some(*pos),
             None => None,
         }
     }
     pub fn set_current(&self) {
-        *CURRENT_POS.lock() = Some(self.clone());
+        *CURRENT_POS.lock() = Some(*self);
     }
 
-    pub fn make_error(msg: impl AsRef<str>) -> String {
+    pub fn make_error(message: impl AsRef<str>) -> String {
+        let message = message.as_ref().to_string();
+
         let pos = match Pos::current() {
             Some(pos) => pos,
-            None => return msg.as_ref().into(),
+            None => return message,
         };
 
-        let span = match Span::new(&pos.input, pos.start, pos.end) {
-            Some(span) => span,
-            None => return msg.as_ref().into(),
-        };
-
-        let error = Error::new_from_span(
-            ErrorVariant::<Rule>::CustomError {
-                message: msg.as_ref().into(),
-            },
-            span,
-        );
+        let input = PROGRAM.get().unwrap();
+        let span = Span::new(input, pos.start, pos.end).unwrap();
+        let error = Error::<Rule>::new_from_span(CustomError { message }, span);
         error.to_string()
     }
 }
@@ -48,14 +42,16 @@ impl Pos {
 pub trait AsPos {
     fn as_pos(&self) -> Pos;
 }
-
 impl AsPos for Pair<'_> {
     fn as_pos(&self) -> Pos {
-        let (start_pos, end_pos) = self.as_span().split();
-
-        let input = start_pos.line_of().to_string().into();
-        let start = start_pos.line_col().1 - 1;
-        let end = end_pos.line_col().1 - 1;
-        Pos { input, start, end }
+        let span = self.as_span();
+        Pos {
+            start: span.start(),
+            end: span.end(),
+        }
     }
+}
+
+pub trait HasPos {
+    fn pos(&self) -> Pos;
 }

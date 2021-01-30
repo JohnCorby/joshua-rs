@@ -1,5 +1,6 @@
 #![feature(try_trait)]
 #![feature(backtrace)]
+#![feature(once_cell)]
 
 mod compile;
 mod define;
@@ -20,13 +21,16 @@ use crate::error::MyResult;
 use crate::gen::Gen;
 use crate::parse::{parse, Rule};
 use crate::util::PairExt;
+use std::lazy::SyncOnceCell;
 use std::path::Path;
 
+pub static PROGRAM: SyncOnceCell<String> = SyncOnceCell::new();
 fn main() -> MyResult<()> {
     let path = Path::new("test/test.jo");
     let program = std::fs::read_to_string(path)?;
+    PROGRAM.set(program)?;
 
-    let pair = parse(Rule::program, &program)?;
+    let pair = parse(Rule::program, PROGRAM.get().unwrap())?;
     println!("{}", pair.to_pretty_string());
     let program = pair.visit::<Program>()?;
     println!("{:?}", program);

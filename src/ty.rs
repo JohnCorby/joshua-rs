@@ -1,7 +1,7 @@
 use crate::error::{MyError, MyResult};
 use crate::gen::Gen;
 use crate::parse::{parse, Pair, Rule};
-use crate::pos::{AsPos, Pos};
+use crate::pos::{AsPos, HasPos, Pos};
 use crate::util::PairExt;
 use crate::visit::Visit;
 use parking_lot::Mutex;
@@ -74,11 +74,12 @@ impl Visit for Type {
     }
 }
 
-impl Gen for Type {
+impl HasPos for Type {
     fn pos(&self) -> Pos {
-        self.pos.clone()
+        self.pos
     }
-
+}
+impl Gen for Type {
     fn gen_impl(self) -> MyResult<String> {
         if !TYPES.lock().contains(&self) {
             return Err(format!("cannot resolve type {:?}", self).into());

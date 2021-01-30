@@ -3,7 +3,7 @@
 use crate::error::{unexpected_rule, MyResult};
 use crate::gen::Gen;
 use crate::parse::{Pair, Rule};
-use crate::pos::{AsPos, Pos};
+use crate::pos::{AsPos, HasPos, Pos};
 use crate::scope::Scope;
 use crate::statement::FuncCall;
 use crate::ty::Type;
@@ -51,7 +51,7 @@ impl Visit for Expr {
                 let mut left: Expr = pairs.next()?.visit()?;
                 while let Some(op) = pairs.next() {
                     left = Self::Binary {
-                        pos: pos.clone(),
+                        pos,
                         left: left.into(),
                         op: op.as_str().into(),
                         right: pairs.next()?.visit::<Expr>()?.into(),
@@ -68,7 +68,7 @@ impl Visit for Expr {
                 let mut thing: Expr = rev_pairs.next()?.visit()?;
                 for op in rev_pairs {
                     thing = Self::Unary {
-                        pos: pos.clone(),
+                        pos,
                         op: op.as_str().into(),
                         thing: thing.into(),
                     };
@@ -84,7 +84,7 @@ impl Visit for Expr {
                 let mut thing: Expr = pairs.next()?.visit()?;
                 for ty in pairs {
                     thing = Self::Cast {
-                        pos: pos.clone(),
+                        pos,
                         thing: thing.into(),
                         ty: ty.visit()?,
                     };
@@ -110,18 +110,19 @@ impl Visit for Expr {
     }
 }
 
-impl Gen for Expr {
+impl HasPos for Expr {
     fn pos(&self) -> Pos {
         match self {
-            Expr::Binary { pos, .. } => pos.clone(),
-            Expr::Unary { pos, .. } => pos.clone(),
-            Expr::Cast { pos, .. } => pos.clone(),
+            Expr::Binary { pos, .. } => *pos,
+            Expr::Unary { pos, .. } => *pos,
+            Expr::Cast { pos, .. } => *pos,
             Expr::Literal(literal) => literal.pos(),
             Expr::FuncCall(func_call) => func_call.pos(),
-            Expr::Var { pos, .. } => pos.clone(),
+            Expr::Var { pos, .. } => *pos,
         }
     }
-
+}
+impl Gen for Expr {
     fn gen_impl(self) -> MyResult<String> {
         Ok(match self {
             Self::Binary {
@@ -185,17 +186,18 @@ impl Visit for Literal {
     }
 }
 
-impl Gen for Literal {
+impl HasPos for Literal {
     fn pos(&self) -> Pos {
         match self {
-            Literal::Float { pos, .. } => pos.clone(),
-            Literal::Int { pos, .. } => pos.clone(),
-            Literal::Bool { pos, .. } => pos.clone(),
-            Literal::Char { pos, .. } => pos.clone(),
-            Literal::Str { pos, .. } => pos.clone(),
+            Literal::Float { pos, .. } => *pos,
+            Literal::Int { pos, .. } => *pos,
+            Literal::Bool { pos, .. } => *pos,
+            Literal::Char { pos, .. } => *pos,
+            Literal::Str { pos, .. } => *pos,
         }
     }
-
+}
+impl Gen for Literal {
     fn gen_impl(self) -> MyResult<String> {
         Ok(match self {
             Literal::Float { value: float, .. } => float.to_string(),

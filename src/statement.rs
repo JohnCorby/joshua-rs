@@ -3,7 +3,7 @@ use crate::error::{unexpected_rule, MyResult};
 use crate::expr::Expr;
 use crate::gen::Gen;
 use crate::parse::{Pair, Rule};
-use crate::pos::{AsPos, Pos};
+use crate::pos::{AsPos, HasPos, Pos};
 use crate::scope::Scope;
 use crate::util::{PairExt, PairsExt};
 use crate::visit::Visit;
@@ -109,21 +109,22 @@ impl Visit for Statement {
     }
 }
 
-impl Gen for Statement {
+impl HasPos for Statement {
     fn pos(&self) -> Pos {
         match self {
-            Statement::Return { pos, .. } => pos.clone(),
-            Statement::Break { pos } => pos.clone(),
-            Statement::Continue { pos } => pos.clone(),
-            Statement::If { pos, .. } => pos.clone(),
-            Statement::Until { pos, .. } => pos.clone(),
-            Statement::For { pos, .. } => pos.clone(),
+            Statement::Return { pos, .. } => *pos,
+            Statement::Break { pos } => *pos,
+            Statement::Continue { pos } => *pos,
+            Statement::If { pos, .. } => *pos,
+            Statement::Until { pos, .. } => *pos,
+            Statement::For { pos, .. } => *pos,
             Statement::FuncCall(func_call) => func_call.pos(),
-            Statement::VarAssign { pos, .. } => pos.clone(),
+            Statement::VarAssign { pos, .. } => *pos,
             Statement::VarDefine(var_define) => var_define.pos(),
         }
     }
-
+}
+impl Gen for Statement {
     fn gen_impl(self) -> MyResult<String> {
         Ok(match self {
             Self::Return { value, .. } => {
@@ -189,11 +190,12 @@ impl Visit for Block {
     }
 }
 
-impl Gen for Block {
+impl HasPos for Block {
     fn pos(&self) -> Pos {
-        self.pos.clone()
+        self.pos
     }
-
+}
+impl Gen for Block {
     fn gen_impl(self) -> MyResult<String> {
         Scope::push();
         let result = Ok(format!(
@@ -229,11 +231,12 @@ impl Visit for FuncCall {
     }
 }
 
-impl Gen for FuncCall {
+impl HasPos for FuncCall {
     fn pos(&self) -> Pos {
-        self.pos.clone()
+        self.pos
     }
-
+}
+impl Gen for FuncCall {
     fn gen_impl(self) -> MyResult<String> {
         Ok(format!(
             "{}({})",

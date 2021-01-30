@@ -2,7 +2,7 @@ use crate::error::{unexpected_rule, MyResult};
 use crate::expr::Expr;
 use crate::gen::Gen;
 use crate::parse::{Pair, Rule};
-use crate::pos::{AsPos, Pos};
+use crate::pos::{AsPos, HasPos, Pos};
 use crate::scope::{Scope, ScopeItem};
 use crate::statement::Block;
 use crate::ty::Type;
@@ -34,11 +34,12 @@ impl Visit for Program {
     }
 }
 
-impl Gen for Program {
+impl HasPos for Program {
     fn pos(&self) -> Pos {
-        self.pos.clone()
+        self.pos
     }
-
+}
+impl Gen for Program {
     fn gen_impl(self) -> MyResult<String> {
         Scope::push();
 
@@ -114,15 +115,16 @@ impl Visit for Define {
     }
 }
 
-impl Gen for Define {
+impl HasPos for Define {
     fn pos(&self) -> Pos {
         match self {
-            Define::Struct { pos, .. } => pos.clone(),
-            Define::Func { pos, .. } => pos.clone(),
+            Define::Struct { pos, .. } => *pos,
+            Define::Func { pos, .. } => *pos,
             Define::Var(var_define) => var_define.pos(),
         }
     }
-
+}
+impl Gen for Define {
     fn gen_impl(self) -> MyResult<String> {
         Ok(match self {
             Self::Struct { name, body, .. } => {
@@ -188,11 +190,12 @@ impl Visit for VarDefine {
     }
 }
 
-impl Gen for VarDefine {
+impl HasPos for VarDefine {
     fn pos(&self) -> Pos {
-        self.pos.clone()
+        self.pos
     }
-
+}
+impl Gen for VarDefine {
     fn gen_impl(self) -> MyResult<String> {
         Scope::add_item(ScopeItem::Var {
             ty: self.ty.clone(),
