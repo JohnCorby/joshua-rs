@@ -6,12 +6,32 @@ use std::char::ParseCharError;
 use std::fmt::{Debug, Formatter};
 use std::num::{ParseFloatError, ParseIntError};
 use std::option::NoneError;
+use std::process::Termination;
 use std::str::ParseBoolError;
 
 static CURRENT_BACKTRACE: Mutex<Option<Backtrace>> = Mutex::new(None);
 
 pub type MyResult<T> = Result<T, MyError>;
 pub struct MyError(String);
+
+impl MyError {
+    pub fn init() {
+        std::panic::set_hook(Box::new(|info| {
+            // get message
+            let message = if let Some(message) = info.message() {
+                message.to_string()
+            } else if let Some(payload) = info.payload().downcast_ref::<&'static str>() {
+                payload.to_string()
+            } else {
+                "cannot get panic message".to_string()
+            };
+
+            // make error
+            let result: MyResult<()> = Err(MyError::from(message));
+            result.report();
+        }))
+    }
+}
 
 impl Debug for MyError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {

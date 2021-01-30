@@ -1,6 +1,8 @@
 #![feature(try_trait)]
 #![feature(backtrace)]
 #![feature(once_cell)]
+#![feature(panic_info_message)]
+#![feature(termination_trait_lib)]
 
 mod compile;
 mod define;
@@ -17,7 +19,7 @@ mod visit;
 
 use crate::compile::compile_program;
 use crate::define::Program;
-use crate::error::MyResult;
+use crate::error::{MyError, MyResult};
 use crate::gen::Gen;
 use crate::parse::{parse, Rule};
 use crate::util::PairExt;
@@ -26,6 +28,8 @@ use std::path::Path;
 
 pub static PROGRAM: SyncOnceCell<String> = SyncOnceCell::new();
 fn main() -> MyResult<()> {
+    MyError::init();
+
     let path = Path::new("test/test.jo");
     let program = std::fs::read_to_string(path).unwrap();
     PROGRAM.set(program)?;
