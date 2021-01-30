@@ -41,7 +41,7 @@ impl HasPos for Program {
 }
 impl Gen for Program {
     fn gen_impl(self) -> MyResult<String> {
-        Scope::push();
+        Scope::push(false);
 
         Type::init()?;
 
@@ -128,7 +128,7 @@ impl Gen for Define {
     fn gen_impl(self) -> MyResult<String> {
         Ok(match self {
             Self::Struct { name, body, .. } => {
-                Scope::add(Symbol::Type { name: name.clone() });
+                Scope::current().add(Symbol::Type { name: name.clone() })?;
 
                 format!(
                     "typedef struct {{\n{}\n}} {};",
@@ -146,13 +146,14 @@ impl Gen for Define {
                 body,
                 ..
             } => {
-                Scope::add(Symbol::Func {
+                Scope::current().add(Symbol::Func {
                     ty: ty.clone(),
                     name: name.clone(),
                     arg_types: args.iter().map(|arg| arg.ty.clone()).collect(),
-                });
+                })?;
 
-                format!(
+                Scope::push(true);
+                let s = format!(
                     "{} {}({}) {}",
                     ty.gen()?,
                     name,
@@ -161,7 +162,9 @@ impl Gen for Define {
                         .collect::<MyResult<Vec<_>>>()?
                         .join(", "),
                     body.gen()?
-                )
+                );
+                Scope::pop();
+                s
             }
             Self::Var(var_define) => var_define.gen()?,
         })
@@ -197,10 +200,10 @@ impl HasPos for VarDefine {
 }
 impl Gen for VarDefine {
     fn gen_impl(self) -> MyResult<String> {
-        Scope::add(Symbol::Var {
+        Scope::current().add(Symbol::Var {
             ty: self.ty.clone(),
             name: self.name.clone(),
-        });
+        })?;
 
         let mut s = format!("{} {}", self.ty.gen()?, self.name);
         if let Some(value) = self.value {

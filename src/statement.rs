@@ -1,5 +1,5 @@
 use crate::define::VarDefine;
-use crate::error::{unexpected_rule, MyResult};
+use crate::error::{unexpected_rule, MyError, MyResult};
 use crate::expr::Expr;
 use crate::gen::Gen;
 use crate::parse::{Pair, Rule};
@@ -134,22 +134,41 @@ impl Gen for Statement {
                 s.push(';');
                 s
             }
-            Self::Break { .. } => "break;".into(),
-            Self::Continue { .. } => "continue;".into(),
+            Self::Break { .. } => {
+                if !Scope::current().is_loop() {
+                    Err(MyError::from("break cant be used outside of loops"))?;
+                }
+                "break;".into()
+            }
+            Self::Continue { .. } => {
+                if !Scope::current().is_loop() {
+                    Err(MyError::from("continue cant be used outside of loops"))?;
+                }
+                "continue;".into()
+            }
             Self::If {
                 cond,
                 then,
                 otherwise,
                 ..
             } => {
-                let mut s = format!("if({}) {}", cond.gen()?, then.gen()?);
+                let mut s = format!("if({}) ", cond.gen()?);
+                Scope::push(false);
+                s.write_str(&then.gen()?).unwrap();
+                Scope::pop();
                 if let Some(otherwise) = otherwise {
+                    Scope::push(false);
                     s.push_str(&otherwise.gen()?);
+                    Scope::pop();
                 }
                 s
             }
             Self::Until { cond, block, .. } => {
-                format!("while(!({})) {}", cond.gen()?, block.gen()?)
+                let mut s = format!("while(!({})) ", cond.gen()?);
+                Scope::push(true);
+                s.write_str(&block.gen()?).unwrap();
+                Scope::pop();
+                s
             }
             Self::For {
                 init,
@@ -157,13 +176,18 @@ impl Gen for Statement {
                 update,
                 block,
                 ..
-            } => format!(
-                "for({}; {}; {}) {}",
-                init.gen()?,
-                cond.gen()?,
-                update.gen()?.strip_suffix(';')?,
-                block.gen()?
-            ),
+            } => {
+                Scope::push(true);
+                let s = format!(
+                    "for({}; {}; {}) {}",
+                    init.gen()?,
+                    cond.gen()?,
+                    update.gen()?.strip_suffix(';')?,
+                    block.gen()?
+                );
+                Scope::pop();
+                s
+            }
             Self::FuncCall(func_call) => format!("{};", func_call.gen()?),
             Self::VarAssign { name, value, .. } => {
                 Scope::get_var(&name)?;
@@ -196,17 +220,14 @@ impl HasPos for Block {
 }
 impl Gen for Block {
     fn gen_impl(self) -> MyResult<String> {
-        Scope::push();
-        let result = Ok(format!(
+        Ok(format!(
             "{{\n{}\n}}",
             self.statements
                 .into_iter()
                 .map(Statement::gen)
                 .collect::<MyResult<Vec<_>>>()?
                 .join("\n")
-        ));
-        Scope::pop();
-        result
+        ))
     }
 }
 

@@ -17,5 +17,7 @@ int main() {
     float i = 1 as float
     int e = 1 + i as int + 2
     int bruh = (1 + 1 + 1) + (2 + 2)
+    int bruh = (1 + 1 + 1) + (2 + 2)
+    int bruh = (1 + 1 + 1) + (2 + 2)
     return (-i) as int
 }

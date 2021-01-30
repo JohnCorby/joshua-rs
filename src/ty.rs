@@ -5,6 +5,7 @@ use crate::pos::{AsPos, HasPos, Pos};
 use crate::util::PairExt;
 use crate::visit::Visit;
 use parking_lot::Mutex;
+use std::hash::{Hash, Hasher};
 use std::str::FromStr;
 
 static TYPES: Mutex<Vec<Type>> = Mutex::new(Vec::new());
@@ -52,6 +53,11 @@ impl Type {
 impl PartialEq for Type {
     fn eq(&self, other: &Self) -> bool {
         self.name == other.name
+    }
+}
+impl Hash for Type {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.name.hash(state)
     }
 }
 
