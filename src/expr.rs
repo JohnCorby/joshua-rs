@@ -39,21 +39,21 @@ pub enum Expr {
 }
 
 impl Visit for Expr {
-    fn visit_impl(pair: Pair) -> MyResult<Self> {
-        Ok(match pair.as_rule() {
-            Rule::expr => pair.into_inner().next()?.visit()?,
+    fn visit_impl(pair: Pair) -> Self {
+        match pair.as_rule() {
+            Rule::expr => pair.into_inner().next().unwrap().visit(),
             Rule::equality_expr | Rule::compare_expr | Rule::add_expr | Rule::mul_expr => {
                 let pos = pair.as_pos();
                 // left assoc
                 let mut pairs = pair.into_inner();
 
-                let mut left: Expr = pairs.next()?.visit()?;
+                let mut left: Expr = pairs.next().unwrap().visit();
                 while let Some(op) = pairs.next() {
                     left = Self::Binary {
                         pos,
                         left: left.into(),
                         op: op.as_str().into(),
-                        right: pairs.next()?.visit::<Expr>()?.into(),
+                        right: pairs.next().unwrap().visit::<Expr>().into(),
                     };
                 }
 
@@ -64,7 +64,7 @@ impl Visit for Expr {
                 // right assoc
                 let mut rev_pairs = pair.into_inner().rev();
 
-                let mut thing: Expr = rev_pairs.next()?.visit()?;
+                let mut thing: Expr = rev_pairs.next().unwrap().visit();
                 for op in rev_pairs {
                     thing = Self::Unary {
                         pos,
@@ -80,12 +80,12 @@ impl Visit for Expr {
                 // left assoc
                 let mut pairs = pair.into_inner();
 
-                let mut thing: Expr = pairs.next()?.visit()?;
+                let mut thing: Expr = pairs.next().unwrap().visit();
                 for ty in pairs {
                     thing = Self::Cast {
                         pos,
                         thing: thing.into(),
-                        ty: ty.visit()?,
+                        ty: ty.visit(),
                     };
                 }
 
@@ -97,15 +97,15 @@ impl Visit for Expr {
             | Rule::int_literal
             | Rule::bool_literal
             | Rule::char_literal
-            | Rule::str_literal => Self::Literal(pair.visit()?),
-            Rule::func_call => Self::FuncCall(pair.visit()?),
+            | Rule::str_literal => Self::Literal(pair.visit()),
+            Rule::func_call => Self::FuncCall(pair.visit()),
             Rule::ident => Self::Var {
                 pos: pair.as_pos(),
                 name: pair.as_str().into(),
             },
 
             rule => unexpected_rule(rule),
-        })
+        }
     }
 }
 
@@ -151,32 +151,32 @@ pub enum Literal {
 }
 
 impl Visit for Literal {
-    fn visit_impl(pair: Pair) -> MyResult<Self> {
+    fn visit_impl(pair: Pair) -> Self {
         let pos = pair.as_pos();
-        Ok(match pair.as_rule() {
+        match pair.as_rule() {
             Rule::float_literal => Self::Float {
                 pos,
-                value: pair.as_str().parse()?,
+                value: pair.as_str().parse().unwrap(),
             },
             Rule::int_literal => Self::Int {
                 pos,
-                value: pair.as_str().parse()?,
+                value: pair.as_str().parse().unwrap(),
             },
             Rule::bool_literal => Self::Bool {
                 pos,
-                value: pair.as_str().parse()?,
+                value: pair.as_str().parse().unwrap(),
             },
             Rule::char_literal => Self::Char {
                 pos,
-                value: pair.into_inner().next()?.as_str().parse()?,
+                value: pair.into_inner().next().unwrap().as_str().parse().unwrap(),
             },
             Rule::str_literal => Self::Str {
                 pos,
-                value: pair.into_inner().next()?.as_str().into(),
+                value: pair.into_inner().next().unwrap().as_str().into(),
             },
 
             rule => unexpected_rule(rule),
-        })
+        }
     }
 }
 

@@ -1,28 +1,27 @@
-use crate::error::MyResult;
 use crate::parse::{Pair, Pairs, Rule};
 use crate::visit::Visit;
 use console::style;
 
 pub trait PairExt<'i> {
     /// turns visit into an extension method for pair
-    fn visit<T: Visit>(self) -> MyResult<T>;
+    fn visit<T: Visit>(self) -> T;
 
     /// check that a pair matches a rule, and then return its inner pairs
-    fn into_inner_checked(self, expected: Rule) -> MyResult<Pairs<'i>>;
+    fn into_inner_checked(self, expected: Rule) -> Pairs<'i>;
 
     fn to_pretty_string(&self) -> String;
 }
 impl<'i> PairExt<'i> for Pair<'i> {
-    fn visit<T: Visit>(self) -> MyResult<T> {
+    fn visit<T: Visit>(self) -> T {
         T::visit(self)
     }
 
-    fn into_inner_checked(self, expected: Rule) -> MyResult<Pairs<'i>> {
+    fn into_inner_checked(self, expected: Rule) -> Pairs<'i> {
         let actual = self.as_rule();
         if expected == actual {
-            Ok(self.into_inner())
+            self.into_inner()
         } else {
-            Err(format!("expected rule {:?}, but got {:?}", expected, actual).into())
+            panic!("expected rule {:?}, but got {:?}", expected, actual)
         }
     }
 
@@ -47,10 +46,10 @@ impl<'i> PairExt<'i> for Pair<'i> {
 pub trait PairsExt {
     /// visits any not iterated pairs,
     /// short circuiting if any of them error
-    fn visit_rest<T: Visit>(self) -> MyResult<Vec<T>>;
+    fn visit_rest<T: Visit>(self) -> Vec<T>;
 }
 impl PairsExt for Pairs<'_> {
-    fn visit_rest<T: Visit>(self) -> MyResult<Vec<T>> {
+    fn visit_rest<T: Visit>(self) -> Vec<T> {
         self.map(Pair::visit).collect()
     }
 }

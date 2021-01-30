@@ -17,11 +17,11 @@ pub struct Program {
 }
 
 impl Visit for Program {
-    fn visit_impl(pair: Pair) -> MyResult<Self> {
-        Ok(Self {
+    fn visit_impl(pair: Pair) -> Self {
+        Self {
             pos: pair.as_pos(),
             defines: pair
-                .into_inner_checked(Rule::program)?
+                .into_inner_checked(Rule::program)
                 .filter_map(|pair| {
                     // last rule is EOI. dont visit it
                     if pair.as_rule() == Rule::EOI {
@@ -29,8 +29,8 @@ impl Visit for Program {
                     }
                     Some(pair.visit())
                 })
-                .collect::<MyResult<Vec<_>>>()?,
-        })
+                .collect(),
+        }
     }
 }
 
@@ -75,30 +75,30 @@ pub enum Define {
 }
 
 impl Visit for Define {
-    fn visit_impl(pair: Pair) -> MyResult<Self> {
-        Ok(match pair.as_rule() {
+    fn visit_impl(pair: Pair) -> Self {
+        match pair.as_rule() {
             Rule::struct_define => {
                 let pos = pair.as_pos();
                 let mut pairs = pair.into_inner();
 
                 Self::Struct {
                     pos,
-                    name: pairs.next()?.as_str().into(),
-                    body: pairs.visit_rest()?,
+                    name: pairs.next().unwrap().as_str().into(),
+                    body: pairs.visit_rest(),
                 }
             }
             Rule::func_define => {
                 let pos = pair.as_pos();
                 let mut pairs = pair.into_inner();
 
-                let ty = pairs.next()?.visit()?;
-                let name = pairs.next()?.as_str().into();
+                let ty = pairs.next().unwrap().visit();
+                let name = pairs.next().unwrap().as_str().into();
                 let mut args = vec![];
                 while pairs.peek().is_some() && pairs.peek().unwrap().as_rule() == Rule::var_define
                 {
-                    args.push(pairs.next().unwrap().visit()?)
+                    args.push(pairs.next().unwrap().visit())
                 }
-                let body = pairs.next()?.visit()?;
+                let body = pairs.next().unwrap().visit();
 
                 Self::Func {
                     pos,
@@ -108,10 +108,10 @@ impl Visit for Define {
                     body,
                 }
             }
-            Rule::var_define => Self::Var(pair.visit()?),
+            Rule::var_define => Self::Var(pair.visit()),
 
             rule => unexpected_rule(rule),
-        })
+        }
     }
 }
 
@@ -177,16 +177,16 @@ pub struct VarDefine {
 }
 
 impl Visit for VarDefine {
-    fn visit_impl(pair: Pair) -> MyResult<Self> {
+    fn visit_impl(pair: Pair) -> Self {
         let pos = pair.as_pos();
-        let mut pairs = pair.into_inner_checked(Rule::var_define)?;
+        let mut pairs = pair.into_inner_checked(Rule::var_define);
 
-        Ok(Self {
+        Self {
             pos,
-            ty: pairs.next()?.visit()?,
-            name: pairs.next()?.as_str().into(),
-            value: pairs.next().map(Pair::visit).transpose()?,
-        })
+            ty: pairs.next().unwrap().visit(),
+            name: pairs.next().unwrap().as_str().into(),
+            value: pairs.next().map(Pair::visit),
+        }
     }
 }
 

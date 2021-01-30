@@ -6,7 +6,6 @@ use std::char::ParseCharError;
 use std::fmt::{Debug, Formatter};
 use std::num::{ParseFloatError, ParseIntError};
 use std::option::NoneError;
-use std::process::Termination;
 use std::str::ParseBoolError;
 
 static CURRENT_BACKTRACE: Mutex<Option<Backtrace>> = Mutex::new(None);
@@ -27,8 +26,8 @@ impl MyError {
             };
 
             // make error
-            let result: MyResult<()> = Err(MyError::from(message));
-            result.report();
+            let err = MyError::from(message);
+            eprintln!("Internal Error: {:?}", err);
         }))
     }
 }

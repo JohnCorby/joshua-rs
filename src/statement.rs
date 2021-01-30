@@ -49,11 +49,11 @@ pub enum Statement {
 }
 
 impl Visit for Statement {
-    fn visit_impl(pair: Pair) -> MyResult<Self> {
-        Ok(match pair.as_rule() {
+    fn visit_impl(pair: Pair) -> Self {
+        match pair.as_rule() {
             Rule::ret => Self::Return {
                 pos: pair.as_pos(),
-                value: pair.into_inner().next().map(Pair::visit).transpose()?,
+                value: pair.into_inner().next().map(Pair::visit),
             },
             Rule::brk => Self::Break { pos: pair.as_pos() },
             Rule::cont => Self::Continue { pos: pair.as_pos() },
@@ -63,9 +63,9 @@ impl Visit for Statement {
 
                 Self::If {
                     pos,
-                    cond: pairs.next()?.visit()?,
-                    then: pairs.next()?.visit()?,
-                    otherwise: pairs.next().map(Pair::visit).transpose()?,
+                    cond: pairs.next().unwrap().visit(),
+                    then: pairs.next().unwrap().visit(),
+                    otherwise: pairs.next().map(Pair::visit),
                 }
             }
             Rule::until => {
@@ -74,8 +74,8 @@ impl Visit for Statement {
 
                 Self::Until {
                     pos,
-                    cond: pairs.next()?.visit()?,
-                    block: pairs.next()?.visit()?,
+                    cond: pairs.next().unwrap().visit(),
+                    block: pairs.next().unwrap().visit(),
                 }
             }
             Rule::forr => {
@@ -84,27 +84,27 @@ impl Visit for Statement {
 
                 Self::For {
                     pos,
-                    init: pairs.next()?.visit()?,
-                    cond: pairs.next()?.visit()?,
-                    update: pairs.next()?.visit::<Statement>()?.into(),
-                    block: pairs.next()?.visit()?,
+                    init: pairs.next().unwrap().visit(),
+                    cond: pairs.next().unwrap().visit(),
+                    update: pairs.next().unwrap().visit::<Statement>().into(),
+                    block: pairs.next().unwrap().visit(),
                 }
             }
-            Rule::func_call => Self::FuncCall(pair.visit()?),
+            Rule::func_call => Self::FuncCall(pair.visit()),
             Rule::var_assign => {
                 let pos = pair.as_pos();
                 let mut pairs = pair.into_inner();
 
                 Self::VarAssign {
                     pos,
-                    name: pairs.next()?.as_str().into(),
-                    value: pairs.next()?.visit()?,
+                    name: pairs.next().unwrap().as_str().into(),
+                    value: pairs.next().unwrap().visit(),
                 }
             }
-            Rule::var_define => Self::VarDefine(pair.visit()?),
+            Rule::var_define => Self::VarDefine(pair.visit()),
 
             rule => unexpected_rule(rule),
-        })
+        }
     }
 }
 
@@ -181,11 +181,11 @@ pub struct Block {
 }
 
 impl Visit for Block {
-    fn visit_impl(pair: Pair) -> MyResult<Self> {
-        Ok(Self {
+    fn visit_impl(pair: Pair) -> Self {
+        Self {
             pos: pair.as_pos(),
-            statements: pair.into_inner_checked(Rule::block)?.visit_rest()?,
-        })
+            statements: pair.into_inner_checked(Rule::block).visit_rest(),
+        }
     }
 }
 
@@ -218,15 +218,15 @@ pub struct FuncCall {
 }
 
 impl Visit for FuncCall {
-    fn visit_impl(pair: Pair) -> MyResult<Self> {
+    fn visit_impl(pair: Pair) -> Self {
         let pos = pair.as_pos();
-        let mut pairs = pair.into_inner_checked(Rule::func_call)?;
+        let mut pairs = pair.into_inner_checked(Rule::func_call);
 
-        Ok(Self {
+        Self {
             pos,
-            name: pairs.next()?.as_str().into(),
-            args: pairs.visit_rest()?,
-        })
+            name: pairs.next().unwrap().as_str().into(),
+            args: pairs.visit_rest(),
+        }
     }
 }
 

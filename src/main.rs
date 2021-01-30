@@ -2,7 +2,6 @@
 #![feature(backtrace)]
 #![feature(once_cell)]
 #![feature(panic_info_message)]
-#![feature(termination_trait_lib)]
 
 mod compile;
 mod define;
@@ -34,11 +33,11 @@ fn main() -> MyResult<()> {
     let program = std::fs::read_to_string(path).unwrap();
     PROGRAM.set(program)?;
 
-    let pair = parse(Rule::program, PROGRAM.get().unwrap()).unwrap();
+    let pair = parse(Rule::program, PROGRAM.get().unwrap())?;
     println!("{}", pair.to_pretty_string());
-    let program = pair.visit::<Program>().unwrap();
+    let program = pair.visit::<Program>();
     println!("{:?}", program);
-    let c_code = program.gen().unwrap();
+    let c_code = program.gen()?;
     println!("{}", c_code);
     compile_program(c_code, path);
 

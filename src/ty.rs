@@ -58,19 +58,21 @@ impl PartialEq for Type {
 impl FromStr for Type {
     type Err = MyError;
     fn from_str(s: &str) -> MyResult<Self> {
-        parse(Rule::ty, s)?.visit()
+        Ok(parse(Rule::ty, s)?.visit())
     }
 }
 
 impl Visit for Type {
-    fn visit_impl(pair: Pair) -> MyResult<Self> {
-        let pos = pair.as_pos();
-        let mut pairs = pair.into_inner_checked(Rule::ty)?;
-
-        Ok(Self {
-            pos,
-            name: pairs.next()?.as_str().into(),
-        })
+    fn visit_impl(pair: Pair) -> Self {
+        Self {
+            pos: pair.as_pos(),
+            name: pair
+                .into_inner_checked(Rule::ty)
+                .next()
+                .unwrap()
+                .as_str()
+                .into(),
+        }
     }
 }
 
