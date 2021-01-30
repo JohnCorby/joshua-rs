@@ -9,24 +9,23 @@ use crate::statement::FuncCall;
 use crate::ty::Type;
 use crate::util::PairExt;
 use crate::visit::Visit;
-use std::rc::Rc;
 
 #[derive(Debug, Clone)]
 pub enum Expr {
     Binary {
         pos: Pos,
-        left: Rc<Expr>,
+        left: Box<Expr>,
         op: String,
-        right: Rc<Expr>,
+        right: Box<Expr>,
     },
     Unary {
         pos: Pos,
         op: String,
-        thing: Rc<Expr>,
+        thing: Box<Expr>,
     },
     Cast {
         pos: Pos,
-        thing: Rc<Expr>,
+        thing: Box<Expr>,
         ty: Type,
     },
 
@@ -127,15 +126,10 @@ impl Gen for Expr {
         Ok(match self {
             Self::Binary {
                 left, op, right, ..
-            } => format!(
-                "({} {} {})",
-                Expr::clone(&left).gen()?,
-                op,
-                Expr::clone(&right).gen()?
-            ),
-            Self::Unary { op, thing, .. } => format!("({}{})", op, Expr::clone(&thing).gen()?),
+            } => format!("({} {} {})", left.gen()?, op, right.gen()?),
+            Self::Unary { op, thing, .. } => format!("({}{})", op, thing.gen()?),
             Self::Cast { thing, ty, .. } => {
-                format!("(({}) {})", ty.gen()?, Expr::clone(&thing).gen()?)
+                format!("(({}) {})", ty.gen()?, thing.gen()?)
             }
             Self::Literal(literal) => literal.gen()?,
             Self::FuncCall(func_call) => func_call.gen()?,

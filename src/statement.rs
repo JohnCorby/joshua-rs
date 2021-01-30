@@ -8,7 +8,6 @@ use crate::scope::Scope;
 use crate::util::{PairExt, PairsExt};
 use crate::visit::Visit;
 use std::fmt::Write;
-use std::rc::Rc;
 
 #[derive(Debug, Clone)]
 pub enum Statement {
@@ -37,7 +36,7 @@ pub enum Statement {
         pos: Pos,
         init: VarDefine,
         cond: Expr,
-        update: Rc<Statement>,
+        update: Box<Statement>,
         block: Block,
     },
     FuncCall(FuncCall),
@@ -162,7 +161,7 @@ impl Gen for Statement {
                 "for({}; {}; {}) {}",
                 init.gen()?,
                 cond.gen()?,
-                Statement::clone(&update).gen()?.strip_suffix(';')?,
+                update.gen()?.strip_suffix(';')?,
                 block.gen()?
             ),
             Self::FuncCall(func_call) => format!("{};", func_call.gen()?),
