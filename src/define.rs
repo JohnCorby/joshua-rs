@@ -43,8 +43,6 @@ impl Gen for Program {
     fn gen_impl(self) -> MyResult<String> {
         Scope::push(false);
 
-        Type::init()?;
-
         let result = Ok(self
             .defines
             .into_iter()

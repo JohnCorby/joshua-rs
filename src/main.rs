@@ -34,7 +34,7 @@ fn main() -> MyResult<()> {
     PROGRAM.set(program)?;
 
     let pair = parse(Rule::program, PROGRAM.get().unwrap())?;
-    println!("{}", pair.to_pretty_string());
+    // println!("{}", pair.to_pretty_string());
     let program = pair.visit::<Program>();
     println!("{:?}", program);
     let c_code = program.gen()?;

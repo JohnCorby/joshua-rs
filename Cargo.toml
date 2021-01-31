@@ -13,3 +13,4 @@ parking_lot = { version = "*", features = ["nightly", "owning_ref"] }
 mangling = "*"
 console = "*"
 owning_ref = "*"
+strum = { version = "*", features = ["derive"] }

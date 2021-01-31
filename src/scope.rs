@@ -147,9 +147,4 @@ impl Scope {
             arg_types: arg_types.as_ref().into(),
         })
     }
-    #[allow(dead_code)]
-    pub fn get_type(ty: impl AsRef<str>) -> MyResult<Symbol> {
-        let ty = ty.as_ref().parse()?;
-        Self::find(Symbol::Type(ty))
-    }
 }
