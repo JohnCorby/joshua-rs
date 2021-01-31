@@ -85,7 +85,7 @@ impl ToString for Type {
         match self {
             Type::Primitive { ty, .. } => format!("primitive type {}", ty.to_string()),
             Type::Literal { ty, .. } => format!("literal type {}", ty.to_string()),
-            Type::Named { name, .. } => format!("normal type {}", name),
+            Type::Named { name, .. } => format!("named type {}", name),
         }
     }
 }
@@ -143,13 +143,13 @@ impl Gen for Type {
                 }
                 .into()
             }
-            Type::Literal { ty, .. } => {
-                panic!("tried to gen {}", ty.to_string())
-            }
             Type::Named { name, .. } => {
                 Scope::get_type(&name)?;
                 name
             }
+            ty => panic!("tried to gen {}", ty.to_string()),
         })
     }
 }
+
+pub trait HasType {}

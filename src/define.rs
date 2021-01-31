@@ -125,9 +125,12 @@ impl HasPos for Define {
 impl Gen for Define {
     fn gen_impl(self) -> MyResult<String> {
         Ok(match self {
-            Self::Struct { name, body, .. } => {
-                // todo add as type
-                // Scope::current().add(Symbol::Type { name: name.clone() })?;
+            Self::Struct { pos, name, body } => {
+                // todo this is half-baked
+                Scope::current().add(Symbol::Type(Type::Named {
+                    pos,
+                    name: name.clone(),
+                }))?;
 
                 format!(
                     "typedef struct {{\n{}\n}} {};",

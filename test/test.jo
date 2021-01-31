@@ -9,6 +9,8 @@
 //
 //int goo() {}
 
+struct baba_booey {}
+
 u8 main() {
     for (u8 i = 0; i < 10; i = i + 1)
         break
@@ -17,5 +19,6 @@ u8 main() {
     f32 i = 1 as f32
     f32 e = 1 + i as f32 / 2
     u8 bruh = (1 + 1 + 1) + (2 + 2)
+    baba_booey ok = z + 1
     return (-i) as u8
 }
