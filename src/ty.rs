@@ -167,4 +167,22 @@ impl Gen for Type {
     }
 }
 
-pub trait HasType {}
+pub trait HasType {
+    fn ty(&self) -> Type;
+}
+impl HasType for PrimitiveType {
+    fn ty(&self) -> Type {
+        Type::Primitive {
+            pos: Default::default(),
+            ty: *self,
+        }
+    }
+}
+impl HasType for LiteralType {
+    fn ty(&self) -> Type {
+        Type::Literal {
+            pos: Default::default(),
+            ty: *self,
+        }
+    }
+}

@@ -3,7 +3,7 @@
 //! symbols allow us to check for existence and type of stuff we define
 
 use crate::error::MyResult;
-use crate::ty::Type;
+use crate::ty::{HasType, Type};
 use parking_lot::{Mutex, MutexGuard};
 use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
@@ -143,7 +143,6 @@ impl Scope {
             name: name.as_ref().into(),
         })
     }
-    #[allow(dead_code)]
     pub fn get_func(name: impl AsRef<str>, arg_types: impl AsRef<[Type]>) -> MyResult<Symbol> {
         Self::find(Symbol::Func {
             ty: Default::default(),
@@ -156,5 +155,16 @@ impl Scope {
             pos: Default::default(),
             name: name.as_ref().into(),
         }))
+    }
+}
+
+impl HasType for Symbol {
+    fn ty(&self) -> Type {
+        match self {
+            Symbol::Func { ty, .. } => ty,
+            Symbol::Var { ty, .. } => ty,
+            Symbol::Type(ty) => ty,
+        }
+        .clone()
     }
 }

@@ -4,9 +4,9 @@ use crate::error::{unexpected_rule, MyResult};
 use crate::gen::Gen;
 use crate::parse::{Pair, Rule};
 use crate::pos::{AsPos, HasPos, Pos};
-use crate::scope::Scope;
+use crate::scope::{Scope, Symbol};
 use crate::statement::FuncCall;
-use crate::ty::Type;
+use crate::ty::{HasType, LiteralType, Type};
 use crate::util::PairExt;
 use crate::visit::Visit;
 
@@ -143,6 +143,24 @@ impl Gen for Expr {
     }
 }
 
+impl HasType for Expr {
+    fn ty(&self) -> Type {
+        match self {
+            Expr::Binary { right, .. } => right.ty(),
+            Expr::Unary { thing, .. } => thing.ty(),
+            Expr::Cast { thing, .. } => thing.ty(),
+            Expr::Literal(literal) => literal.ty(),
+            Expr::FuncCall(func_call) => func_call.ty(),
+            Expr::Var { name, .. } => {
+                if let Symbol::Var {ty, .. } = Scope::get_var(name).expect(           "cant get var symbol for HasType even though this should have been already checked",
+                ) { ty } else {
+                    unreachable!("somehow get_var returned a non-var symbol")
+                }
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum Literal {
     Float { pos: Pos, value: f64 },
@@ -185,22 +203,35 @@ impl Visit for Literal {
 impl HasPos for Literal {
     fn pos(&self) -> Pos {
         match self {
-            Literal::Float { pos, .. } => *pos,
-            Literal::Int { pos, .. } => *pos,
-            Literal::Bool { pos, .. } => *pos,
-            Literal::Char { pos, .. } => *pos,
-            Literal::Str { pos, .. } => *pos,
+            Self::Float { pos, .. } => *pos,
+            Self::Int { pos, .. } => *pos,
+            Self::Bool { pos, .. } => *pos,
+            Self::Char { pos, .. } => *pos,
+            Self::Str { pos, .. } => *pos,
         }
     }
 }
 impl Gen for Literal {
     fn gen_impl(self) -> MyResult<String> {
         Ok(match self {
-            Literal::Float { value: float, .. } => float.to_string(),
-            Literal::Int { value: int, .. } => int.to_string(),
-            Literal::Bool { value: bool, .. } => (bool as u8).to_string(),
-            Literal::Char { value: char, .. } => format!("'{}'", char),
-            Literal::Str { value: str, .. } => format!("\"{}\"", str),
+            Self::Float { value: float, .. } => float.to_string(),
+            Self::Int { value: int, .. } => int.to_string(),
+            Self::Bool { value: bool, .. } => (bool as u8).to_string(),
+            Self::Char { value: char, .. } => format!("'{}'", char),
+            Self::Str { value: str, .. } => format!("\"{}\"", str),
         })
+    }
+}
+
+impl HasType for Literal {
+    fn ty(&self) -> Type {
+        match self {
+            Self::Float { .. } => LiteralType::Float,
+            Self::Int { .. } => LiteralType::Int,
+            Self::Bool { .. } => LiteralType::Bool,
+            Self::Char { .. } => LiteralType::Char,
+            Self::Str { .. } => LiteralType::Str,
+        }
+        .ty()
     }
 }

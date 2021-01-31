@@ -4,7 +4,8 @@ use crate::expr::Expr;
 use crate::gen::Gen;
 use crate::parse::{Pair, Rule};
 use crate::pos::{AsPos, HasPos, Pos};
-use crate::scope::Scope;
+use crate::scope::{Scope, Symbol};
+use crate::ty::{HasType, Type};
 use crate::util::{PairExt, PairsExt};
 use crate::visit::Visit;
 use std::fmt::Write;
@@ -136,13 +137,13 @@ impl Gen for Statement {
             }
             Self::Break { .. } => {
                 if !Scope::current().is_loop() {
-                    Err(MyError::from("break cant be used outside of loops"))?;
+                    return Err(MyError::from("break cant be used outside of loops"));
                 }
                 "break;".into()
             }
             Self::Continue { .. } => {
                 if !Scope::current().is_loop() {
-                    Err(MyError::from("continue cant be used outside of loops"))?;
+                    return Err(MyError::from("continue cant be used outside of loops"));
                 }
                 "continue;".into()
             }
@@ -191,6 +192,7 @@ impl Gen for Statement {
             Self::FuncCall(func_call) => format!("{};", func_call.gen()?),
             Self::VarAssign { name, value, .. } => {
                 Scope::get_var(&name)?;
+                // todo type check
                 format!("{} = {};", name, value.gen()?)
             }
             Self::VarDefine(var_define) => format!("{};", var_define.gen()?),
@@ -258,6 +260,10 @@ impl HasPos for FuncCall {
 }
 impl Gen for FuncCall {
     fn gen_impl(self) -> MyResult<String> {
+        Scope::get_func(
+            &self.name,
+            self.args.iter().map(|arg| arg.ty()).collect::<Vec<_>>(),
+        )?;
         Ok(format!(
             "{}({})",
             self.name,
@@ -267,5 +273,21 @@ impl Gen for FuncCall {
                 .collect::<MyResult<Vec<_>>>()?
                 .join(", "),
         ))
+    }
+}
+
+impl HasType for FuncCall {
+    fn ty(&self) -> Type {
+        if let Symbol::Func { ty, .. } = Scope::get_func(
+            &self.name,
+            self.args.iter().map(|arg| arg.ty()).collect::<Vec<_>>(),
+        )
+        .expect(
+            "cant get func symbol for HasType even though this should have been already checked",
+        ) {
+            ty
+        } else {
+            unreachable!("somehow get_func returned a non-func symbol")
+        }
     }
 }

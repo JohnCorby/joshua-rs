@@ -205,6 +205,7 @@ impl Gen for VarDefine {
 
         let mut s = format!("{} {}", self.ty.gen()?, self.name);
         if let Some(value) = self.value {
+            // todo type check
             write!(s, " = {}", value.gen()?).unwrap();
         }
         Ok(s)
