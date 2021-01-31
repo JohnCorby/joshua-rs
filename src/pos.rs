@@ -7,7 +7,7 @@ use pest::Span;
 
 static CURRENT_POS: Mutex<Option<Pos>> = Mutex::new(None);
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Default)]
 pub struct Pos {
     start: usize,
     end: usize,

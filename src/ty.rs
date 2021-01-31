@@ -10,7 +10,7 @@ use std::str::FromStr;
 
 static TYPES: Mutex<Vec<Type>> = Mutex::new(Vec::new());
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Type {
     pos: Pos,
     name: String,
@@ -58,6 +58,11 @@ impl PartialEq for Type {
 impl Hash for Type {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.name.hash(state)
+    }
+}
+impl ToString for Type {
+    fn to_string(&self) -> String {
+        format!("type {}", self.name)
     }
 }
 

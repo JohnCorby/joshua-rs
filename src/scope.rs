@@ -4,12 +4,12 @@
 
 use crate::error::MyResult;
 use crate::ty::Type;
-use owning_ref::OwningRefMut;
 use parking_lot::{Mutex, MutexGuard};
 use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
 
 static SCOPES: Mutex<Vec<Scope>> = Mutex::new(Vec::new());
+type OwningRefMut<T> = owning_ref::OwningRefMut<MutexGuard<'static, Vec<Scope>>, T>;
 
 #[derive(Debug, Clone)]
 pub struct Scope {
@@ -28,9 +28,7 @@ pub enum Symbol {
         ty: Type,
         name: String,
     },
-    Type {
-        name: String,
-    },
+    Type(Type),
 }
 impl Hash for Symbol {
     fn hash<H: Hasher>(&self, state: &mut H) {
@@ -42,7 +40,7 @@ impl Hash for Symbol {
                 arg_types.hash(state);
             }
             Symbol::Var { name, .. } => name.hash(state),
-            Symbol::Type { name, .. } => name.hash(state),
+            Symbol::Type(ty) => ty.hash(state),
         }
     }
 }
@@ -63,12 +61,31 @@ impl PartialEq for Symbol {
                 },
             ) => name1 == name2 && arg_types1 == arg_types2,
             (Var { name: name1, .. }, Var { name: name2, .. }) => name1 == name2,
-            (Type { name: name1, .. }, Type { name: name2, .. }) => name1 == name2,
+            (Type(ty1), Type(ty2)) => ty1 == ty2,
             (_, _) => false,
         }
     }
 }
 impl Eq for Symbol {}
+impl ToString for Symbol {
+    fn to_string(&self) -> String {
+        match self {
+            Symbol::Func {
+                name, arg_types, ..
+            } => format!(
+                "func {} with arg types ({})",
+                name,
+                arg_types
+                    .iter()
+                    .map(Type::to_string)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            Symbol::Var { name, .. } => format!("var {}", name),
+            Symbol::Type(ty) => ty.to_string(),
+        }
+    }
+}
 
 impl Scope {
     pub fn push(is_loop: bool) {
@@ -85,7 +102,7 @@ impl Scope {
             .expect("tried to pop an empty scope stack");
     }
 
-    pub fn current() -> OwningRefMut<MutexGuard<'static, Vec<Scope>>, Scope> {
+    pub fn current() -> OwningRefMut<Scope> {
         OwningRefMut::new(SCOPES.lock()).map_mut(|scopes| {
             scopes
                 .last_mut()
@@ -98,43 +115,41 @@ impl Scope {
     }
 
     pub fn add(&mut self, symbol: Symbol) -> MyResult<()> {
+        let err = format!("{} already defined", symbol.to_string());
         let success = self.symbols.insert(symbol);
         if !success {
-            Err("symbol already defined".into())
+            Err(err.into())
         } else {
             Ok(())
         }
     }
 
-    fn find(mut predicate: impl FnMut(&Symbol) -> bool) -> MyResult<Symbol> {
-        for scope in SCOPES.lock().iter().rev() {
-            if let Some(item) = scope.symbols.iter().find(|item| predicate(item)) {
-                return Ok(item.clone());
+    fn find(symbol: Symbol) -> MyResult<Symbol> {
+        for scope in SCOPES.lock().iter() {
+            if let Some(symbol) = scope.symbols.get(&symbol) {
+                return Ok(symbol.clone());
             }
         }
-        Err("could not find symbol".into())
+        Err(format!("could not find {}", symbol.to_string()).into())
     }
 
     pub fn get_var(name: impl AsRef<str>) -> MyResult<Symbol> {
-        Self::find(|item| {
-            if let Symbol::Var { name: n, .. } = item {
-                return n == name.as_ref();
-            }
-            false
+        Self::find(Symbol::Var {
+            ty: Type::default(),
+            name: name.as_ref().into(),
         })
     }
     #[allow(dead_code)]
     pub fn get_func(name: impl AsRef<str>, arg_types: impl AsRef<[Type]>) -> MyResult<Symbol> {
-        Self::find(|item| {
-            if let Symbol::Func {
-                name: n,
-                arg_types: at,
-                ..
-            } = item
-            {
-                return n == name.as_ref() && at == arg_types.as_ref();
-            }
-            false
+        Self::find(Symbol::Func {
+            ty: Type::default(),
+            name: name.as_ref().into(),
+            arg_types: arg_types.as_ref().into(),
         })
+    }
+    #[allow(dead_code)]
+    pub fn get_type(ty: impl AsRef<str>) -> MyResult<Symbol> {
+        let ty = ty.as_ref().parse()?;
+        Self::find(Symbol::Type(ty))
     }
 }

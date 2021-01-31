@@ -128,7 +128,8 @@ impl Gen for Define {
     fn gen_impl(self) -> MyResult<String> {
         Ok(match self {
             Self::Struct { name, body, .. } => {
-                Scope::current().add(Symbol::Type { name: name.clone() })?;
+                // todo add as type
+                // Scope::current().add(Symbol::Type { name: name.clone() })?;
 
                 format!(
                     "typedef struct {{\n{}\n}} {};",
