@@ -11,6 +11,7 @@ use std::str::ParseBoolError;
 static CURRENT_BACKTRACE: Mutex<Option<Backtrace>> = Mutex::new(None);
 
 pub type MyResult<T> = Result<T, MyError>;
+#[derive(Clone)]
 pub struct MyError(String);
 
 impl MyError {

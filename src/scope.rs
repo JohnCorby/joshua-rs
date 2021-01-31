@@ -135,16 +135,22 @@ impl Scope {
 
     pub fn get_var(name: impl AsRef<str>) -> MyResult<Symbol> {
         Self::find(Symbol::Var {
-            ty: Type::default(),
+            ty: Default::default(),
             name: name.as_ref().into(),
         })
     }
     #[allow(dead_code)]
     pub fn get_func(name: impl AsRef<str>, arg_types: impl AsRef<[Type]>) -> MyResult<Symbol> {
         Self::find(Symbol::Func {
-            ty: Type::default(),
+            ty: Default::default(),
             name: name.as_ref().into(),
             arg_types: arg_types.as_ref().into(),
         })
+    }
+    pub fn get_type(name: impl AsRef<str>) -> MyResult<Symbol> {
+        Self::find(Symbol::Type(Type::Named {
+            pos: Default::default(),
+            name: name.as_ref().into(),
+        }))
     }
 }
