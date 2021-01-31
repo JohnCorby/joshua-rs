@@ -14,6 +14,10 @@ pub struct Pos {
 }
 
 impl Pos {
+    pub fn reset() {
+        *CURRENT_POS.lock() = None
+    }
+
     pub fn current() -> Option<Pos> {
         match &*CURRENT_POS.lock() {
             Some(pos) => Some(*pos),

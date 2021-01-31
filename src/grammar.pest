@@ -58,6 +58,7 @@ primitive = {
     | "f32"
     | "f64"
     | "bool"
+    | "char"
     | "void"
 }
 

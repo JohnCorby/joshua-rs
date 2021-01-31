@@ -16,9 +16,24 @@ u8 main() {
         break
 
 //    <<bruh$hello(&hi,0,0,0)>>
+    if (true) {
+        i8 t0
+        u8 t1
+        i16 t2
+        u16 t3
+        i32 t4
+        u32 t5
+        i64 t6
+        u64 t7
+        f32 t8
+        f64 t9
+        bool t10
+        char t11
+        void t12
+    }
     f32 i = 1 as f32
     f32 e = 1 + i as f32 / 2
     u8 bruh = (1 + 1 + 1) + (2 + 2)
-    baba_booey ok = z + 1
+    baba_booey ok = e + 1
     return (-i) as u8
 }

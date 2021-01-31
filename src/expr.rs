@@ -196,7 +196,7 @@ impl Gen for Literal {
         Ok(match self {
             Literal::Float { value: float, .. } => float.to_string(),
             Literal::Int { value: int, .. } => int.to_string(),
-            Literal::Bool { value: bool, .. } => bool.to_string(),
+            Literal::Bool { value: bool, .. } => (bool as u8).to_string(),
             Literal::Char { value: char, .. } => format!("'{}'", char),
             Literal::Str { value: str, .. } => format!("\"{}\"", str),
         })
