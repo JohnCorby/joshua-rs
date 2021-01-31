@@ -41,17 +41,13 @@ impl HasPos for Program {
 }
 impl Gen for Program {
     fn gen_impl(self) -> MyResult<String> {
-        Scope::push(false);
-
-        let result = Ok(self
+        Scope::init();
+        Ok(self
             .defines
             .into_iter()
             .map(Define::gen)
             .collect::<MyResult<Vec<_>>>()?
-            .join("\n"));
-
-        Scope::pop();
-        result
+            .join("\n"))
     }
 }
 

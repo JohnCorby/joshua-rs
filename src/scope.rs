@@ -88,6 +88,10 @@ impl ToString for Symbol {
 }
 
 impl Scope {
+    pub fn init() {
+        Self::push(false);
+    }
+
     pub fn push(is_loop: bool) {
         SCOPES.lock().push(Scope {
             is_loop,

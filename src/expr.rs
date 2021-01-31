@@ -123,6 +123,8 @@ impl HasPos for Expr {
 }
 impl Gen for Expr {
     fn gen_impl(self) -> MyResult<String> {
+        // todo Type eq check with ops
+        //  and eventually overloading ops via func check if op check fails or something
         Ok(match self {
             Self::Binary {
                 left, op, right, ..

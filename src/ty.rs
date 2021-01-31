@@ -33,7 +33,7 @@ impl Default for Type {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Hash, strum::EnumString, strum::ToString)]
+#[derive(Debug, Copy, Clone, PartialEq, Hash, strum::EnumString, strum::ToString)]
 #[strum(serialize_all = "snake_case")]
 pub enum PrimitiveType {
     I8,
@@ -50,7 +50,7 @@ pub enum PrimitiveType {
     Char,
     Void,
 }
-#[derive(Debug, Clone, PartialEq, Hash, strum::ToString)]
+#[derive(Debug, Copy, Clone, PartialEq, Hash, strum::ToString)]
 #[allow(dead_code)]
 pub enum LiteralType {
     Float,
@@ -67,6 +67,21 @@ impl PartialEq for Type {
             (Primitive { ty: ty1, .. }, Primitive { ty: ty2, .. }) => ty1 == ty2,
             (Literal { ty: ty1, .. }, Literal { ty: ty2, .. }) => ty1 == ty2,
             (Named { name: name1, .. }, Named { name: name2, .. }) => name1 == name2,
+
+            // literal/primitive resolution
+            (Literal { ty: lt, .. }, Primitive { ty: pt, .. })
+            | (Primitive { ty: pt, .. }, Literal { ty: lt, .. }) => {
+                use LiteralType::*;
+                use PrimitiveType::*;
+                match lt {
+                    Float => matches!(pt, F32 | F64),
+                    Int => matches!(pt, I8 | U8 | I16 | U16 | I32 | U32 | I64 | U64),
+                    LiteralType::Bool => *pt == PrimitiveType::Bool,
+                    LiteralType::Char => *pt == PrimitiveType::Char,
+                    Str => todo!("usage of string literals is not yet supported"),
+                }
+            }
+
             (_, _) => false,
         }
     }
