@@ -5,16 +5,15 @@
 use crate::error::MyResult;
 use crate::ty::{HasType, Type};
 use parking_lot::{Mutex, MutexGuard};
-use std::collections::HashSet;
-use std::hash::{Hash, Hasher};
 
 static SCOPES: Mutex<Vec<Scope>> = Mutex::new(Vec::new());
 type OwningRefMut<T> = owning_ref::OwningRefMut<MutexGuard<'static, Vec<Scope>>, T>;
 
 #[derive(Debug, Clone)]
 pub struct Scope {
-    is_loop: bool,
-    symbols: HashSet<Symbol>,
+    in_loop: bool,
+    func_return_type: Option<Type>,
+    symbols: Vec<Symbol>,
 }
 
 #[derive(Debug, Clone)]
@@ -29,20 +28,6 @@ pub enum Symbol {
         name: String,
     },
     Type(Type),
-}
-impl Hash for Symbol {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        match self {
-            Symbol::Func {
-                name, arg_types, ..
-            } => {
-                name.hash(state);
-                arg_types.hash(state);
-            }
-            Symbol::Var { name, .. } => name.hash(state),
-            Symbol::Type(ty) => ty.hash(state),
-        }
-    }
 }
 impl PartialEq for Symbol {
     fn eq(&self, other: &Self) -> bool {
@@ -89,12 +74,13 @@ impl ToString for Symbol {
 
 impl Scope {
     pub fn init() {
-        Self::push(false);
+        Self::push(false, None);
     }
 
-    pub fn push(is_loop: bool) {
-        SCOPES.lock().push(Scope {
-            is_loop,
+    pub fn push(in_loop: bool, func_return_type: Option<Type>) {
+        SCOPES.lock().push(Self {
+            in_loop,
+            func_return_type,
             symbols: Default::default(),
         });
     }
@@ -106,7 +92,7 @@ impl Scope {
             .expect("tried to pop an empty scope stack");
     }
 
-    pub fn current() -> OwningRefMut<Scope> {
+    fn current() -> OwningRefMut<Scope> {
         OwningRefMut::new(SCOPES.lock()).map_mut(|scopes| {
             scopes
                 .last_mut()
@@ -114,23 +100,38 @@ impl Scope {
         })
     }
 
-    pub fn is_loop(&self) -> bool {
-        self.is_loop
+    pub fn in_loop() -> bool {
+        for scope in SCOPES.lock().iter().rev() {
+            if scope.func_return_type.is_some() {
+                return false;
+            }
+            if scope.in_loop {
+                return true;
+            }
+        }
+        false
+    }
+    pub fn func_return_type() -> Type {
+        for scope in SCOPES.lock().iter().rev() {
+            if let Some(ty) = &scope.func_return_type {
+                return ty.clone();
+            }
+        }
+        unreachable!("tried to get func return type when we arent in any func")
     }
 
-    pub fn add(&mut self, symbol: Symbol) -> MyResult<()> {
-        let err = format!("{} already defined", symbol.to_string());
-        let success = self.symbols.insert(symbol);
-        if !success {
-            Err(err.into())
-        } else {
-            Ok(())
+    pub fn add(symbol: Symbol) -> MyResult<()> {
+        let symbols = &mut Self::current().symbols;
+        if symbols.contains(&symbol) {
+            return Err(format!("{} already defined", symbol.to_string()).into());
         }
+        symbols.push(symbol);
+        Ok(())
     }
 
     fn find(symbol: Symbol) -> MyResult<Symbol> {
-        for scope in SCOPES.lock().iter() {
-            if let Some(symbol) = scope.symbols.get(&symbol) {
+        for scope in SCOPES.lock().iter().rev() {
+            if let Some(symbol) = scope.symbols.iter().find(|s| s == &&symbol) {
                 return Ok(symbol.clone());
             }
         }

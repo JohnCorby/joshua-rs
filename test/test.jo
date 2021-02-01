@@ -11,6 +11,9 @@
 
 struct baba_booey {}
 
+void hello(i32 what) {
+}
+
 i32 main() {
     for (u8 i = 0; i < 10; i = i + 1)
         break
@@ -32,8 +35,11 @@ i32 main() {
 //        void t12
     }
     f32 i = 1 as f32
-    f32 e = 1 + i as f32 / 2
+    f32 e = 1 + i as f32 / 2.0
     u8 bruh = (1 + 1 + 1) + (2 + 2)
 //    baba_booey ok = e + 1
+
+    hello(4)
+
     return (-i) as i32
 }

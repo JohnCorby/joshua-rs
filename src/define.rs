@@ -5,7 +5,7 @@ use crate::parse::{Pair, Rule};
 use crate::pos::{AsPos, HasPos, Pos};
 use crate::scope::{Scope, Symbol};
 use crate::statement::Block;
-use crate::ty::Type;
+use crate::ty::{HasType, Type};
 use crate::util::{PairExt, PairsExt};
 use crate::visit::Visit;
 use std::fmt::Write;
@@ -123,7 +123,7 @@ impl Gen for Define {
         Ok(match self {
             Self::Struct { pos, name, body } => {
                 // todo this is half-baked
-                Scope::current().add(Symbol::Type(Type::Named {
+                Scope::add(Symbol::Type(Type::Named {
                     pos,
                     name: name.clone(),
                 }))?;
@@ -144,13 +144,13 @@ impl Gen for Define {
                 body,
                 ..
             } => {
-                Scope::current().add(Symbol::Func {
+                Scope::add(Symbol::Func {
                     ty: ty.clone(),
                     name: name.clone(),
                     arg_types: args.iter().map(|arg| arg.ty.clone()).collect(),
                 })?;
 
-                Scope::push(true);
+                Scope::push(false, Some(ty.clone()));
                 let s = format!(
                     "{} {}({}) {}",
                     ty.gen()?,
@@ -198,14 +198,18 @@ impl HasPos for VarDefine {
 }
 impl Gen for VarDefine {
     fn gen_impl(self) -> MyResult<String> {
-        Scope::current().add(Symbol::Var {
+        // type check
+        if let Some(value) = &self.value {
+            self.ty.check(&value.ty())?;
+        }
+
+        Scope::add(Symbol::Var {
             ty: self.ty.clone(),
             name: self.name.clone(),
         })?;
 
         let mut s = format!("{} {}", self.ty.gen()?, self.name);
         if let Some(value) = self.value {
-            // todo type check
             write!(s, " = {}", value.gen()?).unwrap();
         }
         Ok(s)

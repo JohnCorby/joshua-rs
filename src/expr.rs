@@ -148,15 +148,16 @@ impl HasType for Expr {
         match self {
             Expr::Binary { right, .. } => right.ty(),
             Expr::Unary { thing, .. } => thing.ty(),
-            Expr::Cast { thing, .. } => thing.ty(),
+            Expr::Cast { ty, .. } => ty.clone(),
             Expr::Literal(literal) => literal.ty(),
             Expr::FuncCall(func_call) => func_call.ty(),
-            Expr::Var { name, .. } => {
-                if let Symbol::Var {ty, .. } = Scope::get_var(name).expect(           "cant get var symbol for HasType even though this should have been already checked",
-                ) { ty } else {
-                    unreachable!("somehow get_var returned a non-var symbol")
-                }
-            }
+            Expr::Var { name, .. } => if let Symbol::Var { ty, .. } = Scope::get_var(name).expect(
+                "cant get var symbol for HasType even though this should have already been checked",
+            ) {
+                ty
+            } else {
+                unreachable!("somehow get_var returned a non-var symbol")
+            },
         }
     }
 }

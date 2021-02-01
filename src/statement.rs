@@ -5,7 +5,7 @@ use crate::gen::Gen;
 use crate::parse::{Pair, Rule};
 use crate::pos::{AsPos, HasPos, Pos};
 use crate::scope::{Scope, Symbol};
-use crate::ty::{HasType, Type};
+use crate::ty::{HasType, PrimitiveType, Type};
 use crate::util::{PairExt, PairsExt};
 use crate::visit::Visit;
 use std::fmt::Write;
@@ -128,6 +128,14 @@ impl Gen for Statement {
     fn gen_impl(self) -> MyResult<String> {
         Ok(match self {
             Self::Return { value, .. } => {
+                // type check
+                Scope::func_return_type().check(
+                    &value
+                        .as_ref()
+                        .map(|value| value.ty())
+                        .unwrap_or_else(|| PrimitiveType::Void.ty()),
+                )?;
+
                 let mut s = String::from("return");
                 if let Some(value) = value {
                     write!(s, " {}", value.gen()?).unwrap();
@@ -136,13 +144,13 @@ impl Gen for Statement {
                 s
             }
             Self::Break { .. } => {
-                if !Scope::current().is_loop() {
+                if !Scope::in_loop() {
                     return Err(MyError::from("break cant be used outside of loops"));
                 }
                 "break;".into()
             }
             Self::Continue { .. } => {
-                if !Scope::current().is_loop() {
+                if !Scope::in_loop() {
                     return Err(MyError::from("continue cant be used outside of loops"));
                 }
                 "continue;".into()
@@ -154,11 +162,11 @@ impl Gen for Statement {
                 ..
             } => {
                 let mut s = format!("if({}) ", cond.gen()?);
-                Scope::push(false);
+                Scope::push(false, None);
                 s.write_str(&then.gen()?).unwrap();
                 Scope::pop();
                 if let Some(otherwise) = otherwise {
-                    Scope::push(false);
+                    Scope::push(false, None);
                     s.push_str(&otherwise.gen()?);
                     Scope::pop();
                 }
@@ -166,7 +174,7 @@ impl Gen for Statement {
             }
             Self::Until { cond, block, .. } => {
                 let mut s = format!("while(!({})) ", cond.gen()?);
-                Scope::push(true);
+                Scope::push(true, None);
                 s.write_str(&block.gen()?).unwrap();
                 Scope::pop();
                 s
@@ -178,7 +186,7 @@ impl Gen for Statement {
                 block,
                 ..
             } => {
-                Scope::push(true);
+                Scope::push(true, None);
                 let s = format!(
                     "for({}; {}; {}) {}",
                     init.gen()?,
@@ -191,8 +199,9 @@ impl Gen for Statement {
             }
             Self::FuncCall(func_call) => format!("{};", func_call.gen()?),
             Self::VarAssign { name, value, .. } => {
-                Scope::get_var(&name)?;
-                // todo type check
+                let symbol = Scope::get_var(&name)?;
+                // type check
+                symbol.ty().check(&value.ty())?;
                 format!("{} = {};", name, value.gen()?)
             }
             Self::VarDefine(var_define) => format!("{};", var_define.gen()?),
@@ -283,7 +292,7 @@ impl HasType for FuncCall {
             self.args.iter().map(|arg| arg.ty()).collect::<Vec<_>>(),
         )
         .expect(
-            "cant get func symbol for HasType even though this should have been already checked",
+            "cant get func symbol for HasType even though this should have already been checked",
         ) {
             ty
         } else {

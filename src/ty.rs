@@ -5,7 +5,6 @@ use crate::pos::{AsPos, HasPos, Pos};
 use crate::scope::Scope;
 use crate::util::PairExt;
 use crate::visit::Visit;
-use std::hash::{Hash, Hasher};
 use std::str::FromStr;
 
 #[derive(Debug, Clone)]
@@ -32,8 +31,22 @@ impl Default for Type {
         }
     }
 }
+impl Type {
+    pub fn check(&self, other: &Type) -> MyResult<()> {
+        if self == other {
+            Ok(())
+        } else {
+            Err(format!(
+                "mismatched types: {} vs {}",
+                self.to_string(),
+                other.to_string()
+            )
+            .into())
+        }
+    }
+}
 
-#[derive(Debug, Copy, Clone, PartialEq, Hash, strum::EnumString, strum::ToString)]
+#[derive(Debug, Copy, Clone, PartialEq, strum::EnumString, strum::ToString)]
 #[strum(serialize_all = "snake_case")]
 pub enum PrimitiveType {
     I8,
@@ -50,7 +63,7 @@ pub enum PrimitiveType {
     Char,
     Void,
 }
-#[derive(Debug, Copy, Clone, PartialEq, Hash, strum::ToString)]
+#[derive(Debug, Copy, Clone, PartialEq, strum::ToString)]
 #[allow(dead_code)]
 pub enum LiteralType {
     Float,
@@ -86,15 +99,6 @@ impl PartialEq for Type {
         }
     }
 }
-impl Hash for Type {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        match self {
-            Type::Primitive { ty, .. } => ty.hash(state),
-            Type::Literal { ty, .. } => ty.hash(state),
-            Type::Named { name, .. } => name.hash(state),
-        }
-    }
-}
 impl ToString for Type {
     fn to_string(&self) -> String {
         match self {
@@ -114,13 +118,10 @@ impl Visit for Type {
                 pos,
                 ty: PrimitiveType::from_str(pair.as_str()).unwrap(),
             },
-            Rule::ident => {
-                // todo check not already exist?
-                Self::Named {
-                    pos,
-                    name: pair.as_str().into(),
-                }
-            }
+            Rule::ident => Self::Named {
+                pos,
+                name: pair.as_str().into(),
+            },
 
             rule => unexpected_rule(rule),
         }
