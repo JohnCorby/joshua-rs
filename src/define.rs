@@ -41,13 +41,15 @@ impl HasPos for Program {
 }
 impl Gen for Program {
     fn gen_impl(self) -> MyResult<String> {
-        Scope::init();
-        Ok(self
+        let scope = Scope::init();
+        let s = self
             .defines
             .into_iter()
             .map(Define::gen)
             .collect::<MyResult<Vec<_>>>()?
-            .join("\n"))
+            .join("\n");
+        drop(scope);
+        Ok(s)
     }
 }
 
@@ -122,20 +124,19 @@ impl Gen for Define {
     fn gen_impl(self) -> MyResult<String> {
         Ok(match self {
             Self::Struct { pos, name, body } => {
-                // todo this is half-baked
-                Scope::add(Symbol::Type(Type::Named {
-                    pos,
-                    name: name.clone(),
-                }))?;
-
-                format!(
+                let s = format!(
                     "typedef struct {{\n{}\n}} {};",
                     body.into_iter()
                         .map(Define::gen)
                         .collect::<MyResult<Vec<_>>>()?
                         .join("\n"),
                     name
-                )
+                );
+
+                // fixme this is half-baked?
+                Scope::current().add(Symbol::Type(Type::Named { pos, name }))?;
+
+                s
             }
             Self::Func {
                 ty,
@@ -144,24 +145,26 @@ impl Gen for Define {
                 body,
                 ..
             } => {
-                Scope::add(Symbol::Func {
-                    ty: ty.clone(),
-                    name: name.clone(),
-                    arg_types: args.iter().map(|arg| arg.ty.clone()).collect(),
-                })?;
-
-                Scope::push(false, Some(ty.clone()));
+                let scope = Scope::new(false, Some(ty.clone()));
                 let s = format!(
                     "{} {}({}) {}",
-                    ty.gen()?,
+                    ty.clone().gen()?,
                     name,
-                    args.into_iter()
+                    args.clone()
+                        .into_iter()
                         .map(VarDefine::gen)
                         .collect::<MyResult<Vec<_>>>()?
                         .join(", "),
                     body.gen()?
                 );
-                Scope::pop();
+                drop(scope);
+
+                Scope::current().add(Symbol::Func {
+                    ty,
+                    name,
+                    arg_types: args.into_iter().map(|arg| arg.ty).collect(),
+                })?;
+
                 s
             }
             Self::Var(var_define) => var_define.gen()?,
@@ -198,20 +201,24 @@ impl HasPos for VarDefine {
 }
 impl Gen for VarDefine {
     fn gen_impl(self) -> MyResult<String> {
-        // type check
-        if let Some(value) = &self.value {
-            self.ty.check(&value.ty())?;
-        }
-
-        Scope::add(Symbol::Var {
-            ty: self.ty.clone(),
-            name: self.name.clone(),
-        })?;
+        let value_ty = self.value.as_ref().map(|value| value.ty());
+        let ty = self.ty.clone();
 
         let mut s = format!("{} {}", self.ty.gen()?, self.name);
         if let Some(value) = self.value {
             write!(s, " = {}", value.gen()?).unwrap();
         }
+
+        // type check
+        if let Some(value_ty) = value_ty {
+            value_ty.check(&ty)?;
+        }
+
+        Scope::current().add(Symbol::Var {
+            ty,
+            name: self.name,
+        })?;
+
         Ok(s)
     }
 }

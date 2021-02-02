@@ -4,9 +4,9 @@ use crate::error::{unexpected_rule, MyResult};
 use crate::gen::Gen;
 use crate::parse::{Pair, Rule};
 use crate::pos::{AsPos, HasPos, Pos};
-use crate::scope::{Scope, Symbol};
+use crate::scope::Scope;
 use crate::statement::FuncCall;
-use crate::ty::{HasType, LiteralType, Type};
+use crate::ty::{HasType, LiteralType, PrimitiveType, Type};
 use crate::util::PairExt;
 use crate::visit::Visit;
 
@@ -123,20 +123,33 @@ impl HasPos for Expr {
 }
 impl Gen for Expr {
     fn gen_impl(self) -> MyResult<String> {
-        // todo Type eq check with ops
-        //  and eventually overloading ops via func check if op check fails or something
         Ok(match self {
             Self::Binary {
                 left, op, right, ..
-            } => format!("({} {} {})", left.gen()?, op, right.gen()?),
-            Self::Unary { op, thing, .. } => format!("({}{})", op, thing.gen()?),
+            } => {
+                let (left_ty, right_ty) = (left.ty(), right.ty());
+                let s = format!("({} {} {})", left.gen()?, op, right.gen()?);
+                // type check
+                Scope::current().get_func(&op, [left_ty, right_ty])?;
+                s
+            }
+            Self::Unary { op, thing, .. } => {
+                let thing_ty = thing.ty();
+                let s = format!("({}{})", op, thing.gen()?);
+                // type check
+                Scope::current().get_func(&op, [thing_ty])?;
+                s
+            }
             Self::Cast { thing, ty, .. } => {
-                format!("(({}) {})", ty.gen()?, thing.gen()?)
+                // let thing_ty = thing.ty();
+                let s = format!("(({}) {})", ty.gen()?, thing.gen()?);
+                // todo type check
+                s
             }
             Self::Literal(literal) => literal.gen()?,
             Self::FuncCall(func_call) => func_call.gen()?,
             Self::Var { name, .. } => {
-                Scope::get_var(&name)?;
+                Scope::current().get_var(&name)?;
                 name
             }
         })
@@ -145,19 +158,30 @@ impl Gen for Expr {
 
 impl HasType for Expr {
     fn ty(&self) -> Type {
+        const GET_OP_FUNC_ERR: &str =
+            "cant get op func symbol for HasType even though this should have already been checked";
+        // const GET_CAST_FUNC_ERR: &str =
+        //     "cant get cast func symbol for HasType even though this should have already been checked";
+        const GET_VAR_ERR: &str =
+            "cant get var symbol for HasType even though this should have already been checked";
         match self {
-            Expr::Binary { right, .. } => right.ty(),
-            Expr::Unary { thing, .. } => thing.ty(),
-            Expr::Cast { ty, .. } => ty.clone(),
+            Expr::Binary {
+                left, op, right, ..
+            } => Scope::current()
+                .get_func(op, [left.ty(), right.ty()])
+                .expect(GET_OP_FUNC_ERR)
+                .ty(),
+            Expr::Unary { op, thing, .. } => Scope::current()
+                .get_func(op, [thing.ty()])
+                .expect(GET_OP_FUNC_ERR)
+                .ty(),
+            Expr::Cast { ty, .. } => {
+                // todo type check
+                ty.clone()
+            }
             Expr::Literal(literal) => literal.ty(),
             Expr::FuncCall(func_call) => func_call.ty(),
-            Expr::Var { name, .. } => if let Symbol::Var { ty, .. } = Scope::get_var(name).expect(
-                "cant get var symbol for HasType even though this should have already been checked",
-            ) {
-                ty
-            } else {
-                unreachable!("somehow get_var returned a non-var symbol")
-            },
+            Expr::Var { name, .. } => Scope::current().get_var(name).expect(GET_VAR_ERR).ty(),
         }
     }
 }
@@ -227,12 +251,11 @@ impl Gen for Literal {
 impl HasType for Literal {
     fn ty(&self) -> Type {
         match self {
-            Self::Float { .. } => LiteralType::Float,
-            Self::Int { .. } => LiteralType::Int,
-            Self::Bool { .. } => LiteralType::Bool,
-            Self::Char { .. } => LiteralType::Char,
-            Self::Str { .. } => LiteralType::Str,
+            Self::Float { .. } => LiteralType::Float.ty(),
+            Self::Int { .. } => LiteralType::Int.ty(),
+            Self::Bool { .. } => PrimitiveType::Bool.ty(),
+            Self::Char { .. } => PrimitiveType::Char.ty(),
+            Self::Str { .. } => LiteralType::Str.ty(),
         }
-        .ty()
     }
 }

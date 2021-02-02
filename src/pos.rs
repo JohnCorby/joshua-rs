@@ -1,11 +1,14 @@
 use crate::parse::{Pair, Rule};
 use crate::PROGRAM;
-use parking_lot::Mutex;
+use parking_lot::{Mutex, MutexGuard};
 use pest::error::Error;
 use pest::error::ErrorVariant::CustomError;
 use pest::Span;
 
 static CURRENT_POS: Mutex<Option<Pos>> = Mutex::new(None);
+fn current_pos() -> MutexGuard<'static, Option<Pos>> {
+    CURRENT_POS.try_lock().expect("CURRENT_POS locked")
+}
 
 #[derive(Debug, Copy, Clone, Default)]
 pub struct Pos {
@@ -15,17 +18,17 @@ pub struct Pos {
 
 impl Pos {
     pub fn reset() {
-        *CURRENT_POS.lock() = None
+        *CURRENT_POS.try_lock().expect("CURRENT_POS locked") = None
     }
 
     pub fn current() -> Option<Pos> {
-        match &*CURRENT_POS.lock() {
+        match &*current_pos() {
             Some(pos) => Some(*pos),
             None => None,
         }
     }
     pub fn set_current(&self) {
-        *CURRENT_POS.lock() = Some(*self);
+        *current_pos() = Some(*self);
     }
 
     fn as_span(&self) -> Span {

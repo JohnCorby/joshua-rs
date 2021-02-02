@@ -3,11 +3,13 @@
 //! symbols allow us to check for existence and type of stuff we define
 
 use crate::error::MyResult;
-use crate::ty::{HasType, Type};
+use crate::ty::{HasType, PrimitiveType, Type};
 use parking_lot::{Mutex, MutexGuard};
 
 static SCOPES: Mutex<Vec<Scope>> = Mutex::new(Vec::new());
-type OwningRefMut<T> = owning_ref::OwningRefMut<MutexGuard<'static, Vec<Scope>>, T>;
+fn scopes() -> MutexGuard<'static, Vec<Scope>> {
+    SCOPES.try_lock().expect("SCOPES locked")
+}
 
 #[derive(Debug, Clone)]
 pub struct Scope {
@@ -28,6 +30,16 @@ pub enum Symbol {
         name: String,
     },
     Type(Type),
+}
+impl HasType for Symbol {
+    fn ty(&self) -> Type {
+        match self {
+            Symbol::Func { ty, .. } => ty,
+            Symbol::Var { ty, .. } => ty,
+            Symbol::Type(ty) => ty,
+        }
+        .clone()
+    }
 }
 impl PartialEq for Symbol {
     fn eq(&self, other: &Self) -> bool {
@@ -72,36 +84,14 @@ impl ToString for Symbol {
     }
 }
 
-impl Scope {
-    pub fn init() {
-        Self::push(false, None);
-    }
-
-    pub fn push(in_loop: bool, func_return_type: Option<Type>) {
-        SCOPES.lock().push(Self {
-            in_loop,
-            func_return_type,
-            symbols: Default::default(),
-        });
-    }
-
-    pub fn pop() {
-        SCOPES
-            .lock()
-            .pop()
-            .expect("tried to pop an empty scope stack");
-    }
-
-    fn current() -> OwningRefMut<Scope> {
-        OwningRefMut::new(SCOPES.lock()).map_mut(|scopes| {
-            scopes
-                .last_mut()
-                .expect("tried to get current scope from empty scope stack")
-        })
-    }
-
-    pub fn in_loop() -> bool {
-        for scope in SCOPES.lock().iter().rev() {
+#[derive(Debug, Clone, Default)]
+pub struct ScopeGuard {
+    index: usize,
+    pop: bool,
+}
+impl ScopeGuard {
+    pub fn in_loop(&self) -> bool {
+        for scope in scopes()[..self.index].iter().rev() {
             if scope.func_return_type.is_some() {
                 return false;
             }
@@ -111,8 +101,8 @@ impl Scope {
         }
         false
     }
-    pub fn func_return_type() -> Type {
-        for scope in SCOPES.lock().iter().rev() {
+    pub fn func_return_type(&self) -> Type {
+        for scope in scopes()[..self.index].iter().rev() {
             if let Some(ty) = &scope.func_return_type {
                 return ty.clone();
             }
@@ -120,8 +110,8 @@ impl Scope {
         unreachable!("tried to get func return type when we arent in any func")
     }
 
-    pub fn add(symbol: Symbol) -> MyResult<()> {
-        let symbols = &mut Self::current().symbols;
+    pub fn add(&mut self, symbol: Symbol) -> MyResult<()> {
+        let symbols = &mut scopes()[self.index].symbols;
         if symbols.contains(&symbol) {
             return Err(format!("{} already defined", symbol.to_string()).into());
         }
@@ -129,8 +119,8 @@ impl Scope {
         Ok(())
     }
 
-    fn find(symbol: Symbol) -> MyResult<Symbol> {
-        for scope in SCOPES.lock().iter().rev() {
+    fn find(&self, symbol: Symbol) -> MyResult<Symbol> {
+        for scope in scopes()[..self.index].iter().rev() {
             if let Some(symbol) = scope.symbols.iter().find(|s| s == &&symbol) {
                 return Ok(symbol.clone());
             }
@@ -138,34 +128,95 @@ impl Scope {
         Err(format!("could not find {}", symbol.to_string()).into())
     }
 
-    pub fn get_var(name: impl AsRef<str>) -> MyResult<Symbol> {
-        Self::find(Symbol::Var {
+    pub fn get_var(&self, name: impl AsRef<str>) -> MyResult<Symbol> {
+        self.find(Symbol::Var {
             ty: Default::default(),
             name: name.as_ref().into(),
         })
     }
-    pub fn get_func(name: impl AsRef<str>, arg_types: impl AsRef<[Type]>) -> MyResult<Symbol> {
-        Self::find(Symbol::Func {
+    pub fn get_func(
+        &self,
+        name: impl AsRef<str>,
+        arg_types: impl AsRef<[Type]>,
+    ) -> MyResult<Symbol> {
+        self.find(Symbol::Func {
             ty: Default::default(),
             name: name.as_ref().into(),
             arg_types: arg_types.as_ref().into(),
         })
     }
-    pub fn get_type(name: impl AsRef<str>) -> MyResult<Symbol> {
-        Self::find(Symbol::Type(Type::Named {
+    pub fn get_type(&self, name: impl AsRef<str>) -> MyResult<Symbol> {
+        self.find(Symbol::Type(Type::Named {
             pos: Default::default(),
             name: name.as_ref().into(),
         }))
     }
 }
-
-impl HasType for Symbol {
-    fn ty(&self) -> Type {
-        match self {
-            Symbol::Func { ty, .. } => ty,
-            Symbol::Var { ty, .. } => ty,
-            Symbol::Type(ty) => ty,
+impl Drop for ScopeGuard {
+    fn drop(&mut self) {
+        if self.pop {
+            scopes().pop().expect("tried to pop an empty scope stack");
         }
-        .clone()
+    }
+}
+impl Scope {
+    pub fn init() -> ScopeGuard {
+        let mut scope = Self::new(false, None);
+
+        // for op type checking
+        fn op_funcs<Str: AsRef<str>, Ht: HasType>(
+            scope: &mut ScopeGuard,
+            ops: impl AsRef<[Str]>,
+            num_args: usize,
+            hts: impl AsRef<[Ht]>,
+        ) {
+            for op in ops.as_ref() {
+                for ht in hts.as_ref() {
+                    let ty = ht.ty();
+                    scope
+                        .add(Symbol::Func {
+                            ty: ty.clone(),
+                            name: op.as_ref().into(),
+                            arg_types: std::iter::repeat(ty).take(num_args).collect(),
+                        })
+                        .unwrap();
+                }
+            }
+        }
+        use PrimitiveType::*;
+        op_funcs(
+            &mut scope,
+            ["+", "-", "*", "/", "%", "<", "<=", ">", ">="],
+            2,
+            [I8, U8, I16, U16, I32, U32, I64, U64, F32, F64],
+        );
+        op_funcs(&mut scope, ["==", "!="], 2, [Bool]);
+        op_funcs(
+            &mut scope,
+            ["-"],
+            1,
+            [I8, U8, I16, U16, I32, U32, I64, U64, F32, F64],
+        );
+        op_funcs(&mut scope, ["!"], 1, [Bool]);
+
+        scope
+    }
+
+    pub fn new(in_loop: bool, func_return_type: Option<Type>) -> ScopeGuard {
+        let mut scopes = scopes();
+        let index = scopes.len();
+        scopes.push(Self {
+            in_loop,
+            func_return_type,
+            symbols: Default::default(),
+        });
+        ScopeGuard { index, pop: true }
+    }
+
+    pub fn current() -> ScopeGuard {
+        ScopeGuard {
+            index: scopes().len() - 1,
+            pop: false,
+        }
     }
 }

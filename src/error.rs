@@ -1,6 +1,6 @@
 use crate::parse::Rule;
 use crate::pos::Pos;
-use parking_lot::Mutex;
+use parking_lot::{Mutex, MutexGuard};
 use std::backtrace::{Backtrace, BacktraceStatus};
 use std::char::ParseCharError;
 use std::fmt::{Debug, Formatter};
@@ -9,6 +9,11 @@ use std::option::NoneError;
 use std::str::ParseBoolError;
 
 static CURRENT_BACKTRACE: Mutex<Option<Backtrace>> = Mutex::new(None);
+fn current_backtrace() -> MutexGuard<'static, Option<Backtrace>> {
+    CURRENT_BACKTRACE
+        .try_lock()
+        .expect("CURRENT_BACKTRACE locked")
+}
 
 pub type MyResult<T> = Result<T, MyError>;
 #[derive(Clone)]
@@ -36,7 +41,7 @@ impl MyError {
 impl Debug for MyError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "{}", Pos::make_error(&self.0)).unwrap();
-        if let Some(backtrace) = &*CURRENT_BACKTRACE.lock() {
+        if let Some(backtrace) = &*current_backtrace() {
             writeln!(f, "{}", backtrace).unwrap();
         }
         Ok(())
@@ -47,7 +52,7 @@ impl From<String> for MyError {
     fn from(s: String) -> Self {
         let backtrace = Backtrace::capture();
         if backtrace.status() == BacktraceStatus::Captured {
-            *CURRENT_BACKTRACE.lock() = Some(backtrace);
+            *current_backtrace() = Some(backtrace);
         }
         Self(s)
     }

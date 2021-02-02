@@ -4,7 +4,7 @@ use crate::expr::Expr;
 use crate::gen::Gen;
 use crate::parse::{Pair, Rule};
 use crate::pos::{AsPos, HasPos, Pos};
-use crate::scope::{Scope, Symbol};
+use crate::scope::Scope;
 use crate::ty::{HasType, PrimitiveType, Type};
 use crate::util::{PairExt, PairsExt};
 use crate::visit::Visit;
@@ -128,29 +128,30 @@ impl Gen for Statement {
     fn gen_impl(self) -> MyResult<String> {
         Ok(match self {
             Self::Return { value, .. } => {
-                // type check
-                Scope::func_return_type().check(
-                    &value
-                        .as_ref()
-                        .map(|value| value.ty())
-                        .unwrap_or_else(|| PrimitiveType::Void.ty()),
-                )?;
+                let value_ty = value
+                    .as_ref()
+                    .map(|value| value.ty())
+                    .unwrap_or_else(|| PrimitiveType::Void.ty());
 
                 let mut s = String::from("return");
                 if let Some(value) = value {
                     write!(s, " {}", value.gen()?).unwrap();
                 }
                 s.push(';');
+
+                // type check
+                value_ty.check(&Scope::current().func_return_type())?;
+
                 s
             }
             Self::Break { .. } => {
-                if !Scope::in_loop() {
+                if !Scope::current().in_loop() {
                     return Err(MyError::from("break cant be used outside of loops"));
                 }
                 "break;".into()
             }
             Self::Continue { .. } => {
-                if !Scope::in_loop() {
+                if !Scope::current().in_loop() {
                     return Err(MyError::from("continue cant be used outside of loops"));
                 }
                 "continue;".into()
@@ -161,22 +162,34 @@ impl Gen for Statement {
                 otherwise,
                 ..
             } => {
+                let cond_ty = cond.ty();
+
                 let mut s = format!("if({}) ", cond.gen()?);
-                Scope::push(false, None);
+                let scope = Scope::new(false, None);
                 s.write_str(&then.gen()?).unwrap();
-                Scope::pop();
+                drop(scope);
                 if let Some(otherwise) = otherwise {
-                    Scope::push(false, None);
+                    let scope = Scope::new(false, None);
                     s.push_str(&otherwise.gen()?);
-                    Scope::pop();
+                    drop(scope);
                 }
+
+                // type check
+                cond_ty.check(&PrimitiveType::Bool.ty())?;
+
                 s
             }
             Self::Until { cond, block, .. } => {
+                let cond_ty = cond.ty();
+
                 let mut s = format!("while(!({})) ", cond.gen()?);
-                Scope::push(true, None);
+                let scope = Scope::new(true, None);
                 s.write_str(&block.gen()?).unwrap();
-                Scope::pop();
+                drop(scope);
+
+                // type check
+                cond_ty.check(&PrimitiveType::Bool.ty())?;
+
                 s
             }
             Self::For {
@@ -186,7 +199,9 @@ impl Gen for Statement {
                 block,
                 ..
             } => {
-                Scope::push(true, None);
+                let cond_ty = cond.ty();
+
+                let scope = Scope::new(true, None);
                 let s = format!(
                     "for({}; {}; {}) {}",
                     init.gen()?,
@@ -194,15 +209,20 @@ impl Gen for Statement {
                     update.gen()?.strip_suffix(';')?,
                     block.gen()?
                 );
-                Scope::pop();
+                drop(scope);
+
+                // type check
+                cond_ty.check(&PrimitiveType::Bool.ty())?;
+
                 s
             }
             Self::FuncCall(func_call) => format!("{};", func_call.gen()?),
             Self::VarAssign { name, value, .. } => {
-                let symbol = Scope::get_var(&name)?;
+                let value_ty = value.ty();
+                let s = format!("{} = {};", name, value.gen()?);
                 // type check
-                symbol.ty().check(&value.ty())?;
-                format!("{} = {};", name, value.gen()?)
+                value_ty.check(&Scope::current().get_var(name)?.ty())?;
+                s
             }
             Self::VarDefine(var_define) => format!("{};", var_define.gen()?),
         })
@@ -269,11 +289,9 @@ impl HasPos for FuncCall {
 }
 impl Gen for FuncCall {
     fn gen_impl(self) -> MyResult<String> {
-        Scope::get_func(
-            &self.name,
-            self.args.iter().map(|arg| arg.ty()).collect::<Vec<_>>(),
-        )?;
-        Ok(format!(
+        let arg_types = self.args.iter().map(|arg| arg.ty()).collect::<Vec<_>>();
+
+        let s = format!(
             "{}({})",
             self.name,
             self.args
@@ -281,22 +299,25 @@ impl Gen for FuncCall {
                 .map(Expr::gen)
                 .collect::<MyResult<Vec<_>>>()?
                 .join(", "),
-        ))
+        );
+
+        // type check
+        Scope::current().get_func(self.name, arg_types)?;
+
+        Ok(s)
     }
 }
 
 impl HasType for FuncCall {
     fn ty(&self) -> Type {
-        if let Symbol::Func { ty, .. } = Scope::get_func(
-            &self.name,
-            self.args.iter().map(|arg| arg.ty()).collect::<Vec<_>>(),
-        )
-        .expect(
-            "cant get func symbol for HasType even though this should have already been checked",
-        ) {
-            ty
-        } else {
-            unreachable!("somehow get_func returned a non-func symbol")
-        }
+        const GET_FUNC_ERR: &str =
+            "cant get func symbol for HasType even though this should have already been checked";
+        Scope::current()
+            .get_func(
+                &self.name,
+                self.args.iter().map(|arg| arg.ty()).collect::<Vec<_>>(),
+            )
+            .expect(GET_FUNC_ERR)
+            .ty()
     }
 }

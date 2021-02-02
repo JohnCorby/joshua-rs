@@ -32,14 +32,15 @@ impl Default for Type {
     }
 }
 impl Type {
-    pub fn check(&self, other: &Type) -> MyResult<()> {
-        if self == other {
+    pub fn check(&self, expected: &Type) -> MyResult<()> {
+        let actual = self;
+        if expected == actual {
             Ok(())
         } else {
             Err(format!(
-                "mismatched types: {} vs {}",
-                self.to_string(),
-                other.to_string()
+                "expected {}, but got {}",
+                expected.to_string(),
+                actual.to_string()
             )
             .into())
         }
@@ -68,8 +69,6 @@ pub enum PrimitiveType {
 pub enum LiteralType {
     Float,
     Int,
-    Bool,
-    Char,
     Str,
 }
 
@@ -89,8 +88,6 @@ impl PartialEq for Type {
                 match lt {
                     Float => matches!(pt, F32 | F64),
                     Int => matches!(pt, I8 | U8 | I16 | U16 | I32 | U32 | I64 | U64),
-                    LiteralType::Bool => *pt == PrimitiveType::Bool,
-                    LiteralType::Char => *pt == PrimitiveType::Char,
                     Str => todo!("usage of string literals is not yet supported"),
                 }
             }
@@ -160,7 +157,7 @@ impl Gen for Type {
                 .into()
             }
             Type::Named { name, .. } => {
-                Scope::get_type(&name)?;
+                Scope::current().get_type(&name)?;
                 name
             }
             ty => panic!("tried to gen {}", ty.to_string()),
