@@ -34,7 +34,7 @@ impl Default for Type {
 impl Type {
     pub fn check(&self, expected: &Type) -> MyResult<()> {
         let actual = self;
-        if expected == actual {
+        if actual == expected {
             Ok(())
         } else {
             Err(format!(
@@ -69,7 +69,6 @@ pub enum PrimitiveType {
 pub enum LiteralType {
     Float,
     Int,
-    Str,
 }
 
 impl PartialEq for Type {
@@ -77,21 +76,8 @@ impl PartialEq for Type {
         use Type::*;
         match (self, other) {
             (Primitive { ty: ty1, .. }, Primitive { ty: ty2, .. }) => ty1 == ty2,
-            (Literal { ty: ty1, .. }, Literal { ty: ty2, .. }) => ty1 == ty2,
             (Named { name: name1, .. }, Named { name: name2, .. }) => name1 == name2,
-
-            // literal/primitive resolution
-            (Literal { ty: lt, .. }, Primitive { ty: pt, .. })
-            | (Primitive { ty: pt, .. }, Literal { ty: lt, .. }) => {
-                use LiteralType::*;
-                use PrimitiveType::*;
-                match lt {
-                    Float => matches!(pt, F32 | F64),
-                    Int => matches!(pt, I8 | U8 | I16 | U16 | I32 | U32 | I64 | U64),
-                    Str => todo!("usage of string literals is not yet supported"),
-                }
-            }
-
+            (Literal { ty: ty1, .. }, Literal { ty: ty2, .. }) => ty1 == ty2,
             (_, _) => false,
         }
     }
@@ -100,8 +86,8 @@ impl ToString for Type {
     fn to_string(&self) -> String {
         match self {
             Type::Primitive { ty, .. } => format!("primitive type {}", ty.to_string()),
-            Type::Literal { ty, .. } => format!("literal type {}", ty.to_string()),
             Type::Named { name, .. } => format!("named type {}", name),
+            Type::Literal { ty, .. } => format!("literal type {}", ty.to_string()),
         }
     }
 }

@@ -3,7 +3,7 @@
 //! symbols allow us to check for existence and type of stuff we define
 
 use crate::error::MyResult;
-use crate::ty::{HasType, PrimitiveType, Type};
+use crate::ty::{HasType, Type};
 use parking_lot::{Mutex, MutexGuard};
 
 static SCOPES: Mutex<Vec<Scope>> = Mutex::new(Vec::new());
@@ -121,7 +121,7 @@ impl ScopeHandle {
 
     fn find(&self, symbol: Symbol) -> MyResult<Symbol> {
         for scope in scopes()[..=self.index].iter().rev() {
-            if let Some(symbol) = scope.symbols.iter().find(|s| s == &&symbol) {
+            if let Some(symbol) = scope.symbols.iter().find(|&s| &symbol == s) {
                 return Ok(symbol.clone());
             }
         }
@@ -163,66 +163,61 @@ impl Scope {
     pub fn init() -> ScopeHandle {
         let mut scope = Self::new(false, None);
 
-        // for op type checking
-        use PrimitiveType::*;
-        fn op_funcs<Str: AsRef<str>, Ht: HasType>(
+        use crate::ty::PrimitiveType::*;
+        fn op_funcs<Str: AsRef<str>>(
             scope: &mut ScopeHandle,
             ops: impl AsRef<[Str]>,
             num_args: usize,
-            hts: impl AsRef<[Ht]>,
+            types: impl AsRef<[Type]>,
         ) {
             for op in ops.as_ref() {
-                for ht in hts.as_ref() {
-                    let ty = ht.ty();
+                for ty in types.as_ref() {
                     scope
                         .add(Symbol::Func {
                             ty: ty.clone(),
                             name: op.as_ref().into(),
-                            arg_types: std::iter::repeat(ty).take(num_args).collect(),
+                            arg_types: std::iter::repeat(ty.clone()).take(num_args).collect(),
                         })
                         .unwrap();
                 }
             }
         }
-        fn bool_op_funcs<Str: AsRef<str>, Ht: HasType>(
+        fn bool_op_funcs<Str: AsRef<str>>(
             scope: &mut ScopeHandle,
             ops: impl AsRef<[Str]>,
             num_args: usize,
-            hts: impl AsRef<[Ht]>,
+            types: impl AsRef<[Type]>,
         ) {
             for op in ops.as_ref() {
-                for ht in hts.as_ref() {
-                    let ty = ht.ty();
+                for ty in types.as_ref() {
                     scope
                         .add(Symbol::Func {
                             ty: Bool.ty(),
                             name: op.as_ref().into(),
-                            arg_types: std::iter::repeat(ty).take(num_args).collect(),
+                            arg_types: std::iter::repeat(ty.clone()).take(num_args).collect(),
                         })
                         .unwrap();
                 }
             }
         }
-        op_funcs(
-            &mut scope,
-            ["+", "-", "*", "/", "%"],
-            2,
-            [I8, U8, I16, U16, I32, U32, I64, U64, F32, F64],
-        );
-        op_funcs(
-            &mut scope,
-            ["-"],
-            1,
-            [I8, U8, I16, U16, I32, U32, I64, U64, F32, F64],
-        );
-        bool_op_funcs(
-            &mut scope,
-            ["<", "<=", ">", ">="],
-            2,
-            [I8, U8, I16, U16, I32, U32, I64, U64, F32, F64],
-        );
-        bool_op_funcs(&mut scope, ["==", "!="], 2, [Bool]);
-        bool_op_funcs(&mut scope, ["!"], 1, [Bool]);
+        let num_types = [
+            I8.ty(),
+            U8.ty(),
+            I16.ty(),
+            U16.ty(),
+            I32.ty(),
+            U32.ty(),
+            I64.ty(),
+            U64.ty(),
+            F32.ty(),
+            F64.ty(),
+        ];
+        let bool_type = [Bool.ty()];
+        op_funcs(&mut scope, ["+", "-", "*", "/", "%"], 2, &num_types);
+        op_funcs(&mut scope, ["-"], 1, &num_types);
+        bool_op_funcs(&mut scope, ["<", "<=", ">", ">="], 2, &num_types);
+        bool_op_funcs(&mut scope, ["==", "!="], 2, &bool_type);
+        bool_op_funcs(&mut scope, ["!"], 1, &bool_type);
 
         scope
     }

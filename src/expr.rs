@@ -253,7 +253,7 @@ impl HasType for Literal {
             Self::Int { .. } => LiteralType::Int.ty(),
             Self::Bool { .. } => PrimitiveType::Bool.ty(),
             Self::Char { .. } => PrimitiveType::Char.ty(),
-            Self::Str { .. } => LiteralType::Str.ty(),
+            Self::Str { .. } => todo!("usage of string literals is not yet supported"),
         }
     }
 }

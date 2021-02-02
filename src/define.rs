@@ -167,7 +167,7 @@ impl Gen for Define {
 
                 s
             }
-            Self::Var(var_define) => var_define.gen()?,
+            Self::Var(var_define) => format!("{};", var_define.gen()?),
         })
     }
 }
