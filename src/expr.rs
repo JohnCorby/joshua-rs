@@ -127,17 +127,15 @@ impl Gen for Expr {
             Self::Binary {
                 left, op, right, ..
             } => {
-                let (left_ty, right_ty) = (left.ty(), right.ty());
-                let s = format!("({} {} {})", left.gen()?, op, right.gen()?);
+                let s = format!("({} {} {})", left.clone().gen()?, op, right.clone().gen()?);
                 // type check
-                Scope::current().get_func(&op, [left_ty, right_ty])?;
+                Scope::current().get_func(&op, [left.ty(), right.ty()])?;
                 s
             }
             Self::Unary { op, thing, .. } => {
-                let thing_ty = thing.ty();
-                let s = format!("({}{})", op, thing.gen()?);
+                let s = format!("({}{})", op, thing.clone().gen()?);
                 // type check
-                Scope::current().get_func(&op, [thing_ty])?;
+                Scope::current().get_func(&op, [thing.ty()])?;
                 s
             }
             Self::Cast { thing, ty, .. } => {

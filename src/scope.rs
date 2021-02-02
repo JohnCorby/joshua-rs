@@ -11,7 +11,7 @@ fn scopes() -> MutexGuard<'static, Vec<Scope>> {
     SCOPES.try_lock().expect("SCOPES locked")
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Scope {
     in_loop: bool,
     func_return_type: Option<Type>,
@@ -84,14 +84,14 @@ impl ToString for Symbol {
     }
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct ScopeGuard {
+#[derive(Debug)]
+pub struct ScopeHandle {
     index: usize,
     pop: bool,
 }
-impl ScopeGuard {
+impl ScopeHandle {
     pub fn in_loop(&self) -> bool {
-        for scope in scopes()[..self.index].iter().rev() {
+        for scope in scopes()[..=self.index].iter().rev() {
             if scope.func_return_type.is_some() {
                 return false;
             }
@@ -102,7 +102,7 @@ impl ScopeGuard {
         false
     }
     pub fn func_return_type(&self) -> Type {
-        for scope in scopes()[..self.index].iter().rev() {
+        for scope in scopes()[..=self.index].iter().rev() {
             if let Some(ty) = &scope.func_return_type {
                 return ty.clone();
             }
@@ -120,7 +120,7 @@ impl ScopeGuard {
     }
 
     fn find(&self, symbol: Symbol) -> MyResult<Symbol> {
-        for scope in scopes()[..self.index].iter().rev() {
+        for scope in scopes()[..=self.index].iter().rev() {
             if let Some(symbol) = scope.symbols.iter().find(|s| s == &&symbol) {
                 return Ok(symbol.clone());
             }
@@ -152,7 +152,7 @@ impl ScopeGuard {
         }))
     }
 }
-impl Drop for ScopeGuard {
+impl Drop for ScopeHandle {
     fn drop(&mut self) {
         if self.pop {
             scopes().pop().expect("tried to pop an empty scope stack");
@@ -160,12 +160,13 @@ impl Drop for ScopeGuard {
     }
 }
 impl Scope {
-    pub fn init() -> ScopeGuard {
+    pub fn init() -> ScopeHandle {
         let mut scope = Self::new(false, None);
 
         // for op type checking
+        use PrimitiveType::*;
         fn op_funcs<Str: AsRef<str>, Ht: HasType>(
-            scope: &mut ScopeGuard,
+            scope: &mut ScopeHandle,
             ops: impl AsRef<[Str]>,
             num_args: usize,
             hts: impl AsRef<[Ht]>,
@@ -183,26 +184,51 @@ impl Scope {
                 }
             }
         }
-        use PrimitiveType::*;
+        fn bool_op_funcs<Str: AsRef<str>, Ht: HasType>(
+            scope: &mut ScopeHandle,
+            ops: impl AsRef<[Str]>,
+            num_args: usize,
+            hts: impl AsRef<[Ht]>,
+        ) {
+            for op in ops.as_ref() {
+                for ht in hts.as_ref() {
+                    let ty = ht.ty();
+                    scope
+                        .add(Symbol::Func {
+                            ty: Bool.ty(),
+                            name: op.as_ref().into(),
+                            arg_types: std::iter::repeat(ty).take(num_args).collect(),
+                        })
+                        .unwrap();
+                }
+            }
+        }
         op_funcs(
             &mut scope,
-            ["+", "-", "*", "/", "%", "<", "<=", ">", ">="],
+            ["+", "-", "*", "/", "%"],
             2,
             [I8, U8, I16, U16, I32, U32, I64, U64, F32, F64],
         );
-        op_funcs(&mut scope, ["==", "!="], 2, [Bool]);
         op_funcs(
             &mut scope,
             ["-"],
             1,
             [I8, U8, I16, U16, I32, U32, I64, U64, F32, F64],
         );
-        op_funcs(&mut scope, ["!"], 1, [Bool]);
+        bool_op_funcs(
+            &mut scope,
+            ["<", "<=", ">", ">="],
+            2,
+            [I8, U8, I16, U16, I32, U32, I64, U64, F32, F64],
+        );
+        bool_op_funcs(&mut scope, ["==", "!="], 2, [Bool]);
+        bool_op_funcs(&mut scope, ["!"], 1, [Bool]);
 
         scope
     }
 
-    pub fn new(in_loop: bool, func_return_type: Option<Type>) -> ScopeGuard {
+    #[allow(clippy::new_ret_no_self)]
+    pub fn new(in_loop: bool, func_return_type: Option<Type>) -> ScopeHandle {
         let mut scopes = scopes();
         let index = scopes.len();
         scopes.push(Self {
@@ -210,11 +236,11 @@ impl Scope {
             func_return_type,
             symbols: Default::default(),
         });
-        ScopeGuard { index, pop: true }
+        ScopeHandle { index, pop: true }
     }
 
-    pub fn current() -> ScopeGuard {
-        ScopeGuard {
+    pub fn current() -> ScopeHandle {
+        ScopeHandle {
             index: scopes().len() - 1,
             pop: false,
         }

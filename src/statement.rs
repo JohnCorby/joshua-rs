@@ -128,19 +128,17 @@ impl Gen for Statement {
     fn gen_impl(self) -> MyResult<String> {
         Ok(match self {
             Self::Return { value, .. } => {
-                let value_ty = value
-                    .as_ref()
-                    .map(|value| value.ty())
-                    .unwrap_or_else(|| PrimitiveType::Void.ty());
-
                 let mut s = String::from("return");
-                if let Some(value) = value {
+                if let Some(value) = value.clone() {
                     write!(s, " {}", value.gen()?).unwrap();
                 }
                 s.push(';');
 
                 // type check
-                value_ty.check(&Scope::current().func_return_type())?;
+                value
+                    .map(|value| value.ty())
+                    .unwrap_or_else(|| PrimitiveType::Void.ty())
+                    .check(&Scope::current().func_return_type())?;
 
                 s
             }
@@ -162,9 +160,7 @@ impl Gen for Statement {
                 otherwise,
                 ..
             } => {
-                let cond_ty = cond.ty();
-
-                let mut s = format!("if({}) ", cond.gen()?);
+                let mut s = format!("if({}) ", cond.clone().gen()?);
                 let scope = Scope::new(false, None);
                 s.write_str(&then.gen()?).unwrap();
                 drop(scope);
@@ -175,20 +171,18 @@ impl Gen for Statement {
                 }
 
                 // type check
-                cond_ty.check(&PrimitiveType::Bool.ty())?;
+                cond.ty().check(&PrimitiveType::Bool.ty())?;
 
                 s
             }
             Self::Until { cond, block, .. } => {
-                let cond_ty = cond.ty();
-
-                let mut s = format!("while(!({})) ", cond.gen()?);
+                let mut s = format!("while(!({})) ", cond.clone().gen()?);
                 let scope = Scope::new(true, None);
                 s.write_str(&block.gen()?).unwrap();
                 drop(scope);
 
                 // type check
-                cond_ty.check(&PrimitiveType::Bool.ty())?;
+                cond.ty().check(&PrimitiveType::Bool.ty())?;
 
                 s
             }
@@ -199,29 +193,26 @@ impl Gen for Statement {
                 block,
                 ..
             } => {
-                let cond_ty = cond.ty();
-
                 let scope = Scope::new(true, None);
                 let s = format!(
                     "for({}; {}; {}) {}",
                     init.gen()?,
-                    cond.gen()?,
+                    cond.clone().gen()?,
                     update.gen()?.strip_suffix(';')?,
                     block.gen()?
                 );
-                drop(scope);
 
                 // type check
-                cond_ty.check(&PrimitiveType::Bool.ty())?;
+                cond.ty().check(&PrimitiveType::Bool.ty())?;
 
+                drop(scope);
                 s
             }
             Self::FuncCall(func_call) => format!("{};", func_call.gen()?),
             Self::VarAssign { name, value, .. } => {
-                let value_ty = value.ty();
-                let s = format!("{} = {};", name, value.gen()?);
+                let s = format!("{} = {};", name, value.clone().gen()?);
                 // type check
-                value_ty.check(&Scope::current().get_var(name)?.ty())?;
+                value.ty().check(&Scope::current().get_var(name)?.ty())?;
                 s
             }
             Self::VarDefine(var_define) => format!("{};", var_define.gen()?),
@@ -289,12 +280,11 @@ impl HasPos for FuncCall {
 }
 impl Gen for FuncCall {
     fn gen_impl(self) -> MyResult<String> {
-        let arg_types = self.args.iter().map(|arg| arg.ty()).collect::<Vec<_>>();
-
         let s = format!(
             "{}({})",
             self.name,
             self.args
+                .clone()
                 .into_iter()
                 .map(Expr::gen)
                 .collect::<MyResult<Vec<_>>>()?
@@ -302,7 +292,10 @@ impl Gen for FuncCall {
         );
 
         // type check
-        Scope::current().get_func(self.name, arg_types)?;
+        Scope::current().get_func(
+            self.name,
+            self.args.iter().map(|arg| arg.ty()).collect::<Vec<_>>(),
+        )?;
 
         Ok(s)
     }

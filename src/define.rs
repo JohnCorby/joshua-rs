@@ -201,21 +201,18 @@ impl HasPos for VarDefine {
 }
 impl Gen for VarDefine {
     fn gen_impl(self) -> MyResult<String> {
-        let value_ty = self.value.as_ref().map(|value| value.ty());
-        let ty = self.ty.clone();
-
-        let mut s = format!("{} {}", self.ty.gen()?, self.name);
-        if let Some(value) = self.value {
+        let mut s = format!("{} {}", self.ty.clone().gen()?, self.name);
+        if let Some(value) = self.value.clone() {
             write!(s, " = {}", value.gen()?).unwrap();
         }
 
         // type check
-        if let Some(value_ty) = value_ty {
-            value_ty.check(&ty)?;
+        if let Some(value) = self.value {
+            value.ty().check(&self.ty)?;
         }
 
         Scope::current().add(Symbol::Var {
-            ty,
+            ty: self.ty.clone(),
             name: self.name,
         })?;
 
