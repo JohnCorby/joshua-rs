@@ -2,50 +2,42 @@ use crate::error::{unexpected_rule, MyResult};
 use crate::expr::Expr;
 use crate::gen::Gen;
 use crate::parse::{Pair, Rule};
-use crate::pos::{AsPos, HasPos, Pos};
+use crate::pos::{Pos, WithPos};
 use crate::scope::{Scope, Symbol};
 use crate::statement::Block;
 use crate::ty::{HasType, Type};
 use crate::util::{PairExt, PairsExt};
 use crate::visit::Visit;
+use crate::with::ToWith;
 use std::fmt::Write;
 
-#[derive(Debug, Clone)]
-pub struct Program {
-    pos: Pos,
-    defines: Vec<Define>,
-}
+pub type Program = Vec<WithPos<Define>>;
 
 impl Visit for Program {
     fn visit_impl(pair: Pair) -> Self {
-        Self {
-            pos: pair.as_pos(),
-            defines: pair
-                .into_inner_checked(Rule::program)
-                .filter_map(|pair| {
-                    // last rule is EOI. dont visit it
-                    if pair.as_rule() == Rule::EOI {
-                        return None;
-                    }
-                    Some(pair.visit())
-                })
-                .collect(),
-        }
+        pair.into_inner_checked(Rule::program)
+            .filter_map(|pair| {
+                // last rule is EOI. dont visit it
+                if pair.as_rule() == Rule::EOI {
+                    return None;
+                }
+                Some(pair.visit())
+            })
+            .collect()
     }
 }
 
-impl HasPos for Program {
+impl Gen for WithPos<Program> {
     fn pos(&self) -> Pos {
-        self.pos
+        self.extra
     }
-}
-impl Gen for Program {
+
     fn gen_impl(self) -> MyResult<String> {
         let scope = Scope::init();
         let s = self
-            .defines
+            .inner
             .into_iter()
-            .map(Define::gen)
+            .map(Gen::gen)
             .collect::<MyResult<Vec<_>>>()?
             .join("\n");
         drop(scope);
@@ -56,16 +48,14 @@ impl Gen for Program {
 #[derive(Debug, Clone)]
 pub enum Define {
     Struct {
-        pos: Pos,
-        name: String,
-        body: Vec<Define>,
+        name: WithPos<String>,
+        body: Vec<WithPos<Define>>,
     },
     Func {
-        pos: Pos,
-        ty: Type,
-        name: String,
-        args: Vec<VarDefine>,
-        body: Block,
+        ty: WithPos<Type>,
+        name: WithPos<String>,
+        args: Vec<WithPos<VarDefine>>,
+        body: WithPos<Block>,
     },
     Var(VarDefine),
 }
@@ -74,21 +64,18 @@ impl Visit for Define {
     fn visit_impl(pair: Pair) -> Self {
         match pair.as_rule() {
             Rule::struct_define => {
-                let pos = pair.as_pos();
                 let mut pairs = pair.into_inner();
 
                 Self::Struct {
-                    pos,
-                    name: pairs.next().unwrap().as_str().into(),
+                    name: pairs.next().unwrap().as_str_with_pos(),
                     body: pairs.visit_rest(),
                 }
             }
             Rule::func_define => {
-                let pos = pair.as_pos();
                 let mut pairs = pair.into_inner();
 
                 let ty = pairs.next().unwrap().visit();
-                let name = pairs.next().unwrap().as_str().into();
+                let name = pairs.next().unwrap().as_str_with_pos();
                 let mut args = vec![];
                 while pairs.peek().is_some() && pairs.peek().unwrap().as_rule() == Rule::var_define
                 {
@@ -97,62 +84,56 @@ impl Visit for Define {
                 let body = pairs.next().unwrap().visit();
 
                 Self::Func {
-                    pos,
                     ty,
                     name,
                     args,
                     body,
                 }
             }
-            Rule::var_define => Self::Var(pair.visit()),
+            Rule::var_define => Self::Var(pair.visit().inner),
 
             rule => unexpected_rule(rule),
         }
     }
 }
 
-impl HasPos for Define {
+impl Gen for WithPos<Define> {
     fn pos(&self) -> Pos {
-        match self {
-            Define::Struct { pos, .. } => *pos,
-            Define::Func { pos, .. } => *pos,
-            Define::Var(var_define) => var_define.pos(),
-        }
+        self.extra
     }
-}
-impl Gen for Define {
+
     fn gen_impl(self) -> MyResult<String> {
-        Ok(match self {
-            Self::Struct { pos, name, body } => {
+        Ok(match self.inner {
+            Define::Struct { name, body } => {
                 let s = format!(
                     "typedef struct {{\n{}\n}} {};",
                     body.into_iter()
-                        .map(Define::gen)
+                        .map(Gen::gen)
                         .collect::<MyResult<Vec<_>>>()?
                         .join("\n"),
-                    name
+                    *name
                 );
 
                 // fixme this is half-baked?
-                Scope::current().add(Symbol::Type(Type::Named { pos, name }))?;
+                Scope::current().add(Symbol::Type(Type::Named(name.inner)))?;
 
                 s
             }
-            Self::Func {
+            Define::Func {
                 ty,
                 name,
                 args,
                 body,
                 ..
             } => {
-                let scope = Scope::new(false, Some(ty.clone()));
+                let scope = Scope::new(false, Some(ty.clone().inner));
                 let s = format!(
                     "{} {}({}) {}",
                     ty.clone().gen()?,
-                    name,
+                    *name,
                     args.clone()
                         .into_iter()
-                        .map(VarDefine::gen)
+                        .map(Gen::gen)
                         .collect::<MyResult<Vec<_>>>()?
                         .join(", "),
                     body.gen()?
@@ -160,60 +141,56 @@ impl Gen for Define {
                 drop(scope);
 
                 Scope::current().add(Symbol::Func {
-                    ty,
-                    name,
-                    arg_types: args.into_iter().map(|arg| arg.ty).collect(),
+                    ty: ty.inner,
+                    name: name.inner,
+                    arg_types: args.into_iter().map(|arg| arg.inner.ty.inner).collect(),
                 })?;
 
                 s
             }
-            Self::Var(var_define) => format!("{};", var_define.gen()?),
+            Define::Var(var_define) => format!("{};", var_define.with(self.extra).gen()?),
         })
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct VarDefine {
-    pos: Pos,
-    ty: Type,
-    name: String,
-    value: Option<Expr>,
+    ty: WithPos<Type>,
+    name: WithPos<String>,
+    value: Option<WithPos<Expr>>,
 }
 
 impl Visit for VarDefine {
     fn visit_impl(pair: Pair) -> Self {
-        let pos = pair.as_pos();
         let mut pairs = pair.into_inner_checked(Rule::var_define);
 
         Self {
-            pos,
             ty: pairs.next().unwrap().visit(),
-            name: pairs.next().unwrap().as_str().into(),
+            name: pairs.next().unwrap().as_str_with_pos(),
             value: pairs.next().map(Pair::visit),
         }
     }
 }
 
-impl HasPos for VarDefine {
+impl Gen for WithPos<VarDefine> {
     fn pos(&self) -> Pos {
-        self.pos
+        self.extra
     }
-}
-impl Gen for VarDefine {
+
     fn gen_impl(self) -> MyResult<String> {
-        let mut s = format!("{} {}", self.ty.clone().gen()?, self.name);
+        let mut s = format!("{} {}", self.ty.clone().gen()?, *self.name);
         if let Some(value) = self.value.clone() {
             write!(s, " = {}", value.gen()?).unwrap();
         }
 
         // type check
-        if let Some(value) = self.value {
+        if let Some(value) = &self.value {
             value.ty().check(&self.ty)?;
         }
 
         Scope::current().add(Symbol::Var {
-            ty: self.ty.clone(),
-            name: self.name,
+            ty: self.ty.inner.clone(),
+            name: self.inner.name.inner,
         })?;
 
         Ok(s)

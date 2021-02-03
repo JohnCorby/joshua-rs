@@ -121,7 +121,7 @@ impl ScopeHandle {
 
     fn find(&self, symbol: Symbol) -> MyResult<Symbol> {
         for scope in scopes()[..=self.index].iter().rev() {
-            if let Some(symbol) = scope.symbols.iter().find(|&s| &symbol == s) {
+            if let Some(symbol) = scope.symbols.iter().find(|&s| s == &symbol) {
                 return Ok(symbol.clone());
             }
         }
@@ -146,10 +146,7 @@ impl ScopeHandle {
         })
     }
     pub fn get_type(&self, name: impl AsRef<str>) -> MyResult<Symbol> {
-        self.find(Symbol::Type(Type::Named {
-            pos: Default::default(),
-            name: name.as_ref().into(),
-        }))
+        self.find(Symbol::Type(Type::Named(name.as_ref().into())))
     }
 }
 impl Drop for ScopeHandle {

@@ -1,10 +1,14 @@
 use crate::parse::{Pair, Pairs, Rule};
+use crate::pos::{AsPos, WithPos};
 use crate::visit::Visit;
+use crate::with::ToWith;
 use console::style;
 
 pub trait PairExt<'i> {
     /// turns visit into an extension method for pair
-    fn visit<T: Visit>(self) -> T;
+    fn visit<T: Visit>(self) -> WithPos<T>;
+
+    fn as_str_with_pos(&self) -> WithPos<String>;
 
     /// check that a pair matches a rule, and then return its inner pairs
     fn into_inner_checked(self, expected: Rule) -> Pairs<'i>;
@@ -12,8 +16,12 @@ pub trait PairExt<'i> {
     fn to_pretty_string(&self) -> String;
 }
 impl<'i> PairExt<'i> for Pair<'i> {
-    fn visit<T: Visit>(self) -> T {
+    fn visit<T: Visit>(self) -> WithPos<T> {
         T::visit(self)
+    }
+
+    fn as_str_with_pos(&self) -> WithPos<String> {
+        self.as_str().to_string().with(self.as_pos())
     }
 
     fn into_inner_checked(self, expected: Rule) -> Pairs<'i> {
@@ -46,10 +54,10 @@ impl<'i> PairExt<'i> for Pair<'i> {
 pub trait PairsExt {
     /// visits any not iterated pairs,
     /// short circuiting if any of them error
-    fn visit_rest<T: Visit>(self) -> Vec<T>;
+    fn visit_rest<T: Visit>(self) -> Vec<WithPos<T>>;
 }
 impl PairsExt for Pairs<'_> {
-    fn visit_rest<T: Visit>(self) -> Vec<T> {
+    fn visit_rest<T: Visit>(self) -> Vec<WithPos<T>> {
         self.map(Pair::visit).collect()
     }
 }

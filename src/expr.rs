@@ -3,90 +3,85 @@
 use crate::error::{unexpected_rule, MyResult};
 use crate::gen::Gen;
 use crate::parse::{Pair, Rule};
-use crate::pos::{AsPos, HasPos, Pos};
+use crate::pos::{AsPos, Pos, WithPos};
 use crate::scope::Scope;
 use crate::statement::FuncCall;
 use crate::ty::{HasType, LiteralType, PrimitiveType, Type};
 use crate::util::PairExt;
 use crate::visit::Visit;
+use crate::with::ToWith;
+use std::ops::Deref;
 
 #[derive(Debug, Clone)]
 pub enum Expr {
     Binary {
-        pos: Pos,
-        left: Box<Expr>,
-        op: String,
-        right: Box<Expr>,
+        left: Box<WithPos<Expr>>,
+        op: WithPos<String>,
+        right: Box<WithPos<Expr>>,
     },
     Unary {
-        pos: Pos,
-        op: String,
-        thing: Box<Expr>,
+        op: WithPos<String>,
+        thing: Box<WithPos<Expr>>,
     },
     Cast {
-        pos: Pos,
-        thing: Box<Expr>,
-        ty: Type,
+        thing: Box<WithPos<Expr>>,
+        ty: WithPos<Type>,
     },
 
     // primary
     Literal(Literal),
     FuncCall(FuncCall),
-    Var {
-        pos: Pos,
-        name: String,
-    },
+    Var(String),
 }
 
 impl Visit for Expr {
     fn visit_impl(pair: Pair) -> Self {
+        let pos = pair.as_pos();
         match pair.as_rule() {
             Rule::expr => pair.into_inner().next().unwrap().visit(),
             Rule::equality_expr | Rule::compare_expr | Rule::add_expr | Rule::mul_expr => {
-                let pos = pair.as_pos();
                 // left assoc
                 let mut pairs = pair.into_inner();
 
-                let mut left: Expr = pairs.next().unwrap().visit();
+                let mut left: WithPos<Expr> = pairs.next().unwrap().visit();
                 while let Some(op) = pairs.next() {
+                    // let op = With { thing: op.as_str(), with: op };
                     left = Self::Binary {
-                        pos,
                         left: left.into(),
-                        op: op.as_str().into(),
+                        op: op.as_str_with_pos(),
                         right: pairs.next().unwrap().visit::<Expr>().into(),
-                    };
+                    }
+                    .with(pos);
                 }
 
                 left
             }
             Rule::unary_expr => {
-                let pos = pair.as_pos();
                 // right assoc
                 let mut rev_pairs = pair.into_inner().rev();
 
-                let mut thing: Expr = rev_pairs.next().unwrap().visit();
+                let mut thing: WithPos<Expr> = rev_pairs.next().unwrap().visit();
                 for op in rev_pairs {
                     thing = Self::Unary {
-                        pos,
-                        op: op.as_str().into(),
+                        op: op.as_str_with_pos(),
                         thing: thing.into(),
-                    };
+                    }
+                    .with(pos);
                 }
 
                 thing
             }
             Rule::cast_expr => {
-                let pos = pair.as_pos();
                 // left assoc
                 let mut pairs = pair.into_inner();
 
-                let mut thing: Expr = pairs.next().unwrap().visit();
+                let mut thing: WithPos<Expr> = pairs.next().unwrap().visit();
                 for ty in pairs {
                     thing = Self::Cast {
-                        pos,
                         thing: thing.into(),
                         ty: ty.visit(),
-                    };
+                    }
+                    .with(pos);
                 }
 
                 thing
@@ -97,56 +92,46 @@ impl Visit for Expr {
             | Rule::int_literal
             | Rule::bool_literal
             | Rule::char_literal
-            | Rule::str_literal => Self::Literal(pair.visit()),
-            Rule::func_call => Self::FuncCall(pair.visit()),
-            Rule::ident => Self::Var {
-                pos: pair.as_pos(),
-                name: pair.as_str().into(),
-            },
+            | Rule::str_literal => Self::Literal(pair.visit().inner).with(pos),
+            Rule::func_call => Self::FuncCall(pair.visit().inner).with(pos),
+            Rule::ident => Self::Var(pair.as_str().into()).with(pair.as_pos()),
 
             rule => unexpected_rule(rule),
         }
+        .inner
     }
 }
 
-impl HasPos for Expr {
+impl Gen for WithPos<Expr> {
     fn pos(&self) -> Pos {
-        match self {
-            Expr::Binary { pos, .. } => *pos,
-            Expr::Unary { pos, .. } => *pos,
-            Expr::Cast { pos, .. } => *pos,
-            Expr::Literal(literal) => literal.pos(),
-            Expr::FuncCall(func_call) => func_call.pos(),
-            Expr::Var { pos, .. } => *pos,
-        }
+        self.extra
     }
-}
-impl Gen for Expr {
+
     fn gen_impl(self) -> MyResult<String> {
-        Ok(match self {
-            Self::Binary {
+        Ok(match self.inner {
+            Expr::Binary {
                 left, op, right, ..
             } => {
-                let s = format!("({} {} {})", left.clone().gen()?, op, right.clone().gen()?);
+                let s = format!("({} {} {})", left.clone().gen()?, *op, right.clone().gen()?);
                 // type check
-                Scope::current().get_func(&op, [left.ty(), right.ty()])?;
+                Scope::current().get_func(&*op, [left.ty(), right.ty()])?;
                 s
             }
-            Self::Unary { op, thing, .. } => {
-                let s = format!("({}{})", op, thing.clone().gen()?);
+            Expr::Unary { op, thing, .. } => {
+                let s = format!("({}{})", *op, thing.clone().gen()?);
                 // type check
-                Scope::current().get_func(&op, [thing.ty()])?;
+                Scope::current().get_func(&*op, [thing.ty()])?;
                 s
             }
-            Self::Cast { thing, ty, .. } => {
+            Expr::Cast { thing, ty, .. } => {
                 // let thing_ty = thing.ty();
                 let s = format!("(({}) {})", ty.gen()?, thing.gen()?);
                 // todo type check
                 s
             }
-            Self::Literal(literal) => literal.gen()?,
-            Self::FuncCall(func_call) => func_call.gen()?,
-            Self::Var { name, .. } => {
+            Expr::Literal(literal) => literal.with(self.extra).gen()?,
+            Expr::FuncCall(func_call) => func_call.with(self.extra).gen()?,
+            Expr::Var(name) => {
                 Scope::current().get_var(&name)?;
                 name
             }
@@ -166,82 +151,64 @@ impl HasType for Expr {
             Expr::Binary {
                 left, op, right, ..
             } => Scope::current()
-                .get_func(op, [left.ty(), right.ty()])
+                .get_func(&**op, [left.ty(), right.ty()])
                 .expect(GET_OP_FUNC_ERR)
                 .ty(),
             Expr::Unary { op, thing, .. } => Scope::current()
-                .get_func(op, [thing.ty()])
+                .get_func(&**op, [thing.ty()])
                 .expect(GET_OP_FUNC_ERR)
                 .ty(),
             Expr::Cast { ty, .. } => {
                 // todo type check
-                ty.clone()
+                ty.clone().inner
             }
             Expr::Literal(literal) => literal.ty(),
             Expr::FuncCall(func_call) => func_call.ty(),
-            Expr::Var { name, .. } => Scope::current().get_var(name).expect(GET_VAR_ERR).ty(),
+            Expr::Var(name) => Scope::current()
+                .get_var(name.deref())
+                .expect(GET_VAR_ERR)
+                .ty(),
         }
     }
 }
 
 #[derive(Debug, Clone)]
 pub enum Literal {
-    Float { pos: Pos, value: f64 },
-    Int { pos: Pos, value: i64 },
-    Bool { pos: Pos, value: bool },
-    Char { pos: Pos, value: char },
-    Str { pos: Pos, value: String },
+    Float(f64),
+    Int(i64),
+    Bool(bool),
+    Char(char),
+    Str(String),
 }
 
 impl Visit for Literal {
     fn visit_impl(pair: Pair) -> Self {
-        let pos = pair.as_pos();
         match pair.as_rule() {
-            Rule::float_literal => Self::Float {
-                pos,
-                value: pair.as_str().parse().unwrap(),
-            },
-            Rule::int_literal => Self::Int {
-                pos,
-                value: pair.as_str().parse().unwrap(),
-            },
-            Rule::bool_literal => Self::Bool {
-                pos,
-                value: pair.as_str().parse().unwrap(),
-            },
-            Rule::char_literal => Self::Char {
-                pos,
-                value: pair.into_inner().next().unwrap().as_str().parse().unwrap(),
-            },
-            Rule::str_literal => Self::Str {
-                pos,
-                value: pair.into_inner().next().unwrap().as_str().into(),
-            },
+            Rule::float_literal => Self::Float(pair.as_str().parse().unwrap()),
+            Rule::int_literal => Self::Int(pair.as_str().parse().unwrap()),
+            Rule::bool_literal => Self::Bool(pair.as_str().parse().unwrap()),
+            Rule::char_literal => {
+                Self::Char(pair.into_inner().next().unwrap().as_str().parse().unwrap())
+            }
+            Rule::str_literal => Self::Str(pair.into_inner().next().unwrap().as_str().into()),
 
             rule => unexpected_rule(rule),
         }
     }
 }
 
-impl HasPos for Literal {
+impl Gen for WithPos<Literal> {
     fn pos(&self) -> Pos {
-        match self {
-            Self::Float { pos, .. } => *pos,
-            Self::Int { pos, .. } => *pos,
-            Self::Bool { pos, .. } => *pos,
-            Self::Char { pos, .. } => *pos,
-            Self::Str { pos, .. } => *pos,
-        }
+        self.extra
     }
-}
-impl Gen for Literal {
+
     fn gen_impl(self) -> MyResult<String> {
-        Ok(match self {
-            Self::Float { value: float, .. } => float.to_string(),
-            Self::Int { value: int, .. } => int.to_string(),
-            Self::Bool { value: bool, .. } => (bool as u8).to_string(),
-            Self::Char { value: char, .. } => format!("'{}'", char),
-            Self::Str { value: str, .. } => format!("\"{}\"", str),
+        Ok(match &*self {
+            Literal::Float(value) => value.to_string(),
+            Literal::Int(value) => value.to_string(),
+            Literal::Bool(value) => (*value as u8).to_string(),
+            Literal::Char(value) => format!("'{}'", value),
+            Literal::Str(value) => format!("\"{}\"", value),
         })
     }
 }
@@ -249,11 +216,11 @@ impl Gen for Literal {
 impl HasType for Literal {
     fn ty(&self) -> Type {
         match self {
-            Self::Float { .. } => LiteralType::Float.ty(),
-            Self::Int { .. } => LiteralType::Int.ty(),
-            Self::Bool { .. } => PrimitiveType::Bool.ty(),
-            Self::Char { .. } => PrimitiveType::Char.ty(),
-            Self::Str { .. } => todo!("usage of string literals is not yet supported"),
+            Self::Float(_) => LiteralType::Float.ty(),
+            Self::Int(_) => LiteralType::Int.ty(),
+            Self::Bool(_) => PrimitiveType::Bool.ty(),
+            Self::Char(_) => PrimitiveType::Char.ty(),
+            Self::Str(_) => todo!("usage of string literals is not yet supported"),
         }
     }
 }

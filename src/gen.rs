@@ -1,8 +1,11 @@
 use crate::error::MyResult;
-use crate::pos::HasPos;
+use crate::pos::Pos;
 
 /// turn self into valid C code
-pub trait Gen: Sized + HasPos {
+pub trait Gen: Sized {
+    /// boilerplate :(
+    fn pos(&self) -> Pos;
+
     fn gen(self) -> MyResult<String> {
         self.pos().set_current();
         self.gen_impl()

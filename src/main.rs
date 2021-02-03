@@ -15,6 +15,7 @@ mod statement;
 mod ty;
 mod util;
 mod visit;
+mod with;
 
 use crate::compile::compile_program;
 use crate::define::Program;

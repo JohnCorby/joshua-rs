@@ -1,4 +1,5 @@
 use crate::parse::{Pair, Rule};
+use crate::with::With;
 use crate::PROGRAM;
 use parking_lot::{Mutex, MutexGuard};
 use pest::error::Error;
@@ -18,7 +19,7 @@ pub struct Pos {
 
 impl Pos {
     pub fn reset() {
-        *CURRENT_POS.try_lock().expect("CURRENT_POS locked") = None
+        *current_pos() = None
     }
 
     pub fn current() -> Option<Pos> {
@@ -56,6 +57,4 @@ impl AsPos for Pair<'_> {
     }
 }
 
-pub trait HasPos {
-    fn pos(&self) -> Pos;
-}
+pub type WithPos<T> = With<T, Pos>;

@@ -1,40 +1,28 @@
 use crate::error::{unexpected_rule, MyResult};
 use crate::gen::Gen;
 use crate::parse::{Pair, Rule};
-use crate::pos::{AsPos, HasPos, Pos};
+use crate::pos::{Pos, WithPos};
 use crate::scope::Scope;
 use crate::util::PairExt;
 use crate::visit::Visit;
+use crate::with::With;
 use std::str::FromStr;
 
 #[derive(Debug, Clone)]
 pub enum Type {
-    Primitive {
-        pos: Pos,
-        ty: PrimitiveType,
-    },
-    #[allow(dead_code)]
-    Literal {
-        pos: Pos,
-        ty: LiteralType,
-    },
-    Named {
-        pos: Pos,
-        name: String,
-    },
+    Primitive(PrimitiveType),
+    Literal(LiteralType),
+    Named(String),
 }
 impl Default for Type {
     fn default() -> Self {
-        Self::Named {
-            pos: Default::default(),
-            name: Default::default(),
-        }
+        Self::Named(Default::default())
     }
 }
 impl Type {
     pub fn check(&self, expected: &Type) -> MyResult<()> {
         let actual = self;
-        if actual == expected {
+        if expected == actual {
             Ok(())
         } else {
             Err(format!(
@@ -65,7 +53,6 @@ pub enum PrimitiveType {
     Void,
 }
 #[derive(Debug, Copy, Clone, PartialEq, strum::ToString)]
-#[allow(dead_code)]
 pub enum LiteralType {
     Float,
     Int,
@@ -75,9 +62,9 @@ impl PartialEq for Type {
     fn eq(&self, other: &Self) -> bool {
         use Type::*;
         match (self, other) {
-            (Primitive { ty: ty1, .. }, Primitive { ty: ty2, .. }) => ty1 == ty2,
-            (Named { name: name1, .. }, Named { name: name2, .. }) => name1 == name2,
-            (Literal { ty: ty1, .. }, Literal { ty: ty2, .. }) => ty1 == ty2,
+            (Primitive(ty1), Primitive(ty2)) => ty1 == ty2,
+            (Named(name1), Named(name2)) => name1 == name2,
+            (Literal(ty1), Literal(ty2)) => ty1 == ty2,
             (_, _) => false,
         }
     }
@@ -85,9 +72,9 @@ impl PartialEq for Type {
 impl ToString for Type {
     fn to_string(&self) -> String {
         match self {
-            Type::Primitive { ty, .. } => format!("primitive type {}", ty.to_string()),
-            Type::Named { name, .. } => format!("named type {}", name),
-            Type::Literal { ty, .. } => format!("literal type {}", ty.to_string()),
+            Type::Primitive(ty) => format!("primitive type {}", ty.to_string()),
+            Type::Named(name) => format!("named type {}", name),
+            Type::Literal(ty) => format!("literal type {}", ty.to_string()),
         }
     }
 }
@@ -95,35 +82,23 @@ impl ToString for Type {
 impl Visit for Type {
     fn visit_impl(pair: Pair) -> Self {
         let pair = pair.into_inner_checked(Rule::ty).next().unwrap();
-        let pos = pair.as_pos();
         match pair.as_rule() {
-            Rule::primitive => Self::Primitive {
-                pos,
-                ty: PrimitiveType::from_str(pair.as_str()).unwrap(),
-            },
-            Rule::ident => Self::Named {
-                pos,
-                name: pair.as_str().into(),
-            },
+            Rule::primitive => Self::Primitive(PrimitiveType::from_str(pair.as_str()).unwrap()),
+            Rule::ident => Self::Named(pair.as_str().into()),
 
             rule => unexpected_rule(rule),
         }
     }
 }
 
-impl HasPos for Type {
+impl Gen for WithPos<Type> {
     fn pos(&self) -> Pos {
-        match self {
-            Type::Primitive { pos, .. } => *pos,
-            Type::Literal { pos, .. } => *pos,
-            Type::Named { pos, .. } => *pos,
-        }
+        self.extra
     }
-}
-impl Gen for Type {
+
     fn gen_impl(self) -> MyResult<String> {
-        Ok(match self {
-            Type::Primitive { ty, .. } => {
+        Ok(match self.inner {
+            Type::Primitive(ty) => {
                 use PrimitiveType::*;
                 match ty {
                     I8 => "signed char",
@@ -142,7 +117,7 @@ impl Gen for Type {
                 }
                 .into()
             }
-            Type::Named { name, .. } => {
+            Type::Named(name) => {
                 Scope::current().get_type(&name)?;
                 name
             }
@@ -156,17 +131,13 @@ pub trait HasType {
 }
 impl HasType for PrimitiveType {
     fn ty(&self) -> Type {
-        Type::Primitive {
-            pos: Default::default(),
-            ty: *self,
-        }
+        Type::Primitive(*self)
     }
 }
 impl HasType for LiteralType {
     fn ty(&self) -> Type {
-        Type::Literal {
-            pos: Default::default(),
-            ty: *self,
-        }
+        Type::Literal(*self)
     }
 }
+
+pub type WithType<T> = With<T, Type>;
