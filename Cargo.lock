@@ -122,7 +122,6 @@ name = "joshua-rs"
 version = "0.1.0"
 dependencies = [
  "console",
- "lazy_static",
  "mangling",
  "owning_ref",
  "parking_lot",

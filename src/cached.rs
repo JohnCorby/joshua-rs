@@ -1,7 +1,8 @@
 //! string interner, but works for anything
-use lazy_static::lazy_static;
+
 use parking_lot::{Mutex, MutexGuard};
 use std::fmt::{Debug, Formatter};
+use std::lazy::SyncLazy;
 use std::marker::PhantomData;
 use string_interner::{DefaultSymbol, StringInterner, Symbol};
 
@@ -22,9 +23,8 @@ impl<T> From<usize> for Cached<T> {
 }
 
 pub type CachedString = Cached<String>;
-lazy_static! {
-    static ref INTERNER: Mutex<StringInterner> = Mutex::new(StringInterner::new());
-}
+static INTERNER: SyncLazy<Mutex<StringInterner>> =
+    SyncLazy::new(|| Mutex::new(StringInterner::new()));
 fn interner() -> MutexGuard<'static, StringInterner> {
     INTERNER.try_lock().expect("INTERNER locked")
 }

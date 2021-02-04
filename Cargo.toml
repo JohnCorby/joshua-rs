@@ -15,4 +15,3 @@ console = "*"
 owning_ref = "*"
 strum = { version = "*", features = ["derive"] }
 string-interner = "*"
-lazy_static = "*"
