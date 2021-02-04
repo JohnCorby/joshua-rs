@@ -1,5 +1,4 @@
 use crate::parse::{Pair, Rule};
-use crate::with::With;
 use crate::PROGRAM;
 use parking_lot::{Mutex, MutexGuard};
 use pest::error::Error;
@@ -56,5 +55,3 @@ impl AsPos for Pair<'_> {
         Pos { start, end }
     }
 }
-
-pub type WithPos<T> = With<T, Pos>;

@@ -2,6 +2,7 @@
 //! scopes contain symbols
 //! symbols allow us to check for existence and type of stuff we define
 
+use crate::cached::CachedString;
 use crate::error::MyResult;
 use crate::ty::{HasType, Type};
 use parking_lot::{Mutex, MutexGuard};
@@ -22,23 +23,22 @@ pub struct Scope {
 pub enum Symbol {
     Func {
         ty: Type,
-        name: String,
+        name: CachedString,
         arg_types: Vec<Type>,
     },
     Var {
         ty: Type,
-        name: String,
+        name: CachedString,
     },
     Type(Type),
 }
 impl HasType for Symbol {
     fn ty(&self) -> Type {
-        match self {
+        *match self {
             Symbol::Func { ty, .. } => ty,
             Symbol::Var { ty, .. } => ty,
             Symbol::Type(ty) => ty,
         }
-        .clone()
     }
 }
 impl PartialEq for Symbol {
@@ -71,14 +71,14 @@ impl ToString for Symbol {
                 name, arg_types, ..
             } => format!(
                 "func {} with arg types ({})",
-                name,
+                name.to_string(),
                 arg_types
                     .iter()
                     .map(Type::to_string)
                     .collect::<Vec<_>>()
                     .join(", ")
             ),
-            Symbol::Var { name, .. } => format!("var {}", name),
+            Symbol::Var { name, .. } => format!("var {}", name.to_string()),
             Symbol::Type(ty) => ty.to_string(),
         }
     }
@@ -103,8 +103,8 @@ impl ScopeHandle {
     }
     pub fn func_return_type(&self) -> Type {
         for scope in scopes()[..=self.index].iter().rev() {
-            if let Some(ty) = &scope.func_return_type {
-                return ty.clone();
+            if let Some(ty) = scope.func_return_type {
+                return ty;
             }
         }
         unreachable!("tried to get func return type when we arent in any func")
@@ -128,25 +128,21 @@ impl ScopeHandle {
         Err(format!("could not find {}", symbol.to_string()).into())
     }
 
-    pub fn get_var(&self, name: impl AsRef<str>) -> MyResult<Symbol> {
+    pub fn get_var(&self, name: CachedString) -> MyResult<Symbol> {
         self.find(Symbol::Var {
             ty: Default::default(),
-            name: name.as_ref().into(),
+            name,
         })
     }
-    pub fn get_func(
-        &self,
-        name: impl AsRef<str>,
-        arg_types: impl AsRef<[Type]>,
-    ) -> MyResult<Symbol> {
+    pub fn get_func(&self, name: CachedString, arg_types: impl AsRef<[Type]>) -> MyResult<Symbol> {
         self.find(Symbol::Func {
             ty: Default::default(),
-            name: name.as_ref().into(),
+            name,
             arg_types: arg_types.as_ref().into(),
         })
     }
-    pub fn get_type(&self, name: impl AsRef<str>) -> MyResult<Symbol> {
-        self.find(Symbol::Type(Type::Named(name.as_ref().into())))
+    pub fn get_type(&self, name: CachedString) -> MyResult<Symbol> {
+        self.find(Symbol::Type(Type::Named(name)))
     }
 }
 impl Drop for ScopeHandle {
@@ -171,9 +167,9 @@ impl Scope {
                 for ty in types.as_ref() {
                     scope
                         .add(Symbol::Func {
-                            ty: ty.clone(),
+                            ty: *ty,
                             name: op.as_ref().into(),
-                            arg_types: std::iter::repeat(ty.clone()).take(num_args).collect(),
+                            arg_types: std::iter::repeat(*ty).take(num_args).collect(),
                         })
                         .unwrap();
                 }
@@ -191,7 +187,7 @@ impl Scope {
                         .add(Symbol::Func {
                             ty: Bool.ty(),
                             name: op.as_ref().into(),
-                            arg_types: std::iter::repeat(ty.clone()).take(num_args).collect(),
+                            arg_types: std::iter::repeat(*ty).take(num_args).collect(),
                         })
                         .unwrap();
                 }

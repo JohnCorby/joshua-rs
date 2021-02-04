@@ -3,6 +3,7 @@
 #![feature(once_cell)]
 #![feature(panic_info_message)]
 
+mod cached;
 mod compile;
 mod define;
 mod error;

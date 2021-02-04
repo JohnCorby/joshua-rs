@@ -1,14 +1,15 @@
+use crate::cached::CachedString;
 use crate::error::{unexpected_rule, MyResult};
 use crate::expr::Expr;
 use crate::gen::Gen;
 use crate::parse::{Pair, Rule};
-use crate::pos::{Pos, WithPos};
+use crate::pos::Pos;
 use crate::scope::{Scope, Symbol};
 use crate::statement::Block;
 use crate::ty::{HasType, Type};
 use crate::util::{PairExt, PairsExt};
 use crate::visit::Visit;
-use crate::with::ToWith;
+use crate::with::{ToWith, WithPos};
 use std::fmt::Write;
 
 pub type Program = Vec<WithPos<Define>>;
@@ -48,12 +49,12 @@ impl Gen for WithPos<Program> {
 #[derive(Debug, Clone)]
 pub enum Define {
     Struct {
-        name: WithPos<String>,
+        name: WithPos<CachedString>,
         body: Vec<WithPos<Define>>,
     },
     Func {
         ty: WithPos<Type>,
-        name: WithPos<String>,
+        name: WithPos<CachedString>,
         args: Vec<WithPos<VarDefine>>,
         body: WithPos<Block>,
     },
@@ -67,7 +68,7 @@ impl Visit for Define {
                 let mut pairs = pair.into_inner();
 
                 Self::Struct {
-                    name: pairs.next().unwrap().as_str_with_pos(),
+                    name: pairs.next().unwrap().as_cached_str_with_pos(),
                     body: pairs.visit_rest(),
                 }
             }
@@ -75,7 +76,7 @@ impl Visit for Define {
                 let mut pairs = pair.into_inner();
 
                 let ty = pairs.next().unwrap().visit();
-                let name = pairs.next().unwrap().as_str_with_pos();
+                let name = pairs.next().unwrap().as_cached_str_with_pos();
                 let mut args = vec![];
                 while pairs.peek().is_some() && pairs.peek().unwrap().as_rule() == Rule::var_define
                 {
@@ -111,11 +112,11 @@ impl Gen for WithPos<Define> {
                         .map(Gen::gen)
                         .collect::<MyResult<Vec<_>>>()?
                         .join("\n"),
-                    *name
+                    name.to_string()
                 );
 
                 // fixme this is half-baked?
-                Scope::current().add(Symbol::Type(Type::Named(name.inner)))?;
+                Scope::current().add(Symbol::Type(Type::Named(*name)))?;
 
                 s
             }
@@ -126,11 +127,11 @@ impl Gen for WithPos<Define> {
                 body,
                 ..
             } => {
-                let scope = Scope::new(false, Some(ty.clone().inner));
+                let scope = Scope::new(false, Some(ty.inner));
                 let s = format!(
                     "{} {}({}) {}",
                     ty.clone().gen()?,
-                    *name,
+                    name.to_string(),
                     args.clone()
                         .into_iter()
                         .map(Gen::gen)
@@ -156,7 +157,7 @@ impl Gen for WithPos<Define> {
 #[derive(Debug, Clone)]
 pub struct VarDefine {
     ty: WithPos<Type>,
-    name: WithPos<String>,
+    name: WithPos<CachedString>,
     value: Option<WithPos<Expr>>,
 }
 
@@ -166,7 +167,7 @@ impl Visit for VarDefine {
 
         Self {
             ty: pairs.next().unwrap().visit(),
-            name: pairs.next().unwrap().as_str_with_pos(),
+            name: pairs.next().unwrap().as_cached_str_with_pos(),
             value: pairs.next().map(Pair::visit),
         }
     }
@@ -178,7 +179,7 @@ impl Gen for WithPos<VarDefine> {
     }
 
     fn gen_impl(self) -> MyResult<String> {
-        let mut s = format!("{} {}", self.ty.clone().gen()?, *self.name);
+        let mut s = format!("{} {}", self.ty.clone().gen()?, self.name.to_string());
         if let Some(value) = self.value.clone() {
             write!(s, " = {}", value.gen()?).unwrap();
         }
@@ -189,7 +190,7 @@ impl Gen for WithPos<VarDefine> {
         }
 
         Scope::current().add(Symbol::Var {
-            ty: self.ty.inner.clone(),
+            ty: self.ty.inner,
             name: self.inner.name.inner,
         })?;
 

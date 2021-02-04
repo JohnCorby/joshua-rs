@@ -1,22 +1,23 @@
+use crate::cached::CachedString;
 use crate::error::{unexpected_rule, MyResult};
 use crate::gen::Gen;
 use crate::parse::{Pair, Rule};
-use crate::pos::{Pos, WithPos};
+use crate::pos::Pos;
 use crate::scope::Scope;
 use crate::util::PairExt;
 use crate::visit::Visit;
-use crate::with::With;
+use crate::with::WithPos;
 use std::str::FromStr;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub enum Type {
     Primitive(PrimitiveType),
     Literal(LiteralType),
-    Named(String),
+    Named(CachedString),
 }
 impl Default for Type {
     fn default() -> Self {
-        Self::Named(Default::default())
+        Self::Named(CachedString::from(String::new()))
     }
 }
 impl Type {
@@ -73,7 +74,7 @@ impl ToString for Type {
     fn to_string(&self) -> String {
         match self {
             Type::Primitive(ty) => format!("primitive type {}", ty.to_string()),
-            Type::Named(name) => format!("named type {}", name),
+            Type::Named(name) => format!("named type {}", name.to_string()),
             Type::Literal(ty) => format!("literal type {}", ty.to_string()),
         }
     }
@@ -118,8 +119,8 @@ impl Gen for WithPos<Type> {
                 .into()
             }
             Type::Named(name) => {
-                Scope::current().get_type(&name)?;
-                name
+                Scope::current().get_type(name)?;
+                name.to_string()
             }
             ty => panic!("tried to gen {}", ty.to_string()),
         })
@@ -139,5 +140,3 @@ impl HasType for LiteralType {
         Type::Literal(*self)
     }
 }
-
-pub type WithType<T> = With<T, Type>;

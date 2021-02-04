@@ -1,6 +1,6 @@
 use crate::parse::Pair;
-use crate::pos::{AsPos, WithPos};
-use crate::with::ToWith;
+use crate::pos::AsPos;
+use crate::with::{ToWith, WithPos};
 
 /// take a parser pair an turn it into ourselves
 pub trait Visit: Sized {

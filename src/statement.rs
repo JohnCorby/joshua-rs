@@ -1,14 +1,15 @@
+use crate::cached::CachedString;
 use crate::define::VarDefine;
 use crate::error::{unexpected_rule, MyError, MyResult};
 use crate::expr::Expr;
 use crate::gen::Gen;
 use crate::parse::{Pair, Rule};
-use crate::pos::{Pos, WithPos};
+use crate::pos::Pos;
 use crate::scope::Scope;
 use crate::ty::{HasType, PrimitiveType, Type};
 use crate::util::{PairExt, PairsExt};
 use crate::visit::Visit;
-use crate::with::ToWith;
+use crate::with::{ToWith, WithPos};
 use std::fmt::Write;
 
 #[derive(Debug, Clone)]
@@ -33,7 +34,7 @@ pub enum Statement {
     },
     FuncCall(FuncCall),
     VarAssign {
-        name: WithPos<String>,
+        name: WithPos<CachedString>,
         value: WithPos<Expr>,
     },
     VarDefine(VarDefine),
@@ -77,7 +78,7 @@ impl Visit for Statement {
                 let mut pairs = pair.into_inner();
 
                 Self::VarAssign {
-                    name: pairs.next().unwrap().as_str_with_pos(),
+                    name: pairs.next().unwrap().as_cached_str_with_pos(),
                     value: pairs.next().unwrap().visit(),
                 }
             }
@@ -177,7 +178,7 @@ impl Gen for WithPos<Statement> {
             }
             Statement::FuncCall(func_call) => format!("{};", func_call.with(self.extra).gen()?),
             Statement::VarAssign { name, value, .. } => {
-                let s = format!("{} = {};", *name, value.clone().gen()?);
+                let s = format!("{} = {};", name.to_string(), value.clone().gen()?);
                 // type check
                 value
                     .ty()
@@ -216,7 +217,7 @@ impl Gen for WithPos<Block> {
 
 #[derive(Debug, Clone)]
 pub struct FuncCall {
-    name: WithPos<String>,
+    name: WithPos<CachedString>,
     args: Vec<WithPos<Expr>>,
 }
 
@@ -225,7 +226,7 @@ impl Visit for FuncCall {
         let mut pairs = pair.into_inner_checked(Rule::func_call);
 
         Self {
-            name: pairs.next().unwrap().as_str_with_pos(),
+            name: pairs.next().unwrap().as_cached_str_with_pos(),
             args: pairs.visit_rest(),
         }
     }
@@ -239,7 +240,7 @@ impl Gen for WithPos<FuncCall> {
     fn gen_impl(self) -> MyResult<String> {
         let s = format!(
             "{}({})",
-            *self.name,
+            self.name.to_string(),
             self.args
                 .clone()
                 .into_iter()
@@ -250,7 +251,7 @@ impl Gen for WithPos<FuncCall> {
 
         // type check
         Scope::current().get_func(
-            &*self.name,
+            *self.name,
             self.args.iter().map(|arg| arg.ty()).collect::<Vec<_>>(),
         )?;
 
@@ -264,7 +265,7 @@ impl HasType for FuncCall {
             "cant get func symbol for HasType even though this should have already been checked";
         Scope::current()
             .get_func(
-                &*self.name,
+                *self.name,
                 self.args.iter().map(|arg| arg.ty()).collect::<Vec<_>>(),
             )
             .expect(GET_FUNC_ERR)
