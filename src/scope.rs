@@ -70,7 +70,7 @@ impl ToString for Symbol {
             Symbol::Func {
                 name, arg_types, ..
             } => format!(
-                "func {} with arg types ({})",
+                "func `{}` with arg types ({})",
                 name.to_string(),
                 arg_types
                     .iter()
@@ -78,7 +78,7 @@ impl ToString for Symbol {
                     .collect::<Vec<_>>()
                     .join(", ")
             ),
-            Symbol::Var { name, .. } => format!("var {}", name.to_string()),
+            Symbol::Var { name, .. } => format!("var `{}`", name.to_string()),
             Symbol::Type(ty) => ty.to_string(),
         }
     }
@@ -156,38 +156,40 @@ impl Scope {
     pub fn init() -> ScopeHandle {
         let mut scope = Self::new(false, None);
 
+        use crate::ty::LiteralType::*;
         use crate::ty::PrimitiveType::*;
-        fn op_funcs<Str: AsRef<str>>(
+        fn funcs<Str: AsRef<str>>(
             scope: &mut ScopeHandle,
-            ops: impl AsRef<[Str]>,
+            names: impl AsRef<[Str]>,
             num_args: usize,
             types: impl AsRef<[Type]>,
         ) {
-            for op in ops.as_ref() {
+            for name in names.as_ref() {
                 for ty in types.as_ref() {
                     scope
                         .add(Symbol::Func {
                             ty: *ty,
-                            name: op.as_ref().into(),
+                            name: name.as_ref().into(),
                             arg_types: std::iter::repeat(*ty).take(num_args).collect(),
                         })
                         .unwrap();
                 }
             }
         }
-        fn bool_op_funcs<Str: AsRef<str>>(
+        fn funcs_ret<Str: AsRef<str>>(
             scope: &mut ScopeHandle,
-            ops: impl AsRef<[Str]>,
+            names: impl AsRef<[Str]>,
             num_args: usize,
-            types: impl AsRef<[Type]>,
+            arg_types: impl AsRef<[Type]>,
+            ret_type: Type,
         ) {
-            for op in ops.as_ref() {
-                for ty in types.as_ref() {
+            for name in names.as_ref() {
+                for arg_type in arg_types.as_ref() {
                     scope
                         .add(Symbol::Func {
-                            ty: Bool.ty(),
-                            name: op.as_ref().into(),
-                            arg_types: std::iter::repeat(*ty).take(num_args).collect(),
+                            ty: ret_type,
+                            name: name.as_ref().into(),
+                            arg_types: std::iter::repeat(*arg_type).take(num_args).collect(),
                         })
                         .unwrap();
                 }
@@ -205,12 +207,29 @@ impl Scope {
             F32.ty(),
             F64.ty(),
         ];
-        let bool_type = [Bool.ty()];
-        op_funcs(&mut scope, ["+", "-", "*", "/", "%"], 2, &num_types);
-        op_funcs(&mut scope, ["-"], 1, &num_types);
-        bool_op_funcs(&mut scope, ["<", "<=", ">", ">="], 2, &num_types);
-        bool_op_funcs(&mut scope, ["==", "!="], 2, &bool_type);
-        bool_op_funcs(&mut scope, ["!"], 1, &bool_type);
+
+        funcs(&mut scope, ["+", "-", "*", "/", "%"], 2, num_types);
+        funcs(&mut scope, ["-"], 1, num_types);
+        funcs_ret(&mut scope, ["<", "<=", ">", ">="], 2, num_types, Bool.ty());
+        funcs_ret(&mut scope, ["==", "!="], 2, [Bool.ty()], Bool.ty());
+        funcs_ret(&mut scope, ["!"], 1, [Bool.ty()], Bool.ty());
+
+        for ty in &num_types {
+            funcs_ret(
+                &mut scope,
+                [format!("as {}", ty.to_string())],
+                1,
+                num_types,
+                *ty,
+            );
+            funcs_ret(
+                &mut scope,
+                [format!("as {}", ty.to_string())],
+                1,
+                [Int.ty(), Float.ty()],
+                *ty,
+            );
+        }
 
         scope
     }

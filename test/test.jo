@@ -34,7 +34,7 @@ i32 main() {
         f64 t9
         bool t10
         char t11
-//        void t12
+//        void t12 = 1 as void
     }
     f32 i = 1 as f32
     f32 e = 1 as f32 + i as f32 / 2.0 as f32

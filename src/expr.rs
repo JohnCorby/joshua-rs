@@ -129,9 +129,9 @@ impl Gen for WithPos<Expr> {
                 s
             }
             Expr::Cast { thing, ty, .. } => {
-                // let thing_ty = thing.ty();
-                let s = format!("(({}) {})", ty.gen()?, thing.gen()?);
-                // todo type check
+                let s = format!("(({}) {})", ty.gen()?, thing.clone().gen()?);
+                // type check
+                Scope::current().get_func(format!("as {}", ty.to_string()).into(), [thing.ty()])?;
                 s
             }
             Expr::Literal(literal) => literal.with(self.extra).gen()?,
@@ -148,25 +148,23 @@ impl HasType for Expr {
     fn ty(&self) -> Type {
         const GET_OP_FUNC_ERR: &str =
             "cant get op func symbol for HasType even though this should have already been checked";
-        // const GET_CAST_FUNC_ERR: &str =
-        //     "cant get cast func symbol for HasType even though this should have already been checked";
+        const GET_CAST_FUNC_ERR: &str =
+            "cant get cast func symbol for HasType even though this should have already been checked";
         const GET_VAR_ERR: &str =
             "cant get var symbol for HasType even though this should have already been checked";
         match self {
-            Expr::Binary {
-                left, op, right, ..
-            } => Scope::current()
+            Expr::Binary { left, op, right } => Scope::current()
                 .get_func(op.inner, [left.ty(), right.ty()])
                 .expect(GET_OP_FUNC_ERR)
                 .ty(),
-            Expr::Unary { op, thing, .. } => Scope::current()
+            Expr::Unary { op, thing } => Scope::current()
                 .get_func(op.inner, [thing.ty()])
                 .expect(GET_OP_FUNC_ERR)
                 .ty(),
-            Expr::Cast { ty, .. } => {
-                // todo type check
-                ty.inner
-            }
+            Expr::Cast { thing, ty } => Scope::current()
+                .get_func(format!("as {}", ty.to_string()).into(), [thing.ty()])
+                .expect(GET_CAST_FUNC_ERR)
+                .ty(),
             Expr::Literal(literal) => literal.ty(),
             Expr::FuncCall(func_call) => func_call.ty(),
             Expr::Var(name) => Scope::current().get_var(*name).expect(GET_VAR_ERR).ty(),

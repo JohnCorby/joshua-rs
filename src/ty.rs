@@ -74,7 +74,7 @@ impl ToString for Type {
     fn to_string(&self) -> String {
         match self {
             Type::Primitive(ty) => format!("primitive type {}", ty.to_string()),
-            Type::Named(name) => format!("named type {}", name.to_string()),
+            Type::Named(name) => format!("named type `{}`", name.to_string()),
             Type::Literal(ty) => format!("literal type {}", ty.to_string()),
         }
     }
