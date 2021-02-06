@@ -37,14 +37,14 @@ i32 main() {
 //        void t12 = 1 as void
     }
     f32 i = 1 as f32
-    f32 e = 1 as f32 + i as f32 / 2.0 as f32
+    f32 e = 1 as f32 + i as f32 / 2 as f32
     u8 bruh = (1 as u8 + 1 as u8 + 1 as u8) + (2 as u8 + 2 as u8)
 //    baba_booey ok = e + 1
 
     hello(4 as i32)
 
     u32 test = ((1 as u16) + (2 as u16)) as u32
-    f32 test2 = (1 as f32) + (2.0 as f32)
+    f32 test2 = (1 as f32) + (2 as f32)
 
     return (-i) as i32
 }

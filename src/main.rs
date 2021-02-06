@@ -8,22 +8,20 @@ mod compile;
 mod define;
 mod error;
 mod expr;
-mod gen;
 mod parse;
-mod pos;
+mod pass;
 mod scope;
+mod span;
 mod statement;
 mod ty;
 mod util;
-mod visit;
 mod with;
 
 use crate::compile::compile_program;
 use crate::define::Program;
 use crate::error::{MyError, MyResult};
-use crate::gen::Gen;
-use crate::parse::{parse, Rule};
-use crate::util::PairExt;
+use crate::parse::{Node, Rule};
+use crate::pass::Gen;
 use std::lazy::SyncOnceCell;
 use std::path::Path;
 
@@ -35,10 +33,10 @@ fn main() -> MyResult<()> {
     let program = std::fs::read_to_string(path).unwrap();
     PROGRAM.set(program)?;
 
-    let pair = parse(Rule::program, PROGRAM.get().unwrap())?;
-    // println!("{}", pair.to_pretty_string());
-    let program = pair.visit::<Program>();
-    println!("{:?}", program);
+    let node = Node::parse(Rule::program, PROGRAM.get().unwrap())?;
+    // println!("{}", node);
+    let program = node.visit::<Program>();
+    println!("{:#?}", program);
     let c_code = program.gen()?;
     println!("{}", c_code);
     compile_program(c_code, path);

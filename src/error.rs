@@ -1,5 +1,5 @@
 use crate::parse::Rule;
-use crate::pos::Pos;
+use crate::span::Span;
 use parking_lot::{Mutex, MutexGuard};
 use std::backtrace::{Backtrace, BacktraceStatus};
 use std::char::ParseCharError;
@@ -39,8 +39,8 @@ impl MyError {
 }
 
 impl Debug for MyError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "{}", Pos::make_error(&self.0)).unwrap();
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+        writeln!(f, "{}", Span::make_error(&self.0)).unwrap();
         if let Some(backtrace) = &*current_backtrace() {
             writeln!(f, "{}", backtrace).unwrap();
         }

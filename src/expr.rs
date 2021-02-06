@@ -2,30 +2,28 @@
 
 use crate::cached::CachedString;
 use crate::error::{unexpected_rule, MyResult};
-use crate::gen::Gen;
-use crate::parse::{Pair, Rule};
-use crate::pos::{AsPos, Pos};
+use crate::parse::{Node, Rule};
+use crate::pass::{Gen, Visit};
 use crate::scope::Scope;
+use crate::span::Span;
 use crate::statement::FuncCall;
 use crate::ty::{HasType, LiteralType, PrimitiveType, Type};
-use crate::util::PairExt;
-use crate::visit::Visit;
-use crate::with::{ToWith, WithPos};
+use crate::with::{ToWith, WithSpan};
 
 #[derive(Debug, Clone)]
 pub enum Expr {
     Binary {
-        left: Box<WithPos<Expr>>,
-        op: WithPos<CachedString>,
-        right: Box<WithPos<Expr>>,
+        left: Box<WithSpan<Expr>>,
+        op: WithSpan<CachedString>,
+        right: Box<WithSpan<Expr>>,
     },
     Unary {
-        op: WithPos<CachedString>,
-        thing: Box<WithPos<Expr>>,
+        op: WithSpan<CachedString>,
+        thing: Box<WithSpan<Expr>>,
     },
     Cast {
-        thing: Box<WithPos<Expr>>,
-        ty: WithPos<Type>,
+        thing: Box<WithSpan<Expr>>,
+        ty: WithSpan<Type>,
     },
 
     // primary
@@ -35,53 +33,53 @@ pub enum Expr {
 }
 
 impl Visit for Expr {
-    fn visit_impl(pair: Pair) -> Self {
-        let pos = pair.as_pos();
-        match pair.as_rule() {
-            Rule::expr => pair.into_inner().next().unwrap().visit(),
+    fn visit_impl(node: Node) -> Self {
+        let span = node.span();
+        match node.rule() {
+            Rule::expr => node.children().next().unwrap().visit(),
             Rule::equality_expr | Rule::compare_expr | Rule::add_expr | Rule::mul_expr => {
                 // left assoc
-                let mut pairs = pair.into_inner();
+                let mut nodes = node.children();
 
-                let mut left: WithPos<Expr> = pairs.next().unwrap().visit();
-                while let Some(op) = pairs.next() {
+                let mut left: WithSpan<Expr> = nodes.next().unwrap().visit();
+                while let Some(op) = nodes.next() {
                     // let op = With { thing: op.as_str(), with: op };
                     left = Self::Binary {
                         left: left.into(),
-                        op: op.as_cached_str_with_pos(),
-                        right: pairs.next().unwrap().visit::<Expr>().into(),
+                        op: op.as_cached_str_with_span(),
+                        right: nodes.next().unwrap().visit::<Expr>().into(),
                     }
-                    .with(pos);
+                    .with(span);
                 }
 
                 left
             }
             Rule::unary_expr => {
                 // right assoc
-                let mut rev_pairs = pair.into_inner().rev();
+                let mut rev_nodes = node.children().rev();
 
-                let mut thing: WithPos<Expr> = rev_pairs.next().unwrap().visit();
-                for op in rev_pairs {
+                let mut thing: WithSpan<Expr> = rev_nodes.next().unwrap().visit();
+                for op in rev_nodes {
                     thing = Self::Unary {
-                        op: op.as_cached_str_with_pos(),
+                        op: op.as_cached_str_with_span(),
                         thing: thing.into(),
                     }
-                    .with(pos);
+                    .with(span);
                 }
 
                 thing
             }
             Rule::cast_expr => {
                 // left assoc
-                let mut pairs = pair.into_inner();
+                let mut nodes = node.children();
 
-                let mut thing: WithPos<Expr> = pairs.next().unwrap().visit();
-                for ty in pairs {
+                let mut thing: WithSpan<Expr> = nodes.next().unwrap().visit();
+                for ty in nodes {
                     thing = Self::Cast {
                         thing: thing.into(),
                         ty: ty.visit(),
                     }
-                    .with(pos);
+                    .with(span);
                 }
 
                 thing
@@ -92,26 +90,24 @@ impl Visit for Expr {
             | Rule::int_literal
             | Rule::bool_literal
             | Rule::char_literal
-            | Rule::str_literal => Self::Literal(pair.visit().inner).with(pos),
-            Rule::func_call => Self::FuncCall(pair.visit().inner).with(pos),
-            Rule::ident => Self::Var(pair.as_str().into()).with(pair.as_pos()),
+            | Rule::str_literal => Self::Literal(node.visit().0).with(span),
+            Rule::func_call => Self::FuncCall(node.visit().0).with(span),
+            Rule::ident => Self::Var(node.as_str().into()).with(node.span()),
 
             rule => unexpected_rule(rule),
         }
-        .inner
+        .0
     }
 }
 
-impl Gen for WithPos<Expr> {
-    fn pos(&self) -> Pos {
-        self.extra
+impl Gen for WithSpan<Expr> {
+    fn span(&self) -> Span {
+        self.1
     }
 
     fn gen_impl(self) -> MyResult<String> {
-        Ok(match self.inner {
-            Expr::Binary {
-                left, op, right, ..
-            } => {
+        Ok(match self.0 {
+            Expr::Binary { left, op, right } => {
                 let s = format!(
                     "({} {} {})",
                     left.clone().gen()?,
@@ -122,20 +118,20 @@ impl Gen for WithPos<Expr> {
                 Scope::current().get_func(*op, [left.ty(), right.ty()])?;
                 s
             }
-            Expr::Unary { op, thing, .. } => {
+            Expr::Unary { op, thing } => {
                 let s = format!("({}{})", op.to_string(), thing.clone().gen()?);
                 // type check
                 Scope::current().get_func(*op, [thing.ty()])?;
                 s
             }
-            Expr::Cast { thing, ty, .. } => {
+            Expr::Cast { thing, ty } => {
                 let s = format!("(({}) {})", ty.gen()?, thing.clone().gen()?);
                 // type check
                 Scope::current().get_func(format!("as {}", ty.to_string()).into(), [thing.ty()])?;
                 s
             }
-            Expr::Literal(literal) => literal.with(self.extra).gen()?,
-            Expr::FuncCall(func_call) => func_call.with(self.extra).gen()?,
+            Expr::Literal(literal) => literal.with(self.1).gen()?,
+            Expr::FuncCall(func_call) => func_call.with(self.1).gen()?,
             Expr::Var(name) => {
                 Scope::current().get_var(name)?;
                 name.to_string()
@@ -154,11 +150,11 @@ impl HasType for Expr {
             "cant get var symbol for HasType even though this should have already been checked";
         match self {
             Expr::Binary { left, op, right } => Scope::current()
-                .get_func(op.inner, [left.ty(), right.ty()])
+                .get_func(op.0, [left.ty(), right.ty()])
                 .expect(GET_OP_FUNC_ERR)
                 .ty(),
             Expr::Unary { op, thing } => Scope::current()
-                .get_func(op.inner, [thing.ty()])
+                .get_func(op.0, [thing.ty()])
                 .expect(GET_OP_FUNC_ERR)
                 .ty(),
             Expr::Cast { thing, ty } => Scope::current()
@@ -182,24 +178,24 @@ pub enum Literal {
 }
 
 impl Visit for Literal {
-    fn visit_impl(pair: Pair) -> Self {
-        match pair.as_rule() {
-            Rule::float_literal => Self::Float(pair.as_str().parse().unwrap()),
-            Rule::int_literal => Self::Int(pair.as_str().parse().unwrap()),
-            Rule::bool_literal => Self::Bool(pair.as_str().parse().unwrap()),
+    fn visit_impl(node: Node) -> Self {
+        match node.rule() {
+            Rule::float_literal => Self::Float(node.as_str().parse().unwrap()),
+            Rule::int_literal => Self::Int(node.as_str().parse().unwrap()),
+            Rule::bool_literal => Self::Bool(node.as_str().parse().unwrap()),
             Rule::char_literal => {
-                Self::Char(pair.into_inner().next().unwrap().as_str().parse().unwrap())
+                Self::Char(node.children().next().unwrap().as_str().parse().unwrap())
             }
-            Rule::str_literal => Self::Str(pair.into_inner().next().unwrap().as_str().into()),
+            Rule::str_literal => Self::Str(node.children().next().unwrap().as_str().into()),
 
             rule => unexpected_rule(rule),
         }
     }
 }
 
-impl Gen for WithPos<Literal> {
-    fn pos(&self) -> Pos {
-        self.extra
+impl Gen for WithSpan<Literal> {
+    fn span(&self) -> Span {
+        self.1
     }
 
     fn gen_impl(self) -> MyResult<String> {

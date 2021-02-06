@@ -1,42 +1,40 @@
 use crate::cached::CachedString;
 use crate::error::{unexpected_rule, MyResult};
 use crate::expr::Expr;
-use crate::gen::Gen;
-use crate::parse::{Pair, Rule};
-use crate::pos::Pos;
+use crate::parse::{Node, Rule};
+use crate::pass::{Gen, Visit};
 use crate::scope::{Scope, Symbol};
+use crate::span::Span;
 use crate::statement::Block;
 use crate::ty::{HasType, Type};
-use crate::util::{PairExt, PairsExt};
-use crate::visit::Visit;
-use crate::with::{ToWith, WithPos};
+use crate::with::{ToWith, WithSpan};
 use std::fmt::Write;
 
-pub type Program = Vec<WithPos<Define>>;
+pub type Program = Vec<WithSpan<Define>>;
 
 impl Visit for Program {
-    fn visit_impl(pair: Pair) -> Self {
-        pair.into_inner_checked(Rule::program)
-            .filter_map(|pair| {
+    fn visit_impl(node: Node) -> Self {
+        node.into_inner_checked(Rule::program)
+            .filter_map(|node| {
                 // last rule is EOI. dont visit it
-                if pair.as_rule() == Rule::EOI {
+                if node.rule() == Rule::EOI {
                     return None;
                 }
-                Some(pair.visit())
+                Some(node.visit())
             })
             .collect()
     }
 }
 
-impl Gen for WithPos<Program> {
-    fn pos(&self) -> Pos {
-        self.extra
+impl Gen for WithSpan<Program> {
+    fn span(&self) -> Span {
+        self.1
     }
 
     fn gen_impl(self) -> MyResult<String> {
         let scope = Scope::init();
         let s = self
-            .inner
+            .0
             .into_iter()
             .map(Gen::gen)
             .collect::<MyResult<Vec<_>>>()?
@@ -49,40 +47,39 @@ impl Gen for WithPos<Program> {
 #[derive(Debug, Clone)]
 pub enum Define {
     Struct {
-        name: WithPos<CachedString>,
-        body: Vec<WithPos<Define>>,
+        name: WithSpan<CachedString>,
+        body: Vec<WithSpan<Define>>,
     },
     Func {
-        ty: WithPos<Type>,
-        name: WithPos<CachedString>,
-        args: Vec<WithPos<VarDefine>>,
-        body: WithPos<Block>,
+        ty: WithSpan<Type>,
+        name: WithSpan<CachedString>,
+        args: Vec<WithSpan<VarDefine>>,
+        body: WithSpan<Block>,
     },
     Var(VarDefine),
 }
 
 impl Visit for Define {
-    fn visit_impl(pair: Pair) -> Self {
-        match pair.as_rule() {
+    fn visit_impl(node: Node) -> Self {
+        match node.rule() {
             Rule::struct_define => {
-                let mut pairs = pair.into_inner();
+                let mut nodes = node.children();
 
                 Self::Struct {
-                    name: pairs.next().unwrap().as_cached_str_with_pos(),
-                    body: pairs.visit_rest(),
+                    name: nodes.next().unwrap().as_cached_str_with_span(),
+                    body: nodes.visit_rest(),
                 }
             }
             Rule::func_define => {
-                let mut pairs = pair.into_inner();
+                let mut nodes = node.children().peekable();
 
-                let ty = pairs.next().unwrap().visit();
-                let name = pairs.next().unwrap().as_cached_str_with_pos();
+                let ty = nodes.next().unwrap().visit();
+                let name = nodes.next().unwrap().as_cached_str_with_span();
                 let mut args = vec![];
-                while pairs.peek().is_some() && pairs.peek().unwrap().as_rule() == Rule::var_define
-                {
-                    args.push(pairs.next().unwrap().visit())
+                while nodes.peek().is_some() && nodes.peek().unwrap().rule() == Rule::var_define {
+                    args.push(nodes.next().unwrap().visit())
                 }
-                let body = pairs.next().unwrap().visit();
+                let body = nodes.next().unwrap().visit();
 
                 Self::Func {
                     ty,
@@ -91,20 +88,20 @@ impl Visit for Define {
                     body,
                 }
             }
-            Rule::var_define => Self::Var(pair.visit().inner),
+            Rule::var_define => Self::Var(node.visit().0),
 
             rule => unexpected_rule(rule),
         }
     }
 }
 
-impl Gen for WithPos<Define> {
-    fn pos(&self) -> Pos {
-        self.extra
+impl Gen for WithSpan<Define> {
+    fn span(&self) -> Span {
+        self.1
     }
 
     fn gen_impl(self) -> MyResult<String> {
-        Ok(match self.inner {
+        Ok(match self.0 {
             Define::Struct { name, body } => {
                 let s = format!(
                     "typedef struct {{\n{}\n}} {};",
@@ -125,9 +122,8 @@ impl Gen for WithPos<Define> {
                 name,
                 args,
                 body,
-                ..
             } => {
-                let scope = Scope::new(false, Some(ty.inner));
+                let scope = Scope::new(false, Some(ty.0));
                 let s = format!(
                     "{} {}({}) {}",
                     ty.clone().gen()?,
@@ -142,40 +138,40 @@ impl Gen for WithPos<Define> {
                 drop(scope);
 
                 Scope::current().add(Symbol::Func {
-                    ty: ty.inner,
-                    name: name.inner,
-                    arg_types: args.into_iter().map(|arg| arg.inner.ty.inner).collect(),
+                    ty: ty.0,
+                    name: name.0,
+                    arg_types: args.into_iter().map(|arg| arg.0.ty.0).collect(),
                 })?;
 
                 s
             }
-            Define::Var(var_define) => format!("{};", var_define.with(self.extra).gen()?),
+            Define::Var(var_define) => format!("{};", var_define.with(self.1).gen()?),
         })
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct VarDefine {
-    ty: WithPos<Type>,
-    name: WithPos<CachedString>,
-    value: Option<WithPos<Expr>>,
+    ty: WithSpan<Type>,
+    name: WithSpan<CachedString>,
+    value: Option<WithSpan<Expr>>,
 }
 
 impl Visit for VarDefine {
-    fn visit_impl(pair: Pair) -> Self {
-        let mut pairs = pair.into_inner_checked(Rule::var_define);
+    fn visit_impl(node: Node) -> Self {
+        let mut nodes = node.into_inner_checked(Rule::var_define);
 
         Self {
-            ty: pairs.next().unwrap().visit(),
-            name: pairs.next().unwrap().as_cached_str_with_pos(),
-            value: pairs.next().map(Pair::visit),
+            ty: nodes.next().unwrap().visit(),
+            name: nodes.next().unwrap().as_cached_str_with_span(),
+            value: nodes.next().map(Node::visit),
         }
     }
 }
 
-impl Gen for WithPos<VarDefine> {
-    fn pos(&self) -> Pos {
-        self.extra
+impl Gen for WithSpan<VarDefine> {
+    fn span(&self) -> Span {
+        self.1
     }
 
     fn gen_impl(self) -> MyResult<String> {
@@ -186,12 +182,12 @@ impl Gen for WithPos<VarDefine> {
 
         // type check
         if let Some(value) = &self.value {
-            value.ty().check(&self.ty)?;
+            value.ty().check(*self.ty)?;
         }
 
         Scope::current().add(Symbol::Var {
-            ty: self.ty.inner,
-            name: self.inner.name.inner,
+            ty: self.ty.0,
+            name: self.0.name.0,
         })?;
 
         Ok(s)

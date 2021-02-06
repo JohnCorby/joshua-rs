@@ -1,11 +1,11 @@
 //! take c code string, write it to a c file, and compile that file
 
-use crate::pos::Pos;
+use crate::span::Span;
 use std::path::Path;
 use std::process::Command;
 
 pub fn compile_program(c_code: impl AsRef<str>, path: impl AsRef<Path>) {
-    Pos::reset();
+    Span::reset();
 
     let c_path = &path.as_ref().with_extension("c");
     let out_path = &path.as_ref().with_extension("exe");

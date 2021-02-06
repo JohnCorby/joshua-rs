@@ -2,100 +2,98 @@ use crate::cached::CachedString;
 use crate::define::VarDefine;
 use crate::error::{unexpected_rule, MyError, MyResult};
 use crate::expr::Expr;
-use crate::gen::Gen;
-use crate::parse::{Pair, Rule};
-use crate::pos::Pos;
+use crate::parse::{Node, Rule};
+use crate::pass::{Gen, Visit};
 use crate::scope::Scope;
+use crate::span::Span;
 use crate::ty::{HasType, PrimitiveType, Type};
-use crate::util::{PairExt, PairsExt};
-use crate::visit::Visit;
-use crate::with::{ToWith, WithPos};
+use crate::with::{ToWith, WithSpan};
 use std::fmt::Write;
 
 #[derive(Debug, Clone)]
 pub enum Statement {
-    Return(Option<WithPos<Expr>>),
+    Return(Option<WithSpan<Expr>>),
     Break,
     Continue,
     If {
-        cond: WithPos<Expr>,
-        then: WithPos<Block>,
-        otherwise: Option<WithPos<Block>>,
+        cond: WithSpan<Expr>,
+        then: WithSpan<Block>,
+        otherwise: Option<WithSpan<Block>>,
     },
     Until {
-        cond: WithPos<Expr>,
-        block: WithPos<Block>,
+        cond: WithSpan<Expr>,
+        block: WithSpan<Block>,
     },
     For {
-        init: WithPos<VarDefine>,
-        cond: WithPos<Expr>,
-        update: Box<WithPos<Statement>>,
-        block: WithPos<Block>,
+        init: WithSpan<VarDefine>,
+        cond: WithSpan<Expr>,
+        update: Box<WithSpan<Statement>>,
+        block: WithSpan<Block>,
     },
     FuncCall(FuncCall),
     VarAssign {
-        name: WithPos<CachedString>,
-        value: WithPos<Expr>,
+        name: WithSpan<CachedString>,
+        value: WithSpan<Expr>,
     },
     VarDefine(VarDefine),
 }
 
 impl Visit for Statement {
-    fn visit_impl(pair: Pair) -> Self {
-        match pair.as_rule() {
-            Rule::ret => Self::Return(pair.into_inner().next().map(Pair::visit)),
+    fn visit_impl(node: Node) -> Self {
+        match node.rule() {
+            Rule::ret => Self::Return(node.children().next().map(Node::visit)),
             Rule::brk => Self::Break,
             Rule::cont => Self::Continue,
             Rule::iff => {
-                let mut pairs = pair.into_inner();
+                let mut nodes = node.children();
 
                 Self::If {
-                    cond: pairs.next().unwrap().visit(),
-                    then: pairs.next().unwrap().visit(),
-                    otherwise: pairs.next().map(Pair::visit),
+                    cond: nodes.next().unwrap().visit(),
+                    then: nodes.next().unwrap().visit(),
+                    otherwise: nodes.next().map(Node::visit),
                 }
             }
             Rule::until => {
-                let mut pairs = pair.into_inner();
+                let mut nodes = node.children();
 
                 Self::Until {
-                    cond: pairs.next().unwrap().visit(),
-                    block: pairs.next().unwrap().visit(),
+                    cond: nodes.next().unwrap().visit(),
+                    block: nodes.next().unwrap().visit(),
                 }
             }
             Rule::forr => {
-                let mut pairs = pair.into_inner();
+                let mut nodes = node.children();
 
                 Self::For {
-                    init: pairs.next().unwrap().visit(),
-                    cond: pairs.next().unwrap().visit(),
-                    update: pairs.next().unwrap().visit::<Statement>().into(),
-                    block: pairs.next().unwrap().visit(),
+                    init: nodes.next().unwrap().visit(),
+                    cond: nodes.next().unwrap().visit(),
+                    update: nodes.next().unwrap().visit::<Statement>().into(),
+                    block: nodes.next().unwrap().visit(),
                 }
             }
-            Rule::func_call => Self::FuncCall(pair.visit().inner),
+            Rule::func_call => Self::FuncCall(node.visit().0),
             Rule::var_assign => {
-                let mut pairs = pair.into_inner();
+                let mut nodes = node.children();
 
                 Self::VarAssign {
-                    name: pairs.next().unwrap().as_cached_str_with_pos(),
-                    value: pairs.next().unwrap().visit(),
+                    name: nodes.next().unwrap().as_cached_str_with_span(),
+                    value: nodes.next().unwrap().visit(),
                 }
             }
-            Rule::var_define => Self::VarDefine(pair.visit().inner),
+            Rule::var_define => Self::VarDefine(node.visit().0),
 
             rule => unexpected_rule(rule),
         }
     }
 }
 
-impl Gen for WithPos<Statement> {
-    fn pos(&self) -> Pos {
-        self.extra
+impl Gen for WithSpan<Statement> {
+    fn span(&self) -> Span {
+        self.1
     }
 
     fn gen_impl(self) -> MyResult<String> {
-        Ok(match self.inner {
+        Ok(match self.0 {
             Statement::Return(value) => {
                 let mut s = String::from("return");
                 if let Some(value) = value.clone() {
@@ -107,7 +105,7 @@ impl Gen for WithPos<Statement> {
                 value
                     .map(|value| value.ty())
                     .unwrap_or_else(|| PrimitiveType::Void.ty())
-                    .check(&Scope::current().func_return_type())?;
+                    .check(Scope::current().func_return_type())?;
 
                 s
             }
@@ -139,18 +137,18 @@ impl Gen for WithPos<Statement> {
                 }
 
                 // type check
-                cond.ty().check(&PrimitiveType::Bool.ty())?;
+                cond.ty().check(PrimitiveType::Bool.ty())?;
 
                 s
             }
-            Statement::Until { cond, block, .. } => {
+            Statement::Until { cond, block } => {
                 let mut s = format!("while(!({})) ", cond.clone().gen()?);
                 let scope = Scope::new(true, None);
                 s.write_str(&block.gen()?).unwrap();
                 drop(scope);
 
                 // type check
-                cond.ty().check(&PrimitiveType::Bool.ty())?;
+                cond.ty().check(PrimitiveType::Bool.ty())?;
 
                 s
             }
@@ -171,42 +169,40 @@ impl Gen for WithPos<Statement> {
                 );
 
                 // type check
-                cond.ty().check(&PrimitiveType::Bool.ty())?;
+                cond.ty().check(PrimitiveType::Bool.ty())?;
 
                 drop(scope);
                 s
             }
-            Statement::FuncCall(func_call) => format!("{};", func_call.with(self.extra).gen()?),
-            Statement::VarAssign { name, value, .. } => {
+            Statement::FuncCall(func_call) => format!("{};", func_call.with(self.1).gen()?),
+            Statement::VarAssign { name, value } => {
                 let s = format!("{} = {};", name.to_string(), value.clone().gen()?);
                 // type check
-                value
-                    .ty()
-                    .check(&Scope::current().get_var(name.inner)?.ty())?;
+                value.ty().check(Scope::current().get_var(name.0)?.ty())?;
                 s
             }
-            Statement::VarDefine(var_define) => format!("{};", var_define.with(self.extra).gen()?),
+            Statement::VarDefine(var_define) => format!("{};", var_define.with(self.1).gen()?),
         })
     }
 }
 
-pub type Block = Vec<WithPos<Statement>>;
+pub type Block = Vec<WithSpan<Statement>>;
 
 impl Visit for Block {
-    fn visit_impl(pair: Pair) -> Self {
-        pair.into_inner_checked(Rule::block).visit_rest()
+    fn visit_impl(node: Node) -> Self {
+        node.into_inner_checked(Rule::block).visit_rest()
     }
 }
 
-impl Gen for WithPos<Block> {
-    fn pos(&self) -> Pos {
-        self.extra
+impl Gen for WithSpan<Block> {
+    fn span(&self) -> Span {
+        self.1
     }
 
     fn gen_impl(self) -> MyResult<String> {
         Ok(format!(
             "{{\n{}\n}}",
-            self.inner
+            self.0
                 .into_iter()
                 .map(Gen::gen)
                 .collect::<MyResult<Vec<_>>>()?
@@ -217,24 +213,24 @@ impl Gen for WithPos<Block> {
 
 #[derive(Debug, Clone)]
 pub struct FuncCall {
-    name: WithPos<CachedString>,
-    args: Vec<WithPos<Expr>>,
+    name: WithSpan<CachedString>,
+    args: Vec<WithSpan<Expr>>,
 }
 
 impl Visit for FuncCall {
-    fn visit_impl(pair: Pair) -> Self {
-        let mut pairs = pair.into_inner_checked(Rule::func_call);
+    fn visit_impl(node: Node) -> Self {
+        let mut nodes = node.into_inner_checked(Rule::func_call);
 
         Self {
-            name: pairs.next().unwrap().as_cached_str_with_pos(),
-            args: pairs.visit_rest(),
+            name: nodes.next().unwrap().as_cached_str_with_span(),
+            args: nodes.visit_rest(),
         }
     }
 }
 
-impl Gen for WithPos<FuncCall> {
-    fn pos(&self) -> Pos {
-        self.extra
+impl Gen for WithSpan<FuncCall> {
+    fn span(&self) -> Span {
+        self.1
     }
 
     fn gen_impl(self) -> MyResult<String> {

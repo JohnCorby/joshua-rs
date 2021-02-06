@@ -1,12 +1,10 @@
 use crate::cached::CachedString;
 use crate::error::{unexpected_rule, MyResult};
-use crate::gen::Gen;
-use crate::parse::{Pair, Rule};
-use crate::pos::Pos;
+use crate::parse::{Node, Rule};
+use crate::pass::{Gen, Visit};
 use crate::scope::Scope;
-use crate::util::PairExt;
-use crate::visit::Visit;
-use crate::with::WithPos;
+use crate::span::Span;
+use crate::with::WithSpan;
 use std::str::FromStr;
 
 #[derive(Debug, Copy, Clone)]
@@ -21,7 +19,7 @@ impl Default for Type {
     }
 }
 impl Type {
-    pub fn check(&self, expected: &Type) -> MyResult<()> {
+    pub fn check(self, expected: Type) -> MyResult<()> {
         let actual = self;
         if expected == actual {
             Ok(())
@@ -81,24 +79,24 @@ impl ToString for Type {
 }
 
 impl Visit for Type {
-    fn visit_impl(pair: Pair) -> Self {
-        let pair = pair.into_inner_checked(Rule::ty).next().unwrap();
-        match pair.as_rule() {
-            Rule::primitive => Self::Primitive(PrimitiveType::from_str(pair.as_str()).unwrap()),
-            Rule::ident => Self::Named(pair.as_str().into()),
+    fn visit_impl(node: Node) -> Self {
+        let node = node.into_inner_checked(Rule::ty).next().unwrap();
+        match node.rule() {
+            Rule::primitive => Self::Primitive(PrimitiveType::from_str(node.as_str()).unwrap()),
+            Rule::ident => Self::Named(node.as_str().into()),
 
             rule => unexpected_rule(rule),
         }
     }
 }
 
-impl Gen for WithPos<Type> {
-    fn pos(&self) -> Pos {
-        self.extra
+impl Gen for WithSpan<Type> {
+    fn span(&self) -> Span {
+        self.1
     }
 
     fn gen_impl(self) -> MyResult<String> {
-        Ok(match self.inner {
+        Ok(match self.0 {
             Type::Primitive(ty) => {
                 use PrimitiveType::*;
                 match ty {
@@ -127,6 +125,7 @@ impl Gen for WithPos<Type> {
     }
 }
 
+/// todo make type checking a separate pass instead of shoving it after gen and doing a lot of dumb cloning
 pub trait HasType {
     fn ty(&self) -> Type;
 }

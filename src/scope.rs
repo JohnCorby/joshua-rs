@@ -121,6 +121,7 @@ impl ScopeHandle {
 
     fn find(&self, symbol: Symbol) -> MyResult<Symbol> {
         for scope in scopes()[..=self.index].iter().rev() {
+            // fixme multiple results should be a warning or something
             if let Some(symbol) = scope.symbols.iter().find(|&s| s == &symbol) {
                 return Ok(symbol.clone());
             }

@@ -50,7 +50,7 @@ impl ToString for CachedString {
     }
 }
 impl Debug for CachedString {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         f.debug_struct("CachedString")
             .field("index", &self.index)
             .field("value", &self.to_string())
