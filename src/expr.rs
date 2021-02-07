@@ -1,7 +1,7 @@
 //! handle the painful process that is parsing expressions
 
 use crate::cached::CachedString;
-use crate::error::{unexpected_rule, MyResult};
+use crate::error::{err, unexpected_rule, MyResult};
 use crate::parse::{Node, Rule};
 use crate::pass::{Gen, Visit};
 use crate::scope::{Scope, Symbol};
@@ -163,7 +163,7 @@ impl Gen for WithSpan<Expr> {
             } => {
                 let struct_name = match receiver.ty() {
                     Type::Named(struct_name) => struct_name,
-                    ty => return Err(format!("expected struct type, but got {}", ty).into()),
+                    ty => return err(format!("expected struct type, but got {}", ty)),
                 };
                 func_call.name = func_call
                     .name
@@ -178,18 +178,16 @@ impl Gen for WithSpan<Expr> {
                 // symbol check
                 let struct_name = match receiver.ty() {
                     Type::Named(struct_name) => struct_name,
-                    ty => return Err(format!("expected struct type, but got {}", ty).into()),
+                    ty => return err(format!("expected struct type, but got {}", ty)),
                 };
                 let symbol = Scope::current().get_type(struct_name).unwrap();
                 let field_types = match &symbol {
                     Symbol::Struct { field_types, .. } => field_types,
-                    _ => return Err(format!("expected struct symbol, but got {}", symbol).into()),
+                    _ => return err(format!("expected struct symbol, but got {}", symbol)),
                 };
                 match field_types.get(&var) {
                     Some(field_type) => *field_type,
-                    None => {
-                        return Err(format!("no field named {} in {}", *var, symbol).into());
-                    }
+                    None => return err(format!("no field named {} in {}", *var, symbol)),
                 };
 
                 s

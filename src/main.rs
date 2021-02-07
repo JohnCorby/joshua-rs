@@ -2,6 +2,8 @@
 #![feature(backtrace)]
 #![feature(once_cell)]
 #![feature(panic_info_message)]
+#![feature(termination_trait_lib)]
+#![feature(never_type)]
 
 mod cached;
 mod compile;
@@ -29,7 +31,7 @@ pub static PROGRAM: SyncOnceCell<String> = SyncOnceCell::new();
 fn main() -> MyResult<()> {
     MyError::init();
 
-    let path = Path::new("test/test.jo");
+    let path = Path::new("test/test2.jo");
     let program = std::fs::read_to_string(path).unwrap();
     PROGRAM.set(program).unwrap();
 

@@ -6,6 +6,7 @@ use std::char::ParseCharError;
 use std::fmt::{Debug, Formatter};
 use std::num::{ParseFloatError, ParseIntError};
 use std::option::NoneError;
+use std::process::Termination;
 use std::str::ParseBoolError;
 
 static CURRENT_BACKTRACE: Mutex<Option<Backtrace>> = Mutex::new(None);
@@ -61,6 +62,14 @@ impl From<&str> for MyError {
     fn from(s: &str) -> Self {
         s.to_string().into()
     }
+}
+
+pub fn err<T>(str: impl AsRef<str>) -> MyResult<T> {
+    Err(str.as_ref().into())
+}
+pub fn warn(str: impl AsRef<str>) {
+    let err = MyResult::<!>::Err(format!("warning: {}", str.as_ref()).into());
+    err.report();
 }
 
 pub fn unexpected_rule(node: Node) -> ! {

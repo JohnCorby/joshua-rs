@@ -1,6 +1,6 @@
 use crate::cached::CachedString;
 use crate::define::VarDefine;
-use crate::error::{unexpected_rule, MyError, MyResult};
+use crate::error::{err, unexpected_rule, MyResult};
 use crate::expr::Expr;
 use crate::parse::{Node, Rule};
 use crate::pass::{Gen, Visit};
@@ -111,13 +111,13 @@ impl Gen for WithSpan<Statement> {
             }
             Statement::Break => {
                 if !Scope::current().in_loop() {
-                    return Err(MyError::from("break cant be used outside of loops"));
+                    return err("break cant be used outside of loops");
                 }
                 "break;".into()
             }
             Statement::Continue => {
                 if !Scope::current().in_loop() {
-                    return Err(MyError::from("continue cant be used outside of loops"));
+                    return err("continue cant be used outside of loops");
                 }
                 "continue;".into()
             }

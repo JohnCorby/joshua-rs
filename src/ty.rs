@@ -1,5 +1,5 @@
 use crate::cached::CachedString;
-use crate::error::{unexpected_rule, MyResult};
+use crate::error::{err, unexpected_rule, MyResult};
 use crate::parse::{Node, Rule};
 use crate::pass::{Gen, Visit};
 use crate::scope::Scope;
@@ -26,7 +26,7 @@ impl Type {
         if expected == actual {
             Ok(())
         } else {
-            Err(format!("expected {}, but got {}", expected, actual).into())
+            err(format!("expected {}, but got {}", expected, actual))
         }
     }
 }

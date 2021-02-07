@@ -3,7 +3,7 @@
 //! symbols allow us to check for existence and type of stuff we define
 
 use crate::cached::CachedString;
-use crate::error::MyResult;
+use crate::error::{err, warn, MyResult};
 use crate::ty::{HasType, Type};
 use parking_lot::{Mutex, MutexGuard};
 use std::collections::HashMap;
@@ -128,7 +128,7 @@ impl ScopeHandle {
     pub fn add(&mut self, symbol: Symbol) -> MyResult<()> {
         let symbols = &mut scopes()[self.index].symbols;
         if symbols.contains(&symbol) {
-            return Err(format!("{} already defined", symbol).into());
+            return err(format!("{} already defined", symbol));
         }
         symbols.push(symbol);
         Ok(())
@@ -136,12 +136,22 @@ impl ScopeHandle {
 
     fn find(&self, symbol: Symbol) -> MyResult<Symbol> {
         for scope in scopes()[..=self.index].iter().rev() {
-            // fixme multiple results should be a warning or something
-            if let Some(symbol) = scope.symbols.iter().find(|&s| s == &symbol) {
+            let matching = scope
+                .symbols
+                .iter()
+                .filter(|&s| s == &symbol)
+                .collect::<Vec<_>>();
+            if matching.len() > 1 {
+                warn(format!(
+                    "finding {} got multiple matches. choosing first",
+                    symbol
+                ));
+            }
+            if let Some(&symbol) = matching.first() {
                 return Ok(symbol.clone());
             }
         }
-        Err(format!("could not find {}", symbol).into())
+        err(format!("could not find {}", symbol))
     }
 
     pub fn get_var(&self, name: CachedString) -> MyResult<Symbol> {
