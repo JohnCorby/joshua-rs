@@ -6,6 +6,7 @@ use crate::cached::CachedString;
 use crate::error::MyResult;
 use crate::ty::{HasType, Type};
 use parking_lot::{Mutex, MutexGuard};
+use std::collections::HashMap;
 
 static SCOPES: Mutex<Vec<Scope>> = Mutex::new(Vec::new());
 fn scopes() -> MutexGuard<'static, Vec<Scope>> {
@@ -30,14 +31,19 @@ pub enum Symbol {
         ty: Type,
         name: CachedString,
     },
+    Struct {
+        name: CachedString,
+        field_types: HashMap<CachedString, Type>,
+    },
     Type(Type),
 }
 impl HasType for Symbol {
     fn ty(&self) -> Type {
-        *match self {
-            Symbol::Func { ty, .. } => ty,
-            Symbol::Var { ty, .. } => ty,
-            Symbol::Type(ty) => ty,
+        match self {
+            Symbol::Func { ty, .. } => *ty,
+            Symbol::Var { ty, .. } => *ty,
+            Symbol::Struct { name, .. } => Type::Named(*name),
+            Symbol::Type(ty) => *ty,
         }
     }
 }
@@ -58,7 +64,13 @@ impl PartialEq for Symbol {
                 },
             ) => name1 == name2 && arg_types1 == arg_types2,
             (Var { name: name1, .. }, Var { name: name2, .. }) => name1 == name2,
+            (Struct { name: name1, .. }, Struct { name: name2, .. }) => name1 == name2,
             (Type(ty1), Type(ty2)) => ty1 == ty2,
+
+            // struct/named type equality
+            (Struct { name: name1, .. }, Type(self::Type::Named(name2)))
+            | (Type(self::Type::Named(name1)), Struct { name: name2, .. }) => name1 == name2,
+
             (_, _) => false,
         }
     }
@@ -67,7 +79,7 @@ impl Eq for Symbol {}
 impl ToString for Symbol {
     fn to_string(&self) -> String {
         match self {
-            Symbol::Func {
+            Self::Func {
                 name, arg_types, ..
             } => format!(
                 "func `{}` with arg types ({})",
@@ -78,8 +90,9 @@ impl ToString for Symbol {
                     .collect::<Vec<_>>()
                     .join(", ")
             ),
-            Symbol::Var { name, .. } => format!("var `{}`", name.to_string()),
-            Symbol::Type(ty) => ty.to_string(),
+            Self::Var { name, .. } => format!("var `{}`", name.to_string()),
+            Self::Struct { name, .. } => format!("struct `{}`", name.to_string()),
+            Self::Type(ty) => ty.to_string(),
         }
     }
 }

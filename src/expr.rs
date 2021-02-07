@@ -4,7 +4,7 @@ use crate::cached::CachedString;
 use crate::error::{unexpected_rule, MyResult};
 use crate::parse::{Node, Rule};
 use crate::pass::{Gen, Visit};
-use crate::scope::Scope;
+use crate::scope::{Scope, Symbol};
 use crate::span::Span;
 use crate::statement::FuncCall;
 use crate::ty::{HasType, LiteralType, PrimitiveType, Type};
@@ -162,8 +162,19 @@ impl Gen for WithSpan<Expr> {
                 s
             }
 
-            method_call @ Expr::MethodCall { .. } => todo!("gen {:?}", method_call),
-            field @ Expr::Field { .. } => todo!("gen {:?}", field),
+            Expr::MethodCall {
+                receiver,
+                func_call,
+            } => {
+                let _s = format!("({}.{})", receiver.gen()?, func_call.gen()?);
+                // todo type check
+                todo!("gen method call")
+            }
+            Expr::Field { receiver, var } => {
+                let s = format!("({}.{})", receiver.gen()?, var.to_string());
+                // todo type check???
+                s
+            }
 
             Expr::Literal(literal) => literal.with(self.1).gen()?,
             Expr::FuncCall(func_call) => func_call.with(self.1).gen()?,
@@ -197,8 +208,43 @@ impl HasType for Expr {
                 .expect(GET_CAST_FUNC_ERR)
                 .ty(),
 
-            method_call @ Expr::MethodCall { .. } => todo!("ty for {:?}", method_call),
-            field @ Expr::Field { .. } => todo!("ty for {:?}", field),
+            Expr::MethodCall {
+                receiver: _,
+                func_call: _,
+            } => {
+                todo!("ty for method call")
+            }
+            // fixme there are a ton of panics (internal errors) instead of normal errors, which is what it should be.
+            //  put symbol getting whatever stuff in Gen method and have it just unwrap here
+            //  or give the typical "this should happen" expect message.
+            Expr::Field { receiver, var } => match receiver.ty() {
+                Type::Named(name) => {
+                    let symbol = Scope::current().get_type(name).unwrap();
+                    let field_types = match symbol {
+                        Symbol::Struct {
+                            ref field_types, ..
+                        } => field_types,
+                        symbol => {
+                            panic!(
+                                "expected struct symbol to get field, but got {}",
+                                symbol.to_string()
+                            )
+                        }
+                    };
+                    let field_type = *field_types.get(var).unwrap_or_else(|| {
+                        panic!(
+                            "no field named {} in {}",
+                            var.to_string(),
+                            symbol.to_string()
+                        )
+                    });
+                    field_type
+                }
+                ty => panic!(
+                    "expected named type to get field, but got {}",
+                    ty.to_string()
+                ),
+            },
 
             Expr::Literal(literal) => literal.ty(),
             Expr::FuncCall(func_call) => func_call.ty(),

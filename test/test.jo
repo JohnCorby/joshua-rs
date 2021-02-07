@@ -16,6 +16,10 @@ struct baba_booey {
 void hello(i32 what) {
 }
 
+baba_booey gimme_baba() {
+    // fixme no return statement should be treated as void return, which should error
+}
+
 i32 ok = 2 as i32
 
 i32 main() {
@@ -42,7 +46,7 @@ i32 main() {
     f32 e = 1 as f32 + i as f32 / 2 as f32
     u8 bruh = (1 as u8 + 1 as u8 + 1 as u8) + (2 as u8 + 2 as u8)
     baba_booey ok
-    f32 woah = ok.hello as f32
+    f32 woah = gimme_baba().hello as f32
 //    ok.hello = 1 as f32
 
     hello(4 as i32)

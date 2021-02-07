@@ -105,15 +105,27 @@ impl Gen for WithSpan<Define> {
             Define::Struct { name, body } => {
                 let s = format!(
                     "typedef struct {{\n{}\n}} {};",
-                    body.into_iter()
+                    body.clone()
+                        .into_iter()
                         .map(Gen::gen)
                         .collect::<MyResult<Vec<_>>>()?
                         .join("\n"),
                     name.to_string()
                 );
 
-                // fixme this is half-baked?
-                Scope::current().add(Symbol::Type(Type::Named(*name)))?;
+                Scope::current().add(Symbol::Struct {
+                    name: *name,
+                    field_types: body
+                        .iter()
+                        .filter_map(|define| {
+                            if let Define::Var(VarDefine { ty, name, .. }) = define.0 {
+                                Some((*name, *ty))
+                            } else {
+                                None
+                            }
+                        })
+                        .collect(),
+                })?;
 
                 s
             }
