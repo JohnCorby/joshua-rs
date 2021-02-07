@@ -30,12 +30,12 @@ pub enum Statement {
         update: Box<WithSpan<Statement>>,
         block: WithSpan<Block>,
     },
-    FuncCall(FuncCall),
     VarAssign {
         name: WithSpan<CachedString>,
         value: WithSpan<Expr>,
     },
     VarDefine(VarDefine),
+    Expr(Expr),
 }
 
 impl Visit for Statement {
@@ -71,7 +71,6 @@ impl Visit for Statement {
                     block: nodes.next().unwrap().visit(),
                 }
             }
-            Rule::func_call => Self::FuncCall(node.visit().0),
             Rule::var_assign => {
                 let mut nodes = node.children();
 
@@ -81,6 +80,7 @@ impl Visit for Statement {
                 }
             }
             Rule::var_define => Self::VarDefine(node.visit().0),
+            Rule::expr => Self::Expr(node.visit().0),
 
             _ => unexpected_rule(node),
         }
@@ -174,14 +174,14 @@ impl Gen for WithSpan<Statement> {
                 drop(scope);
                 s
             }
-            Statement::FuncCall(func_call) => format!("{};", func_call.with(self.1).gen()?),
             Statement::VarAssign { name, value } => {
-                let s = format!("{} = {};", name.to_string(), value.clone().gen()?);
+                let s = format!("{} = {};", *name, value.clone().gen()?);
                 // type check
                 value.ty().check(Scope::current().get_var(name.0)?.ty())?;
                 s
             }
             Statement::VarDefine(var_define) => format!("{};", var_define.with(self.1).gen()?),
+            Statement::Expr(expr) => format!("{};", expr.with(self.1).gen()?),
         })
     }
 }
@@ -213,8 +213,8 @@ impl Gen for WithSpan<Block> {
 
 #[derive(Debug, Clone)]
 pub struct FuncCall {
-    name: WithSpan<CachedString>,
-    args: Vec<WithSpan<Expr>>,
+    pub name: WithSpan<CachedString>,
+    pub args: Vec<WithSpan<Expr>>,
 }
 
 impl Visit for FuncCall {
@@ -236,7 +236,7 @@ impl Gen for WithSpan<FuncCall> {
     fn gen_impl(self) -> MyResult<String> {
         let s = format!(
             "{}({})",
-            self.name.to_string(),
+            *self.name,
             self.args
                 .clone()
                 .into_iter()
@@ -257,14 +257,12 @@ impl Gen for WithSpan<FuncCall> {
 
 impl HasType for FuncCall {
     fn ty(&self) -> Type {
-        const GET_FUNC_ERR: &str =
-            "cant get func symbol for HasType even though this should have already been checked";
         Scope::current()
             .get_func(
                 *self.name,
                 self.args.iter().map(|arg| arg.ty()).collect::<Vec<_>>(),
             )
-            .expect(GET_FUNC_ERR)
+            .unwrap()
             .ty()
     }
 }

@@ -25,7 +25,7 @@ impl MyError {
             // get message
             let message = if let Some(message) = info.message() {
                 message.to_string()
-            } else if let Some(payload) = info.payload().downcast_ref::<&'static str>() {
+            } else if let Some(payload) = info.payload().downcast_ref::<&str>() {
                 payload.to_string()
             } else {
                 "cannot get panic message".to_string()
@@ -69,7 +69,7 @@ pub fn unexpected_rule(node: Node) -> ! {
 
 impl From<NoneError> for MyError {
     fn from(_: NoneError) -> Self {
-        "option returned none".to_string().into()
+        "option returned none".into()
     }
 }
 

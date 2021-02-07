@@ -110,7 +110,7 @@ impl Gen for WithSpan<Define> {
                         .map(Gen::gen)
                         .collect::<MyResult<Vec<_>>>()?
                         .join("\n"),
-                    name.to_string()
+                    *name
                 );
 
                 Scope::current().add(Symbol::Struct {
@@ -139,7 +139,7 @@ impl Gen for WithSpan<Define> {
                 let s = format!(
                     "{} {}({}) {}",
                     ty.clone().gen()?,
-                    name.to_string(),
+                    *name,
                     args.clone()
                         .into_iter()
                         .map(Gen::gen)
@@ -150,9 +150,9 @@ impl Gen for WithSpan<Define> {
                 drop(scope);
 
                 Scope::current().add(Symbol::Func {
-                    ty: ty.0,
-                    name: name.0,
-                    arg_types: args.into_iter().map(|arg| arg.0.ty.0).collect(),
+                    ty: *ty,
+                    name: *name,
+                    arg_types: args.into_iter().map(|arg| *arg.ty).collect(),
                 })?;
 
                 s
@@ -187,7 +187,7 @@ impl Gen for WithSpan<VarDefine> {
     }
 
     fn gen_impl(self) -> MyResult<String> {
-        let mut s = format!("{} {}", self.ty.clone().gen()?, self.name.to_string());
+        let mut s = format!("{} {}", self.ty.clone().gen()?, *self.name);
         if let Some(value) = self.value.clone() {
             write!(s, " = {}", value.gen()?).unwrap();
         }
@@ -199,7 +199,7 @@ impl Gen for WithSpan<VarDefine> {
 
         Scope::current().add(Symbol::Var {
             ty: self.ty.0,
-            name: self.0.name.0,
+            name: self.name.0,
         })?;
 
         Ok(s)

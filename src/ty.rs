@@ -5,6 +5,7 @@ use crate::pass::{Gen, Visit};
 use crate::scope::Scope;
 use crate::span::Span;
 use crate::with::WithSpan;
+use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 
 #[derive(Debug, Copy, Clone)]
@@ -24,17 +25,12 @@ impl Type {
         if expected == actual {
             Ok(())
         } else {
-            Err(format!(
-                "expected {}, but got {}",
-                expected.to_string(),
-                actual.to_string()
-            )
-            .into())
+            Err(format!("expected {}, but got {}", expected, actual).into())
         }
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, strum::EnumString, strum::ToString)]
+#[derive(Debug, Copy, Clone, PartialEq, strum::EnumString, strum::Display)]
 #[strum(serialize_all = "snake_case")]
 pub enum PrimitiveType {
     I8,
@@ -51,7 +47,7 @@ pub enum PrimitiveType {
     Char,
     Void,
 }
-#[derive(Debug, Copy, Clone, PartialEq, strum::ToString)]
+#[derive(Debug, Copy, Clone, PartialEq, strum::Display)]
 pub enum LiteralType {
     Float,
     Int,
@@ -68,12 +64,12 @@ impl PartialEq for Type {
         }
     }
 }
-impl ToString for Type {
-    fn to_string(&self) -> String {
+impl Display for Type {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         match self {
-            Type::Primitive(ty) => format!("primitive type {}", ty.to_string()),
-            Type::Named(name) => format!("named type `{}`", name.to_string()),
-            Type::Literal(ty) => format!("literal type {}", ty.to_string()),
+            Type::Primitive(ty) => write!(f, "primitive type {}", ty),
+            Type::Named(name) => write!(f, "named type `{}`", name),
+            Type::Literal(ty) => write!(f, "literal type {}", ty),
         }
     }
 }
@@ -120,7 +116,7 @@ impl Gen for WithSpan<Type> {
                 Scope::current().get_type(name)?;
                 name.to_string()
             }
-            ty => panic!("tried to gen {}", ty.to_string()),
+            ty => panic!("tried to gen {}", ty),
         })
     }
 }

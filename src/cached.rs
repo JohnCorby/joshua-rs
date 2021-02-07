@@ -1,7 +1,7 @@
 //! string interner, but works for anything
 
 use parking_lot::{Mutex, MutexGuard};
-use std::fmt::{Debug, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 use std::lazy::SyncLazy;
 use std::marker::PhantomData;
 use string_interner::{DefaultSymbol, StringInterner, Symbol};
@@ -38,15 +38,14 @@ impl From<&str> for CachedString {
         interner().get_or_intern(s).to_usize().into()
     }
 }
-impl From<CachedString> for String {
-    fn from(c: CachedString) -> Self {
-        let symbol = DefaultSymbol::try_from_usize(c.index).unwrap();
-        interner().resolve(symbol).unwrap().to_string()
-    }
-}
-impl ToString for CachedString {
-    fn to_string(&self) -> String {
-        String::from(*self)
+impl Display for CachedString {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+        Display::fmt(
+            interner()
+                .resolve(DefaultSymbol::try_from_usize(self.index).unwrap())
+                .unwrap(),
+            f,
+        )
     }
 }
 impl Debug for CachedString {

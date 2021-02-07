@@ -118,11 +118,7 @@ impl Visit for Expr {
             }
 
             // primary
-            Rule::float_literal
-            | Rule::int_literal
-            | Rule::bool_literal
-            | Rule::char_literal
-            | Rule::str_literal => Self::Literal(node.visit().0),
+            Rule::literal => Self::Literal(node.children().next().unwrap().visit().0),
             Rule::func_call => Self::FuncCall(node.visit().0),
             Rule::ident => Self::Var(node.as_str().into()),
 
@@ -139,18 +135,13 @@ impl Gen for WithSpan<Expr> {
     fn gen_impl(self) -> MyResult<String> {
         Ok(match self.0 {
             Expr::Binary { left, op, right } => {
-                let s = format!(
-                    "({} {} {})",
-                    left.clone().gen()?,
-                    op.to_string(),
-                    right.clone().gen()?
-                );
+                let s = format!("({} {} {})", left.clone().gen()?, *op, right.clone().gen()?);
                 // type check
                 Scope::current().get_func(*op, [left.ty(), right.ty()])?;
                 s
             }
             Expr::Unary { op, thing } => {
-                let s = format!("({}{})", op.to_string(), thing.clone().gen()?);
+                let s = format!("({}{})", *op, thing.clone().gen()?);
                 // type check
                 Scope::current().get_func(*op, [thing.ty()])?;
                 s
@@ -158,21 +149,45 @@ impl Gen for WithSpan<Expr> {
             Expr::Cast { thing, ty } => {
                 let s = format!("(({}) {})", ty.gen()?, thing.clone().gen()?);
                 // type check
-                Scope::current().get_func(format!("as {}", ty.to_string()).into(), [thing.ty()])?;
+                Scope::current().get_func(format!("as {}", *ty).into(), [thing.ty()])?;
                 s
             }
 
             Expr::MethodCall {
                 receiver,
-                func_call,
+                mut func_call,
             } => {
-                let _s = format!("({}.{})", receiver.gen()?, func_call.gen()?);
-                // todo type check
-                todo!("gen method call")
+                let struct_name = match receiver.ty() {
+                    Type::Named(struct_name) => struct_name,
+                    ty => return Err(format!("expected struct type, but got {}", ty).into()),
+                };
+                func_call.name = func_call
+                    .name
+                    .map(|name| format!("{}.{}", struct_name, name).into());
+                func_call.args.insert(0, *receiver);
+
+                func_call.gen()?
             }
             Expr::Field { receiver, var } => {
-                let s = format!("({}.{})", receiver.gen()?, var.to_string());
-                // todo type check???
+                let s = format!("({}.{})", receiver.clone().gen()?, *var);
+
+                // symbol check
+                let struct_name = match receiver.ty() {
+                    Type::Named(struct_name) => struct_name,
+                    ty => return Err(format!("expected struct type, but got {}", ty).into()),
+                };
+                let symbol = Scope::current().get_type(struct_name).unwrap();
+                let field_types = match &symbol {
+                    Symbol::Struct { field_types, .. } => field_types,
+                    _ => return Err(format!("expected struct symbol, but got {}", symbol).into()),
+                };
+                match field_types.get(&var) {
+                    Some(field_type) => *field_type,
+                    None => {
+                        return Err(format!("no field named {} in {}", *var, symbol).into());
+                    }
+                };
+
                 s
             }
 
@@ -188,67 +203,55 @@ impl Gen for WithSpan<Expr> {
 
 impl HasType for Expr {
     fn ty(&self) -> Type {
-        const GET_OP_FUNC_ERR: &str =
-            "cant get op func symbol for HasType even though this should have already been checked";
-        const GET_CAST_FUNC_ERR: &str =
-            "cant get cast func symbol for HasType even though this should have already been checked";
-        const GET_VAR_ERR: &str =
-            "cant get var symbol for HasType even though this should have already been checked";
         match self {
             Expr::Binary { left, op, right } => Scope::current()
                 .get_func(op.0, [left.ty(), right.ty()])
-                .expect(GET_OP_FUNC_ERR)
+                .unwrap()
                 .ty(),
-            Expr::Unary { op, thing } => Scope::current()
-                .get_func(op.0, [thing.ty()])
-                .expect(GET_OP_FUNC_ERR)
-                .ty(),
+            Expr::Unary { op, thing } => {
+                Scope::current().get_func(op.0, [thing.ty()]).unwrap().ty()
+            }
             Expr::Cast { thing, ty } => Scope::current()
-                .get_func(format!("as {}", ty.to_string()).into(), [thing.ty()])
-                .expect(GET_CAST_FUNC_ERR)
+                .get_func(format!("as {}", **ty).into(), [thing.ty()])
+                .unwrap()
                 .ty(),
 
             Expr::MethodCall {
-                receiver: _,
-                func_call: _,
+                receiver,
+                func_call,
             } => {
-                todo!("ty for method call")
+                let receiver_ty = receiver.ty();
+                let struct_name = match receiver_ty {
+                    Type::Named(struct_name) => struct_name,
+                    _ => unreachable!(),
+                };
+                let name = *func_call
+                    .name
+                    .map(|name| format!("{}.{}", struct_name, name).into());
+                let mut arg_types = func_call
+                    .args
+                    .iter()
+                    .map(|arg| arg.ty())
+                    .collect::<Vec<_>>();
+                arg_types.insert(0, receiver_ty);
+
+                Scope::current().get_func(name, arg_types).unwrap().ty()
             }
-            // fixme there are a ton of panics (internal errors) instead of normal errors, which is what it should be.
-            //  put symbol getting whatever stuff in Gen method and have it just unwrap here
-            //  or give the typical "this should happen" expect message.
-            Expr::Field { receiver, var } => match receiver.ty() {
-                Type::Named(name) => {
-                    let symbol = Scope::current().get_type(name).unwrap();
-                    let field_types = match symbol {
-                        Symbol::Struct {
-                            ref field_types, ..
-                        } => field_types,
-                        symbol => {
-                            panic!(
-                                "expected struct symbol to get field, but got {}",
-                                symbol.to_string()
-                            )
-                        }
-                    };
-                    let field_type = *field_types.get(var).unwrap_or_else(|| {
-                        panic!(
-                            "no field named {} in {}",
-                            var.to_string(),
-                            symbol.to_string()
-                        )
-                    });
-                    field_type
-                }
-                ty => panic!(
-                    "expected named type to get field, but got {}",
-                    ty.to_string()
-                ),
-            },
+            Expr::Field { receiver, var } => {
+                let struct_name = match receiver.ty() {
+                    Type::Named(struct_name) => struct_name,
+                    _ => unreachable!(),
+                };
+                let field_types = match Scope::current().get_type(struct_name).unwrap() {
+                    Symbol::Struct { field_types, .. } => field_types,
+                    _ => unreachable!(),
+                };
+                *field_types.get(var).unwrap()
+            }
 
             Expr::Literal(literal) => literal.ty(),
             Expr::FuncCall(func_call) => func_call.ty(),
-            Expr::Var(name) => Scope::current().get_var(*name).expect(GET_VAR_ERR).ty(),
+            Expr::Var(name) => Scope::current().get_var(*name).unwrap().ty(),
         }
     }
 }

@@ -23,7 +23,7 @@ impl From<pest::Span<'_>> for Span {
 
 impl Display for Span {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-        write!(f, "{}", &PROGRAM.get().unwrap()[self.0..self.1])
+        Display::fmt(&PROGRAM.get().unwrap()[self.0..self.1], f)
     }
 }
 impl Debug for Span {
@@ -42,8 +42,8 @@ impl Span {
     }
 
     pub fn current() -> Option<Span> {
-        match &*current_span() {
-            Some(span) => Some(*span),
+        match *current_span() {
+            Some(span) => Some(span),
             None => None,
         }
     }

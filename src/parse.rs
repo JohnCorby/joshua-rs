@@ -51,7 +51,7 @@ impl<'i> Node<'i> {
         }
     }
     pub fn as_cached_str_with_span(&self) -> WithSpan<CachedString> {
-        let string = self.as_str().to_string();
+        let string = self.as_str();
         let cached = CachedString::from(string);
         cached.with(self.span())
     }

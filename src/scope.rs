@@ -7,6 +7,7 @@ use crate::error::MyResult;
 use crate::ty::{HasType, Type};
 use parking_lot::{Mutex, MutexGuard};
 use std::collections::HashMap;
+use std::fmt::{Debug, Display, Formatter};
 
 static SCOPES: Mutex<Vec<Scope>> = Mutex::new(Vec::new());
 fn scopes() -> MutexGuard<'static, Vec<Scope>> {
@@ -76,23 +77,24 @@ impl PartialEq for Symbol {
     }
 }
 impl Eq for Symbol {}
-impl ToString for Symbol {
-    fn to_string(&self) -> String {
+impl Display for Symbol {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         match self {
             Self::Func {
                 name, arg_types, ..
-            } => format!(
+            } => write!(
+                f,
                 "func `{}` with arg types ({})",
-                name.to_string(),
+                name,
                 arg_types
                     .iter()
                     .map(Type::to_string)
                     .collect::<Vec<_>>()
                     .join(", ")
             ),
-            Self::Var { name, .. } => format!("var `{}`", name.to_string()),
-            Self::Struct { name, .. } => format!("struct `{}`", name.to_string()),
-            Self::Type(ty) => ty.to_string(),
+            Self::Var { name, .. } => write!(f, "var `{}`", name),
+            Self::Struct { name, .. } => write!(f, "struct `{}`", name),
+            Self::Type(ty) => Display::fmt(&ty, f),
         }
     }
 }
@@ -126,7 +128,7 @@ impl ScopeHandle {
     pub fn add(&mut self, symbol: Symbol) -> MyResult<()> {
         let symbols = &mut scopes()[self.index].symbols;
         if symbols.contains(&symbol) {
-            return Err(format!("{} already defined", symbol.to_string()).into());
+            return Err(format!("{} already defined", symbol).into());
         }
         symbols.push(symbol);
         Ok(())
@@ -139,7 +141,7 @@ impl ScopeHandle {
                 return Ok(symbol.clone());
             }
         }
-        Err(format!("could not find {}", symbol.to_string()).into())
+        Err(format!("could not find {}", symbol).into())
     }
 
     pub fn get_var(&self, name: CachedString) -> MyResult<Symbol> {
@@ -229,16 +231,10 @@ impl Scope {
         funcs_ret(&mut scope, ["!"], 1, [Bool.ty()], Bool.ty());
 
         for ty in &num_types {
+            funcs_ret(&mut scope, [format!("as {}", ty)], 1, num_types, *ty);
             funcs_ret(
                 &mut scope,
-                [format!("as {}", ty.to_string())],
-                1,
-                num_types,
-                *ty,
-            );
-            funcs_ret(
-                &mut scope,
-                [format!("as {}", ty.to_string())],
+                [format!("as {}", ty)],
                 1,
                 [Int.ty(), Float.ty()],
                 *ty,

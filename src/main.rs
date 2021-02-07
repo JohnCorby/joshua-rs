@@ -31,12 +31,12 @@ fn main() -> MyResult<()> {
 
     let path = Path::new("test/test.jo");
     let program = std::fs::read_to_string(path).unwrap();
-    PROGRAM.set(program)?;
+    PROGRAM.set(program).unwrap();
 
     let node = Node::parse(Rule::program, PROGRAM.get().unwrap())?;
-    // println!("{}", node);
+    println!("{}", node);
     let program = node.visit::<Program>();
-    println!("{:#?}", program);
+    println!("{:?}", program);
     let c_code = program.gen()?;
     println!("{}", c_code);
     compile_program(c_code, path);

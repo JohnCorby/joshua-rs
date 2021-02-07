@@ -13,10 +13,10 @@ statement = _{
     | iff
     | until
     | forr
-    | func_call
 //     | field_assign
     | var_assign
     | var_define
+    | expr
 }
 
 
@@ -85,7 +85,7 @@ primary_expr = _{
     | ident
     | "(" ~ expr ~ ")"
 }
-literal = _{
+literal = {
     float_literal
     | int_literal
     | bool_literal
@@ -97,7 +97,7 @@ literal = _{
 
 
 int_literal = @{ ASCII_DIGIT+ }
-float_literal = @{ ASCII_DIGIT* ~ "." ~ ASCII_DIGIT* }
+float_literal = @{ ASCII_DIGIT+ ~ "." ~ ASCII_DIGIT+ }
 bool_literal = @{ "true" | "false" }
 
 char_literal = ${ "'" ~ char_literal_inner ~ "'" }
