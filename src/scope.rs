@@ -136,18 +136,7 @@ impl ScopeHandle {
 
     fn find(&self, symbol: Symbol) -> MyResult<Symbol> {
         for scope in scopes()[..=self.index].iter().rev() {
-            let matching = scope
-                .symbols
-                .iter()
-                .filter(|&s| s == &symbol)
-                .collect::<Vec<_>>();
-            if matching.len() > 1 {
-                warn(format!(
-                    "finding {} got multiple matches. choosing first",
-                    symbol
-                ));
-            }
-            if let Some(&symbol) = matching.first() {
+            if let Some(symbol) = scope.symbols.iter().find(|&s| s == &symbol) {
                 return Ok(symbol.clone());
             }
         }

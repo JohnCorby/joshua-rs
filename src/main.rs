@@ -2,8 +2,6 @@
 #![feature(backtrace)]
 #![feature(once_cell)]
 #![feature(panic_info_message)]
-#![feature(termination_trait_lib)]
-#![feature(never_type)]
 
 mod cached;
 mod compile;
