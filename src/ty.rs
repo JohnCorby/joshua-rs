@@ -85,7 +85,7 @@ impl Visit for Type {
             Rule::primitive => Self::Primitive(PrimitiveType::from_str(node.as_str()).unwrap()),
             Rule::ident => Self::Named(node.as_str().into()),
 
-            rule => unexpected_rule(rule),
+            _ => unexpected_rule(node),
         }
     }
 }

@@ -90,7 +90,7 @@ impl Visit for Define {
             }
             Rule::var_define => Self::Var(node.visit().0),
 
-            rule => unexpected_rule(rule),
+            _ => unexpected_rule(node),
         }
     }
 }

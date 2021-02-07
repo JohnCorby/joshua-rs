@@ -9,7 +9,9 @@
 //
 //int goo() {}
 
-struct baba_booey {}
+struct baba_booey {
+    f32 hello
+}
 
 void hello(i32 what) {
 }
@@ -39,7 +41,9 @@ i32 main() {
     f32 i = 1 as f32
     f32 e = 1 as f32 + i as f32 / 2 as f32
     u8 bruh = (1 as u8 + 1 as u8 + 1 as u8) + (2 as u8 + 2 as u8)
-//    baba_booey ok = e + 1
+    baba_booey ok
+    f32 woah = ok.hello as f32
+//    ok.hello = 1 as f32
 
     hello(4 as i32)
 

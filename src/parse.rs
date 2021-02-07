@@ -6,7 +6,7 @@ use crate::with::{ToWith, WithSpan};
 use console::style;
 use pest::iterators::{Pair, Pairs};
 use pest::Parser;
-use std::fmt::{Display, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 
 pub type Rule = inner::Rule;
 
@@ -56,21 +56,26 @@ impl<'i> Node<'i> {
         cached.with(self.span())
     }
 }
+impl Debug for Node<'_> {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+        Debug::fmt(&self.0, f)
+    }
+}
 impl Display for Node<'_> {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         let rule = style(self.rule()).red();
         let str = style(self.as_str()).blue();
-        let inner = self
+        let children = self
             .clone()
             .children()
             .map(|node| node.to_string())
             .collect::<Vec<_>>();
-        if inner.is_empty() {
+        if children.is_empty() {
             write!(f, "{:?}({:?})", rule, str)
-        } else if inner.len() == 1 {
-            write!(f, "{:?}.{}", rule, inner[0])
+        } else if children.len() == 1 {
+            write!(f, "{:?}.{}", rule, children[0])
         } else {
-            write!(f, "{:?}[{}]", rule, inner.join(", "))
+            write!(f, "{:?}[{}]", rule, children.join(", "))
         }
     }
 }
@@ -99,6 +104,23 @@ impl<'i> Nodes<'i> {
     /// short circuiting if any of them error
     pub fn visit_rest<T: Visit>(self) -> Vec<WithSpan<T>> {
         self.map(Node::visit).collect()
+    }
+}
+impl Display for Nodes<'_> {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+        write!(
+            f,
+            "[{}]",
+            self.clone()
+                .map(|node| node.to_string())
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
+    }
+}
+impl Debug for Nodes<'_> {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+        Debug::fmt(&self.0, f)
     }
 }
 

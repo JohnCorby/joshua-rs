@@ -14,6 +14,7 @@ statement = _{
     | until
     | forr
     | func_call
+//     | field_assign
     | var_assign
     | var_define
 }
@@ -29,6 +30,8 @@ func_call = { ident ~ "(" ~ (expr ~ ("," ~ expr)*)? ~ ")" }
 
 var_define = { ty ~ ident ~ ("=" ~ expr)? }
 var_assign = { ident ~ "=" ~ expr }
+// todo field assignment requires lvalue expressions
+// field_assign = { ident ~ ()+ ~ "=" ~ expr }
 
 
 struct_define = { "struct" ~ ident ~ "{" ~ define* ~ "}" }
@@ -73,13 +76,14 @@ add_op = { "+" | "-" }
 mul_expr = { cast_expr ~ (mul_op ~ cast_expr)* }
 mul_op = { "*" | "/" | "%" }
 cast_expr = { unary_expr ~ ("as" ~ ty)* }
-unary_expr = { unary_op* ~ primary_expr}
+unary_expr = { unary_op* ~ dot_expr }
 unary_op = { "-" | "!" }
+dot_expr = { primary_expr ~ ("." ~ (func_call | ident))* }
 primary_expr = _{
     literal
     | func_call
     | ident
-    | paren_expr
+    | "(" ~ expr ~ ")"
 }
 literal = _{
     float_literal
@@ -88,7 +92,6 @@ literal = _{
     | char_literal
     | str_literal
 }
-paren_expr = _{ "(" ~ expr ~ ")" }
 
 
 

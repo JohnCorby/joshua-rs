@@ -82,7 +82,7 @@ impl Visit for Statement {
             }
             Rule::var_define => Self::VarDefine(node.visit().0),
 
-            rule => unexpected_rule(rule),
+            _ => unexpected_rule(node),
         }
     }
 }

@@ -1,4 +1,4 @@
-use crate::parse::Rule;
+use crate::parse::{Node, Rule};
 use crate::span::Span;
 use parking_lot::{Mutex, MutexGuard};
 use std::backtrace::{Backtrace, BacktraceStatus};
@@ -63,8 +63,8 @@ impl From<&str> for MyError {
     }
 }
 
-pub fn unexpected_rule(rule: Rule) -> ! {
-    panic!("expected rule {:?}", rule)
+pub fn unexpected_rule(node: Node) -> ! {
+    panic!("unexpected rule: {:?} (node: {})", node.rule(), node)
 }
 
 impl From<NoneError> for MyError {

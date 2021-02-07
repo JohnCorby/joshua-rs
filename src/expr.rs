@@ -26,6 +26,15 @@ pub enum Expr {
         ty: WithSpan<Type>,
     },
 
+    MethodCall {
+        receiver: Box<WithSpan<Expr>>,
+        func_call: WithSpan<FuncCall>,
+    },
+    Field {
+        receiver: Box<WithSpan<Expr>>,
+        var: WithSpan<CachedString>,
+    },
+
     // primary
     Literal(Literal),
     FuncCall(FuncCall),
@@ -36,20 +45,18 @@ impl Visit for Expr {
     fn visit_impl(node: Node) -> Self {
         let span = node.span();
         match node.rule() {
-            Rule::expr => node.children().next().unwrap().visit(),
+            Rule::expr => node.children().next().unwrap().visit().0,
             Rule::equality_expr | Rule::compare_expr | Rule::add_expr | Rule::mul_expr => {
                 // left assoc
                 let mut nodes = node.children();
 
-                let mut left: WithSpan<Expr> = nodes.next().unwrap().visit();
+                let mut left: Expr = nodes.next().unwrap().visit().0;
                 while let Some(op) = nodes.next() {
-                    // let op = With { thing: op.as_str(), with: op };
                     left = Self::Binary {
-                        left: left.into(),
+                        left: left.with(span).into(),
                         op: op.as_cached_str_with_span(),
                         right: nodes.next().unwrap().visit::<Expr>().into(),
                     }
-                    .with(span);
                 }
 
                 left
@@ -58,13 +65,12 @@ impl Visit for Expr {
                 // right assoc
                 let mut rev_nodes = node.children().rev();
 
-                let mut thing: WithSpan<Expr> = rev_nodes.next().unwrap().visit();
+                let mut thing: Expr = rev_nodes.next().unwrap().visit().0;
                 for op in rev_nodes {
                     thing = Self::Unary {
                         op: op.as_cached_str_with_span(),
-                        thing: thing.into(),
+                        thing: thing.with(span).into(),
                     }
-                    .with(span);
                 }
 
                 thing
@@ -73,16 +79,38 @@ impl Visit for Expr {
                 // left assoc
                 let mut nodes = node.children();
 
-                let mut thing: WithSpan<Expr> = nodes.next().unwrap().visit();
+                let mut thing: Expr = nodes.next().unwrap().visit().0;
                 for ty in nodes {
                     thing = Self::Cast {
-                        thing: thing.into(),
+                        thing: thing.with(span).into(),
                         ty: ty.visit(),
                     }
-                    .with(span);
                 }
 
                 thing
+            }
+
+            Rule::dot_expr => {
+                // left assoc
+                let mut nodes = node.children();
+
+                let mut left: Expr = nodes.next().unwrap().visit().0;
+                for right in nodes {
+                    left = match right.rule() {
+                        Rule::func_call => Self::MethodCall {
+                            receiver: left.with(span).into(),
+                            func_call: right.visit(),
+                        },
+                        Rule::ident => Self::Field {
+                            receiver: left.with(span).into(),
+                            var: right.as_cached_str_with_span(),
+                        },
+
+                        _ => unexpected_rule(right),
+                    }
+                }
+
+                left
             }
 
             // primary
@@ -90,13 +118,12 @@ impl Visit for Expr {
             | Rule::int_literal
             | Rule::bool_literal
             | Rule::char_literal
-            | Rule::str_literal => Self::Literal(node.visit().0).with(span),
-            Rule::func_call => Self::FuncCall(node.visit().0).with(span),
-            Rule::ident => Self::Var(node.as_str().into()).with(node.span()),
+            | Rule::str_literal => Self::Literal(node.visit().0),
+            Rule::func_call => Self::FuncCall(node.visit().0),
+            Rule::ident => Self::Var(node.as_str().into()),
 
-            rule => unexpected_rule(rule),
+            _ => unexpected_rule(node),
         }
-        .0
     }
 }
 
@@ -130,6 +157,10 @@ impl Gen for WithSpan<Expr> {
                 Scope::current().get_func(format!("as {}", ty.to_string()).into(), [thing.ty()])?;
                 s
             }
+
+            method_call @ Expr::MethodCall { .. } => todo!("gen {:?}", method_call),
+            field @ Expr::Field { .. } => todo!("gen {:?}", field),
+
             Expr::Literal(literal) => literal.with(self.1).gen()?,
             Expr::FuncCall(func_call) => func_call.with(self.1).gen()?,
             Expr::Var(name) => {
@@ -161,6 +192,10 @@ impl HasType for Expr {
                 .get_func(format!("as {}", ty.to_string()).into(), [thing.ty()])
                 .expect(GET_CAST_FUNC_ERR)
                 .ty(),
+
+            method_call @ Expr::MethodCall { .. } => todo!("ty for {:?}", method_call),
+            field @ Expr::Field { .. } => todo!("ty for {:?}", field),
+
             Expr::Literal(literal) => literal.ty(),
             Expr::FuncCall(func_call) => func_call.ty(),
             Expr::Var(name) => Scope::current().get_var(*name).expect(GET_VAR_ERR).ty(),
@@ -188,7 +223,7 @@ impl Visit for Literal {
             }
             Rule::str_literal => Self::Str(node.children().next().unwrap().as_str().into()),
 
-            rule => unexpected_rule(rule),
+            _ => unexpected_rule(node),
         }
     }
 }
