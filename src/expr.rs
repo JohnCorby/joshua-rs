@@ -50,67 +50,71 @@ impl Visit for Expr {
                 // left assoc
                 let mut nodes = node.children();
 
-                let mut left: Expr = nodes.next().unwrap().visit().0;
+                let mut left: WithSpan<Expr> = nodes.next().unwrap().visit();
                 while let Some(op) = nodes.next() {
                     left = Self::Binary {
-                        left: left.with(span).into(),
+                        left: left.into(),
                         op: op.as_cached_str_with_span(),
                         right: nodes.next().unwrap().visit::<Expr>().into(),
                     }
+                    .with(span)
                 }
 
-                left
+                left.0
             }
             Rule::unary_expr => {
                 // right assoc
                 let mut rev_nodes = node.children().rev();
 
-                let mut thing: Expr = rev_nodes.next().unwrap().visit().0;
+                let mut thing: WithSpan<Expr> = rev_nodes.next().unwrap().visit();
                 for op in rev_nodes {
                     thing = Self::Unary {
                         op: op.as_cached_str_with_span(),
-                        thing: thing.with(span).into(),
+                        thing: thing.into(),
                     }
+                    .with(span)
                 }
 
-                thing
+                thing.0
             }
             Rule::cast_expr => {
                 // left assoc
                 let mut nodes = node.children();
 
-                let mut thing: Expr = nodes.next().unwrap().visit().0;
+                let mut thing: WithSpan<Expr> = nodes.next().unwrap().visit();
                 for ty in nodes {
                     thing = Self::Cast {
-                        thing: thing.with(span).into(),
+                        thing: thing.into(),
                         ty: ty.visit(),
                     }
+                    .with(span)
                 }
 
-                thing
+                thing.0
             }
 
             Rule::dot_expr => {
                 // left assoc
                 let mut nodes = node.children();
 
-                let mut left: Expr = nodes.next().unwrap().visit().0;
+                let mut left: WithSpan<Expr> = nodes.next().unwrap().visit();
                 for right in nodes {
                     left = match right.rule() {
                         Rule::func_call => Self::MethodCall {
-                            receiver: left.with(span).into(),
+                            receiver: left.into(),
                             func_call: right.visit(),
                         },
                         Rule::ident => Self::Field {
-                            receiver: left.with(span).into(),
+                            receiver: left.into(),
                             var: right.as_cached_str_with_span(),
                         },
 
                         _ => unexpected_rule(right),
                     }
+                    .with(span)
                 }
 
-                left
+                left.0
             }
 
             // primary
