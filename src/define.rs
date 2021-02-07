@@ -5,7 +5,7 @@ use crate::parse::{Node, Rule};
 use crate::pass::{Gen, Visit};
 use crate::scope::{Scope, Symbol};
 use crate::span::Span;
-use crate::statement::Block;
+use crate::statement::{Block, CCode};
 use crate::ty::{HasType, Type};
 use crate::with::{ToWith, WithSpan};
 use std::fmt::Write;
@@ -57,6 +57,8 @@ pub enum Define {
         body: WithSpan<Block>,
     },
     Var(VarDefine),
+
+    CCode(CCode),
 }
 
 impl Visit for Define {
@@ -89,6 +91,8 @@ impl Visit for Define {
                 }
             }
             Rule::var_define => Self::Var(node.visit().0),
+
+            Rule::c_code => Self::CCode(node.visit().0),
 
             _ => unexpected_rule(node),
         }
@@ -158,6 +162,8 @@ impl Gen for WithSpan<Define> {
                 s
             }
             Define::Var(var_define) => format!("{};", var_define.with(self.1).gen()?),
+
+            Define::CCode(c_code) => c_code.with(self.1).gen()?,
         })
     }
 }

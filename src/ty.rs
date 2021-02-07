@@ -13,10 +13,11 @@ pub enum Type {
     Primitive(PrimitiveType),
     Literal(LiteralType),
     Named(CachedString),
+    CCode,
 }
 impl Default for Type {
     fn default() -> Self {
-        Self::Named(CachedString::from(String::new()))
+        Self::Primitive(PrimitiveType::Void)
     }
 }
 impl Type {
@@ -60,6 +61,10 @@ impl PartialEq for Type {
             (Primitive(ty1), Primitive(ty2)) => ty1 == ty2,
             (Named(name1), Named(name2)) => name1 == name2,
             (Literal(ty1), Literal(ty2)) => ty1 == ty2,
+
+            // c code can be any type lol
+            (CCode, _) | (_, CCode) => true,
+
             (_, _) => false,
         }
     }
@@ -70,6 +75,7 @@ impl Display for Type {
             Type::Primitive(ty) => write!(f, "primitive type {}", ty),
             Type::Named(name) => write!(f, "named type `{}`", name),
             Type::Literal(ty) => write!(f, "literal type {}", ty),
+            Type::CCode => write!(f, "c code type"),
         }
     }
 }

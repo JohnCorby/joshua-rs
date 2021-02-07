@@ -1,6 +1,7 @@
 //! take c code string, write it to a c file, and compile that file
 
 use crate::span::Span;
+use errno::Errno;
 use std::path::Path;
 use std::process::Command;
 
@@ -17,14 +18,16 @@ pub fn compile_program(c_code: impl AsRef<str>, path: impl AsRef<Path>) {
         .arg(c_path)
         .arg("-o")
         .arg(out_path)
+        // .arg("-Ofast")
+        // .arg("-Wall")
         .status()
         .unwrap();
     std::fs::remove_file(c_path).unwrap();
     if !status.success() {
-        panic!("{}", status);
+        panic!("{} ({})", status, Errno(status.code().unwrap()));
     }
 
     println!("running");
     let status = Command::new(out_path).status().unwrap();
-    println!("{}", status);
+    println!("{} ({})", status, Errno(status.code().unwrap()));
 }

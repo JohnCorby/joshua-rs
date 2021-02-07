@@ -4,6 +4,7 @@ define = _{
     struct_define
     | func_define
     | var_define
+    | c_code
 }
 
 statement = _{
@@ -66,7 +67,7 @@ primitive = {
 }
 
 
-expr = { equality_expr }
+expr = !{ equality_expr }
 equality_expr = { compare_expr ~ (equality_op ~ compare_expr)* }
 equality_op = { "==" | "!=" }
 compare_expr = { add_expr ~ (compare_op ~ add_expr)* }
@@ -84,6 +85,7 @@ primary_expr = _{
     | func_call
     | ident
     | "(" ~ expr ~ ")"
+    | c_code
 }
 literal = {
     float_literal
@@ -93,6 +95,10 @@ literal = {
     | str_literal
 }
 
+
+
+c_code = ${ "<{" ~ ("${" ~ expr ~ "}" | c_code_str)* ~ "}>" }
+c_code_str = { (!("}>" | "${") ~ ANY)+ }
 
 
 
@@ -119,5 +125,5 @@ ident = @{ (LETTER | "_") ~ (LETTER | ASCII_DIGIT | "_")* }
 
 WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
 COMMENT = _{ comment | block_comment }
-comment = {"//" ~ (!NEWLINE ~ ANY)* ~ NEWLINE}
-block_comment = {"/*" ~ (!"*/" ~ ANY)* ~ "*/"}
+comment = { "//" ~ (!NEWLINE ~ ANY)* ~ NEWLINE }
+block_comment = { "/*" ~ (!"*/" ~ ANY)* ~ "*/" }

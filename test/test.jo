@@ -2,8 +2,8 @@
 //    int hi
 //
 //    void hello(int suck, byte my, addr balls) {
-////        <<printf("this = %p\n", this)>>
-////        <<puts("fuck you")>>
+//        <<printf("this = %p\n", this)>>
+//        <<puts("fuck you")>>
 //    }
 //}
 //
@@ -14,6 +14,8 @@ struct baba_booey {
 }
 struct im {
     baba_booey pain
+
+//    void fuck() {}
 }
 
 void hello(i32 what) {
@@ -33,7 +35,6 @@ i32 main() {
     for (u8 i = 0 as u8; i < 10 as u8; i = i + 1 as u8)
         break
 
-//    <<bruh$hello(&hi,0,0,0)>>
     if (true) {
         i8 t0
         u8 t1
@@ -58,12 +59,18 @@ i32 main() {
     f32 woah = ok.hello
     f32 woah2 = gimme_im().pain.hello
 //    ok.hello = 1 as f32
-    f32 yo = gimme_im().pain.kill_yourself()
+//    f32 yo = gimme_im().pain.kill_yourself(1, 2.0, true, 'd')
 
     hello(4 as i32)
 
-    u32 test = ((1 as u16) + (2 as u16)) as u32
+    u32 test = ((1 as u16) + (2 as u16)) as u32 + <{&${ok}}>
     f32 test2 = (1 as f32) + (2 as f32)
+
+    <{puts("you are a poopy head")}>
+    <{
+        char *oh_no = 0;
+        int uh = (int) *oh_no;
+    }>
 
     return (-i) as i32
 }

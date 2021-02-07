@@ -6,7 +6,7 @@ use crate::parse::{Node, Rule};
 use crate::pass::{Gen, Visit};
 use crate::scope::{Scope, Symbol};
 use crate::span::Span;
-use crate::statement::FuncCall;
+use crate::statement::{CCode, FuncCall};
 use crate::ty::{HasType, LiteralType, PrimitiveType, Type};
 use crate::with::{ToWith, WithSpan};
 
@@ -39,6 +39,8 @@ pub enum Expr {
     Literal(Literal),
     FuncCall(FuncCall),
     Var(CachedString),
+
+    CCode(CCode),
 }
 
 impl Visit for Expr {
@@ -122,6 +124,8 @@ impl Visit for Expr {
             Rule::func_call => Self::FuncCall(node.visit().0),
             Rule::ident => Self::Var(node.as_str().into()),
 
+            Rule::c_code => Self::CCode(node.visit().0),
+
             _ => unexpected_rule(node),
         }
     }
@@ -197,6 +201,8 @@ impl Gen for WithSpan<Expr> {
                 Scope::current().get_var(name)?;
                 name.to_string()
             }
+
+            Expr::CCode(c_code) => c_code.with(self.1).gen()?,
         })
     }
 }
@@ -252,6 +258,8 @@ impl HasType for Expr {
             Expr::Literal(literal) => literal.ty(),
             Expr::FuncCall(func_call) => func_call.ty(),
             Expr::Var(name) => Scope::current().get_var(*name).unwrap().ty(),
+
+            Expr::CCode(c_code) => c_code.ty(),
         }
     }
 }

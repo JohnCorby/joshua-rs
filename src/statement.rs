@@ -266,3 +266,45 @@ impl HasType for FuncCall {
             .ty()
     }
 }
+
+pub type CCode = Vec<CCodePart>;
+#[derive(Debug, Clone)]
+pub enum CCodePart {
+    String(String),
+    Expr(WithSpan<Expr>),
+}
+impl Visit for CCode {
+    fn visit_impl(node: Node) -> Self {
+        node.into_inner_checked(Rule::c_code)
+            .into_iter()
+            .map(|node| match node.rule() {
+                Rule::c_code_str => CCodePart::String(node.as_str().into()),
+                Rule::expr => CCodePart::Expr(node.visit()),
+
+                _ => unexpected_rule(node),
+            })
+            .collect()
+    }
+}
+
+impl Gen for WithSpan<CCode> {
+    fn span(&self) -> Span {
+        self.1
+    }
+
+    fn gen_impl(self) -> MyResult<String> {
+        self.0
+            .into_iter()
+            .map(|part| match part {
+                CCodePart::String(string) => Ok(string),
+                CCodePart::Expr(expr) => expr.gen(),
+            })
+            .collect()
+    }
+}
+
+impl HasType for CCode {
+    fn ty(&self) -> Type {
+        Type::CCode
+    }
+}
