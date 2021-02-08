@@ -1,13 +1,6 @@
-//struct bruh {
-//    int hi
-//
-//    void hello(int suck, byte my, addr balls) {
-//        <<printf("this = %p\n", this)>>
-//        <<puts("fuck you")>>
-//    }
-//}
-//
-//int goo() {}
+<{
+#include <stdio.h>
+}>
 
 struct baba_booey {
     f32 hello
@@ -22,7 +15,12 @@ void hello(i32 what) {
     // fixme no return statement should be treated as void return, which should error
 }
 
-im gimme_im() {}
+im gimme_im() {
+    <{
+        im im = { 69 };
+        return im;
+    }>
+}
 
 /// pretend this is a method of baba_booey
 //f32 baba_booey.kill_yourself(baba_booey this) {
@@ -58,12 +56,13 @@ i32 main() {
     baba_booey ok
     f32 woah = ok.hello
     f32 woah2 = gimme_im().pain.hello
+    <{printf("woah2 is %f\n", woah2)}>
 //    ok.hello = 1 as f32
 //    f32 yo = gimme_im().pain.kill_yourself(1, 2.0, true, 'd')
 
     hello(4 as i32)
 
-    u32 test = ((1 as u16) + (2 as u16)) as u32 + <{& ${ok} }>
+//    u32 test = ((1 as u16) + (2 as u16)) as u32 + <{&${ok}}>
     f32 test2 = (1 as f32) + (2 as f32)
 
     <{puts("you are a poopy head")}>
@@ -71,6 +70,15 @@ i32 main() {
 //        char *oh_no = 0;
 //        int uh = (int) *oh_no;
 //    }>
+    if (true) {
+        // todo rvalues are literally just expressions that are assignable
+        //  which seems to be non-fancy types, which means derefed types and array get types also work
+        <{
+//            int* i2 = &i;
+//            (0, *i2) = 2;
+        }>
+    }
+
 
     return 1337 as i32
 }

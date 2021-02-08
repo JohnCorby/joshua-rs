@@ -1,7 +1,10 @@
 use crate::error::MyResult;
 use crate::parse::Node;
 use crate::span::Span;
-use crate::with::{ToWith, WithSpan};
+use crate::ty::Type;
+use crate::with::{ToWith, With};
+
+pub type WithSpan<T> = With<T, Span>;
 
 /// take a parser node an turn it into ourselves
 pub trait Visit: Sized {
@@ -13,6 +16,21 @@ pub trait Visit: Sized {
     }
 
     fn visit_impl(node: Node) -> Self;
+}
+
+#[allow(dead_code)]
+pub type WithType<T> = With<WithSpan<T>, Option<Type>>;
+
+pub trait InitType: Sized {
+    fn span(&self) -> Span;
+    fn ty(&self) -> Type;
+
+    fn init_type(self) -> MyResult<Self> {
+        self.span().set_current();
+        self.init_type_impl()
+    }
+
+    fn init_type_impl(self) -> MyResult<Self>;
 }
 
 /// turn self into valid C code

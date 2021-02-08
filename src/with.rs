@@ -1,14 +1,15 @@
-use crate::span::Span;
-use crate::ty::Type;
 use std::ops::{Deref, DerefMut};
 
-#[derive(Debug, Copy, Clone, Default, Hash, Ord, PartialOrd, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone)]
 pub struct With<T, E>(pub T, pub E);
 
 impl<T, E> With<T, E> {
-    #[allow(dead_code)]
     pub fn map<T2>(self, mut f: impl FnMut(T) -> T2) -> With<T2, E> {
         With(f(self.0), self.1)
+    }
+    #[allow(dead_code)]
+    pub fn map_extra<E2>(self, mut f: impl FnMut(E) -> E2) -> With<T, E2> {
+        With(self.0, f(self.1))
     }
 }
 
@@ -32,7 +33,3 @@ impl<T, E> DerefMut for With<T, E> {
         &mut self.0
     }
 }
-
-pub type WithSpan<T> = With<T, Span>;
-#[allow(dead_code)]
-pub type WithType<T> = With<T, Type>;

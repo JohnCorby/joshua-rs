@@ -1,10 +1,9 @@
 use crate::cached::CachedString;
-use crate::error::{err, unexpected_rule, MyResult};
-use crate::parse::{Node, Rule};
-use crate::pass::{Gen, Visit};
+use crate::error::{err, unexpected_kind, MyResult};
+use crate::parse::{Kind, Node};
+use crate::pass::{Gen, Visit, WithSpan};
 use crate::scope::Scope;
 use crate::span::Span;
-use crate::with::WithSpan;
 use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::str::FromStr;
@@ -95,12 +94,12 @@ impl Display for Type {
 
 impl Visit for Type {
     fn visit_impl(node: Node) -> Self {
-        let node = node.into_inner_checked(Rule::ty).next().unwrap();
-        match node.rule() {
-            Rule::primitive => Self::Primitive(PrimitiveType::from_str(node.as_str()).unwrap()),
-            Rule::ident => Self::Named(node.as_str().into()),
+        let node = node.children_checked(Kind::ty).next().unwrap();
+        match node.kind() {
+            Kind::primitive => Self::Primitive(PrimitiveType::from_str(node.as_str()).unwrap()),
+            Kind::ident => Self::Named(node.as_str().into()),
 
-            _ => unexpected_rule(node),
+            _ => unexpected_kind(node),
         }
     }
 }
@@ -132,7 +131,7 @@ impl Gen for WithSpan<Type> {
                 .into()
             }
             Type::Named(name) => {
-                Scope::current().get_type(name)?;
+                Scope::current().get_struct(name)?;
                 name.to_string()
             }
             ty => panic!("tried to gen {}", ty),

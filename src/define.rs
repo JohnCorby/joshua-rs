@@ -1,23 +1,23 @@
 use crate::cached::CachedString;
-use crate::error::{unexpected_rule, MyResult};
+use crate::error::{unexpected_kind, MyResult};
 use crate::expr::Expr;
-use crate::parse::{Node, Rule};
-use crate::pass::{Gen, Visit};
+use crate::parse::{Kind, Node};
+use crate::pass::{Gen, Visit, WithSpan};
 use crate::scope::{Scope, Symbol};
 use crate::span::Span;
 use crate::statement::{Block, CCode};
 use crate::ty::{HasType, Type};
-use crate::with::{ToWith, WithSpan};
+use crate::with::ToWith;
 use std::fmt::Write;
 
 pub type Program = Vec<WithSpan<Define>>;
 
 impl Visit for Program {
     fn visit_impl(node: Node) -> Self {
-        node.into_inner_checked(Rule::program)
+        node.children_checked(Kind::program)
             .filter_map(|node| {
-                // last rule is EOI. dont visit it
-                if node.rule() == Rule::EOI {
+                // last kind is EOI. dont visit it
+                if node.kind() == Kind::EOI {
                     return None;
                 }
                 Some(node.visit())
@@ -63,8 +63,8 @@ pub enum Define {
 
 impl Visit for Define {
     fn visit_impl(node: Node) -> Self {
-        match node.rule() {
-            Rule::struct_define => {
+        match node.kind() {
+            Kind::struct_define => {
                 let mut nodes = node.children();
 
                 Self::Struct {
@@ -72,13 +72,13 @@ impl Visit for Define {
                     body: nodes.visit_rest(),
                 }
             }
-            Rule::func_define => {
+            Kind::func_define => {
                 let mut nodes = node.children().peekable();
 
                 let ty = nodes.next().unwrap().visit();
                 let name = nodes.next().unwrap().as_cached_str_with_span();
                 let mut args = vec![];
-                while nodes.peek().is_some() && nodes.peek().unwrap().rule() == Rule::var_define {
+                while nodes.peek().is_some() && nodes.peek().unwrap().kind() == Kind::var_define {
                     args.push(nodes.next().unwrap().visit())
                 }
                 let body = nodes.next().unwrap().visit();
@@ -90,11 +90,11 @@ impl Visit for Define {
                     body,
                 }
             }
-            Rule::var_define => Self::Var(node.visit().0),
+            Kind::var_define => Self::Var(node.visit().0),
 
-            Rule::c_code => Self::CCode(node.visit().0),
+            Kind::c_code => Self::CCode(node.visit().0),
 
-            _ => unexpected_rule(node),
+            _ => unexpected_kind(node),
         }
     }
 }
@@ -177,7 +177,7 @@ pub struct VarDefine {
 
 impl Visit for VarDefine {
     fn visit_impl(node: Node) -> Self {
-        let mut nodes = node.into_inner_checked(Rule::var_define);
+        let mut nodes = node.children_checked(Kind::var_define);
 
         Self {
             ty: nodes.next().unwrap().visit(),

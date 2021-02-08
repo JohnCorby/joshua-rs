@@ -37,7 +37,6 @@ pub enum Symbol {
         name: CachedString,
         field_types: HashMap<CachedString, Type>,
     },
-    Type(Type),
 }
 impl HasType for Symbol {
     fn ty(&self) -> Type {
@@ -45,7 +44,6 @@ impl HasType for Symbol {
             Symbol::Func { ty, .. } => *ty,
             Symbol::Var { ty, .. } => *ty,
             Symbol::Struct { name, .. } => Type::Named(*name),
-            Symbol::Type(ty) => *ty,
         }
     }
 }
@@ -62,7 +60,6 @@ impl Hash for Symbol {
             }
             Symbol::Var { name, .. } => name.hash(state),
             Symbol::Struct { name, .. } => name.hash(state),
-            Symbol::Type(ty) => ty.hash(state),
         }
     }
 }
@@ -84,11 +81,6 @@ impl PartialEq for Symbol {
             ) => name1 == name2 && arg_types1 == arg_types2,
             (Var { name: name1, .. }, Var { name: name2, .. }) => name1 == name2,
             (Struct { name: name1, .. }, Struct { name: name2, .. }) => name1 == name2,
-            (Type(ty1), Type(ty2)) => ty1 == ty2,
-
-            // struct/named type equality
-            (Struct { name: name1, .. }, Type(self::Type::Named(name2)))
-            | (Type(self::Type::Named(name1)), Struct { name: name2, .. }) => name1 == name2,
 
             _ => false,
         }
@@ -113,7 +105,6 @@ impl Display for Symbol {
             ),
             Self::Var { name, .. } => write!(f, "var `{}`", name),
             Self::Struct { name, .. } => write!(f, "struct `{}`", name),
-            Self::Type(ty) => Display::fmt(&ty, f),
         }
     }
 }
@@ -186,8 +177,11 @@ impl ScopeHandle {
             arg_types: arg_types.as_ref().into(),
         })
     }
-    pub fn get_type(&self, name: CachedString) -> MyResult<Symbol> {
-        self.find(Symbol::Type(Type::Named(name)))
+    pub fn get_struct(&self, name: CachedString) -> MyResult<Symbol> {
+        self.find(Symbol::Struct {
+            name,
+            field_types: Default::default(),
+        })
     }
 }
 impl Drop for ScopeHandle {

@@ -21,7 +21,7 @@ mod with;
 use crate::compile::compile_program;
 use crate::define::Program;
 use crate::error::{MyError, MyResult};
-use crate::parse::{Node, Rule};
+use crate::parse::{Kind, Node};
 use crate::pass::Gen;
 use std::lazy::SyncOnceCell;
 use std::path::Path;
@@ -34,7 +34,7 @@ fn main() -> MyResult<()> {
     let program = std::fs::read_to_string(path).unwrap();
     PROGRAM.set(program).unwrap();
 
-    let node = Node::parse(Rule::program, PROGRAM.get().unwrap())?;
+    let node = Node::parse(PROGRAM.get().unwrap(), Kind::program)?;
     println!("{}", node);
     let program = node.visit::<Program>();
     println!("{:?}", program);

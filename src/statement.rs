@@ -1,13 +1,13 @@
 use crate::cached::CachedString;
 use crate::define::VarDefine;
-use crate::error::{err, unexpected_rule, MyResult};
+use crate::error::{err, unexpected_kind, MyResult};
 use crate::expr::Expr;
-use crate::parse::{Node, Rule};
-use crate::pass::{Gen, Visit};
+use crate::parse::{Kind, Node};
+use crate::pass::{Gen, Visit, WithSpan};
 use crate::scope::Scope;
 use crate::span::Span;
 use crate::ty::{HasType, PrimitiveType, Type};
-use crate::with::{ToWith, WithSpan};
+use crate::with::ToWith;
 use std::fmt::Write;
 
 #[derive(Debug, Clone)]
@@ -40,11 +40,11 @@ pub enum Statement {
 
 impl Visit for Statement {
     fn visit_impl(node: Node) -> Self {
-        match node.rule() {
-            Rule::ret => Self::Return(node.children().next().map(Node::visit)),
-            Rule::brk => Self::Break,
-            Rule::cont => Self::Continue,
-            Rule::iff => {
+        match node.kind() {
+            Kind::ret => Self::Return(node.children().next().map(Node::visit)),
+            Kind::brk => Self::Break,
+            Kind::cont => Self::Continue,
+            Kind::iff => {
                 let mut nodes = node.children();
 
                 Self::If {
@@ -53,7 +53,7 @@ impl Visit for Statement {
                     otherwise: nodes.next().map(Node::visit),
                 }
             }
-            Rule::until => {
+            Kind::until => {
                 let mut nodes = node.children();
 
                 Self::Until {
@@ -61,7 +61,7 @@ impl Visit for Statement {
                     block: nodes.next().unwrap().visit(),
                 }
             }
-            Rule::forr => {
+            Kind::forr => {
                 let mut nodes = node.children();
 
                 Self::For {
@@ -71,7 +71,7 @@ impl Visit for Statement {
                     block: nodes.next().unwrap().visit(),
                 }
             }
-            Rule::var_assign => {
+            Kind::var_assign => {
                 let mut nodes = node.children();
 
                 Self::VarAssign {
@@ -79,10 +79,10 @@ impl Visit for Statement {
                     value: nodes.next().unwrap().visit(),
                 }
             }
-            Rule::var_define => Self::VarDefine(node.visit().0),
-            Rule::expr => Self::Expr(node.visit().0),
+            Kind::var_define => Self::VarDefine(node.visit().0),
+            Kind::expr => Self::Expr(node.visit().0),
 
-            _ => unexpected_rule(node),
+            _ => unexpected_kind(node),
         }
     }
 }
@@ -190,7 +190,7 @@ pub type Block = Vec<WithSpan<Statement>>;
 
 impl Visit for Block {
     fn visit_impl(node: Node) -> Self {
-        node.into_inner_checked(Rule::block).visit_rest()
+        node.children_checked(Kind::block).visit_rest()
     }
 }
 
@@ -219,7 +219,7 @@ pub struct FuncCall {
 
 impl Visit for FuncCall {
     fn visit_impl(node: Node) -> Self {
-        let mut nodes = node.into_inner_checked(Rule::func_call);
+        let mut nodes = node.children_checked(Kind::func_call);
 
         Self {
             name: nodes.next().unwrap().as_cached_str_with_span(),
@@ -275,13 +275,13 @@ pub enum CCodePart {
 }
 impl Visit for CCode {
     fn visit_impl(node: Node) -> Self {
-        node.into_inner_checked(Rule::c_code)
+        node.children_checked(Kind::c_code)
             .into_iter()
-            .map(|node| match node.rule() {
-                Rule::c_code_str => CCodePart::String(node.as_str().into()),
-                Rule::expr => CCodePart::Expr(node.visit()),
+            .map(|node| match node.kind() {
+                Kind::c_code_str => CCodePart::String(node.as_str().into()),
+                Kind::expr => CCodePart::Expr(node.visit()),
 
-                _ => unexpected_rule(node),
+                _ => unexpected_kind(node),
             })
             .collect()
     }

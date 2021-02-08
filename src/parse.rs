@@ -1,33 +1,33 @@
 use crate::cached::CachedString;
 use crate::error::MyResult;
-use crate::pass::Visit;
+use crate::pass::{Visit, WithSpan};
 use crate::span::Span;
-use crate::with::{ToWith, WithSpan};
+use crate::with::ToWith;
 use console::style;
 use pest::iterators::{Pair, Pairs};
 use pest::Parser;
 use std::fmt::{Debug, Display, Formatter};
 
-pub type Rule = inner::Rule;
+pub type Kind = inner::Rule;
 
 /// newtype wrapper for pest pair
 #[derive(Clone)]
-pub struct Node<'i>(Pair<'i, Rule>);
-impl<'i> From<Pair<'i, Rule>> for Node<'i> {
-    fn from(p: Pair<'i, Rule>) -> Self {
+pub struct Node<'i>(Pair<'i, Kind>);
+impl<'i> From<Pair<'i, Kind>> for Node<'i> {
+    fn from(p: Pair<'i, Kind>) -> Self {
         Self(p)
     }
 }
 impl<'i> Node<'i> {
-    /// parse an input string into a node based on a rule
-    pub fn parse(rule: Rule, input: &'i str) -> MyResult<Self> {
-        Ok(inner::Parser::parse(rule, input)?.next().unwrap().into())
+    /// parse an input string into a node based on a kind
+    pub fn parse(input: &'i str, kind: Kind) -> MyResult<Self> {
+        Ok(inner::Parser::parse(kind, input)?.next().unwrap().into())
     }
 
     pub fn children(self) -> Nodes<'i> {
         self.0.into_inner().into()
     }
-    pub fn rule(&self) -> Rule {
+    pub fn kind(&self) -> Kind {
         self.0.as_rule()
     }
     pub fn span(&self) -> Span {
@@ -41,13 +41,13 @@ impl<'i> Node<'i> {
     pub fn visit<T: Visit>(self) -> WithSpan<T> {
         T::visit(self)
     }
-    /// check that a node matches a rule, and then return its inner nodes
-    pub fn into_inner_checked(self, expected: Rule) -> Nodes<'i> {
-        let actual = self.rule();
+    /// check that a node matches a kind, and then return its inner nodes
+    pub fn children_checked(self, expected: Kind) -> Nodes<'i> {
+        let actual = self.kind();
         if expected == actual {
             self.children()
         } else {
-            panic!("expected rule {:?}, but got {:?}", expected, actual)
+            panic!("expected kind {:?}, but got {:?}", expected, actual)
         }
     }
     pub fn as_cached_str_with_span(&self) -> WithSpan<CachedString> {
@@ -63,7 +63,7 @@ impl Debug for Node<'_> {
 }
 impl Display for Node<'_> {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-        let rule = style(self.rule()).red();
+        let kind = style(self.kind()).red();
         let str = style(self.as_str()).blue();
         let children = self
             .clone()
@@ -71,20 +71,20 @@ impl Display for Node<'_> {
             .map(|node| node.to_string())
             .collect::<Vec<_>>();
         if children.is_empty() {
-            write!(f, "{:?}({:?})", rule, str)
+            write!(f, "{:?}({:?})", kind, str)
         } else if children.len() == 1 {
-            write!(f, "{:?}.{}", rule, children[0])
+            write!(f, "{:?}.{}", kind, children[0])
         } else {
-            write!(f, "{:?}[{}]", rule, children.join(", "))
+            write!(f, "{:?}[{}]", kind, children.join(", "))
         }
     }
 }
 
 /// newtype wrapper for pest pairs
 #[derive(Clone)]
-pub struct Nodes<'i>(Pairs<'i, Rule>);
-impl<'i> From<Pairs<'i, Rule>> for Nodes<'i> {
-    fn from(p: Pairs<'i, Rule>) -> Self {
+pub struct Nodes<'i>(Pairs<'i, Kind>);
+impl<'i> From<Pairs<'i, Kind>> for Nodes<'i> {
+    fn from(p: Pairs<'i, Kind>) -> Self {
         Self(p)
     }
 }

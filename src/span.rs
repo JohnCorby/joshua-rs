@@ -1,4 +1,4 @@
-use crate::parse::Rule;
+use crate::parse::Kind;
 use crate::PROGRAM;
 use parking_lot::{Mutex, MutexGuard};
 use pest::error::Error;
@@ -58,6 +58,6 @@ impl Span {
             None => return message,
         };
         let span = pest::Span::new(PROGRAM.get().unwrap(), span.0, span.1).unwrap();
-        Error::<Rule>::new_from_span(CustomError { message }, span).to_string()
+        Error::<Kind>::new_from_span(CustomError { message }, span).to_string()
     }
 }
