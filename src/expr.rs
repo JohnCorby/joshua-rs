@@ -185,10 +185,9 @@ impl Gen for WithSpan<Expr> {
                     Symbol::Struct { field_types, .. } => field_types,
                     _ => return err(format!("expected struct symbol, but got {}", symbol)),
                 };
-                match field_types.get(&var) {
-                    Some(field_type) => *field_type,
-                    None => return err(format!("no field named {} in {}", *var, symbol)),
-                };
+                if !field_types.contains_key(&var) {
+                    return err(format!("no field named {} in {}", *var, symbol));
+                }
 
                 s
             }

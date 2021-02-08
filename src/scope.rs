@@ -3,11 +3,12 @@
 //! symbols allow us to check for existence and type of stuff we define
 
 use crate::cached::CachedString;
-use crate::error::{err, warn, MyResult};
+use crate::error::{err, MyResult};
 use crate::ty::{HasType, Type};
 use parking_lot::{Mutex, MutexGuard};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Display, Formatter};
+use std::hash::{Hash, Hasher};
 
 static SCOPES: Mutex<Vec<Scope>> = Mutex::new(Vec::new());
 fn scopes() -> MutexGuard<'static, Vec<Scope>> {
@@ -18,7 +19,7 @@ fn scopes() -> MutexGuard<'static, Vec<Scope>> {
 pub struct Scope {
     in_loop: bool,
     func_return_type: Option<Type>,
-    symbols: Vec<Symbol>,
+    symbols: HashSet<Symbol>,
 }
 
 #[derive(Debug, Clone)]
@@ -45,6 +46,23 @@ impl HasType for Symbol {
             Symbol::Var { ty, .. } => *ty,
             Symbol::Struct { name, .. } => Type::Named(*name),
             Symbol::Type(ty) => *ty,
+        }
+    }
+}
+
+/// note: eq contains cases that hash doesnt cover, check both when comparing
+impl Hash for Symbol {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            Symbol::Func {
+                name, arg_types, ..
+            } => {
+                name.hash(state);
+                arg_types.hash(state);
+            }
+            Symbol::Var { name, .. } => name.hash(state),
+            Symbol::Struct { name, .. } => name.hash(state),
+            Symbol::Type(ty) => ty.hash(state),
         }
     }
 }
@@ -77,6 +95,7 @@ impl PartialEq for Symbol {
     }
 }
 impl Eq for Symbol {}
+
 impl Display for Symbol {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         match self {
@@ -127,15 +146,26 @@ impl ScopeHandle {
 
     pub fn add(&mut self, symbol: Symbol) -> MyResult<()> {
         let symbols = &mut scopes()[self.index].symbols;
+        let err = err(format!("{} already defined", symbol));
+        // find with hash first
         if symbols.contains(&symbol) {
-            return err(format!("{} already defined", symbol));
+            return err;
         }
-        symbols.push(symbol);
+        // then use eq if hash didnt find anything
+        if symbols.iter().any(|s| s == &symbol) {
+            return err;
+        }
+        symbols.insert(symbol);
         Ok(())
     }
 
     fn find(&self, symbol: Symbol) -> MyResult<Symbol> {
         for scope in scopes()[..=self.index].iter().rev() {
+            // find with hash first
+            if let Some(symbol) = scope.symbols.get(&symbol) {
+                return Ok(symbol.clone());
+            }
+            // then use eq if hash didnt find anything
             if let Some(symbol) = scope.symbols.iter().find(|&s| s == &symbol) {
                 return Ok(symbol.clone());
             }

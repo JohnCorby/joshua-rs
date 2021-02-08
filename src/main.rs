@@ -2,6 +2,7 @@
 #![feature(backtrace)]
 #![feature(once_cell)]
 #![feature(panic_info_message)]
+#![feature(hash_set_entry)]
 
 mod cached;
 mod compile;

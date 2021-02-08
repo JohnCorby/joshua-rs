@@ -6,6 +6,7 @@ use crate::scope::Scope;
 use crate::span::Span;
 use crate::with::WithSpan;
 use std::fmt::{Display, Formatter};
+use std::hash::{Hash, Hasher};
 use std::str::FromStr;
 
 #[derive(Debug, Copy, Clone)]
@@ -31,7 +32,7 @@ impl Type {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, strum::EnumString, strum::Display)]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, strum::EnumString, strum::Display)]
 #[strum(serialize_all = "snake_case")]
 pub enum PrimitiveType {
     I8,
@@ -48,12 +49,23 @@ pub enum PrimitiveType {
     Char,
     Void,
 }
-#[derive(Debug, Copy, Clone, PartialEq, strum::Display)]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, strum::Display)]
 pub enum LiteralType {
     Float,
     Int,
 }
 
+/// note: eq contains cases that hash doesnt cover, check both when comparing
+impl Hash for Type {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            Type::Primitive(ty) => ty.hash(state),
+            Type::Literal(ty) => ty.hash(state),
+            Type::Named(name) => name.hash(state),
+            Type::CCode => ().hash(state),
+        }
+    }
+}
 impl PartialEq for Type {
     fn eq(&self, other: &Self) -> bool {
         use Type::*;
@@ -69,6 +81,7 @@ impl PartialEq for Type {
         }
     }
 }
+
 impl Display for Type {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         match self {
