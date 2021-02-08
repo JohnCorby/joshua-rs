@@ -12,8 +12,8 @@ use std::str::FromStr;
 #[derive(Debug, Copy, Clone)]
 pub enum Type {
     Primitive(PrimitiveType),
-    Literal(LiteralType),
     Named(CachedString),
+    Literal(LiteralType),
     CCode,
 }
 impl Default for Type {
@@ -55,23 +55,25 @@ pub enum LiteralType {
     Int,
 }
 
-/// contains general cases
+/// note: eq contains cases that hash doesnt cover, check both when comparing
 impl Hash for Type {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match self {
             Type::Primitive(ty) => ty.hash(state),
-            Type::Literal(ty) => ty.hash(state),
             Type::Named(name) => name.hash(state),
+            Type::Literal(ty) => ty.hash(state),
             Type::CCode => ().hash(state),
         }
     }
 }
-/// contains extra cases hash doesnt cover
 impl PartialEq for Type {
     fn eq(&self, other: &Self) -> bool {
         use Type::*;
-        #[allow(clippy::match_like_matches_macro)]
         match (self, other) {
+            (Primitive(ty1), Primitive(ty2)) => ty1 == ty2,
+            (Named(name1), Named(name2)) => name1 == name2,
+            (Literal(ty1), Literal(ty2)) => ty1 == ty2,
+
             // c code can be any type lol
             (CCode, _) | (_, CCode) => true,
 
