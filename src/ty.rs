@@ -55,7 +55,7 @@ pub enum LiteralType {
     Int,
 }
 
-/// note: eq contains cases that hash doesnt cover, check both when comparing
+/// contains general cases
 impl Hash for Type {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match self {
@@ -66,18 +66,16 @@ impl Hash for Type {
         }
     }
 }
+/// contains extra cases hash doesnt cover
 impl PartialEq for Type {
     fn eq(&self, other: &Self) -> bool {
         use Type::*;
+        #[allow(clippy::match_like_matches_macro)]
         match (self, other) {
-            (Primitive(ty1), Primitive(ty2)) => ty1 == ty2,
-            (Named(name1), Named(name2)) => name1 == name2,
-            (Literal(ty1), Literal(ty2)) => ty1 == ty2,
-
             // c code can be any type lol
             (CCode, _) | (_, CCode) => true,
 
-            (_, _) => false,
+            _ => false,
         }
     }
 }

@@ -50,7 +50,7 @@ impl HasType for Symbol {
     }
 }
 
-/// note: eq contains cases that hash doesnt cover, check both when comparing
+/// contains general cases
 impl Hash for Symbol {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match self {
@@ -66,31 +66,16 @@ impl Hash for Symbol {
         }
     }
 }
+/// contains extra cases hash doesnt cover
 impl PartialEq for Symbol {
     fn eq(&self, other: &Self) -> bool {
         use Symbol::*;
         match (self, other) {
-            (
-                Func {
-                    name: name1,
-                    arg_types: arg_types1,
-                    ..
-                },
-                Func {
-                    name: name2,
-                    arg_types: arg_types2,
-                    ..
-                },
-            ) => name1 == name2 && arg_types1 == arg_types2,
-            (Var { name: name1, .. }, Var { name: name2, .. }) => name1 == name2,
-            (Struct { name: name1, .. }, Struct { name: name2, .. }) => name1 == name2,
-            (Type(ty1), Type(ty2)) => ty1 == ty2,
-
             // struct/named type equality
             (Struct { name: name1, .. }, Type(self::Type::Named(name2)))
             | (Type(self::Type::Named(name1)), Struct { name: name2, .. }) => name1 == name2,
 
-            (_, _) => false,
+            _ => false,
         }
     }
 }
