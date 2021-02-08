@@ -9,6 +9,7 @@ mod compile;
 mod define;
 mod error;
 mod expr;
+mod late_init;
 mod parse;
 mod pass;
 mod scope;
@@ -16,7 +17,6 @@ mod span;
 mod statement;
 mod ty;
 mod util;
-mod with;
 
 use crate::compile::compile_program;
 use crate::define::Program;

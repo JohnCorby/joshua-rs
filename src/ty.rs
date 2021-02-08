@@ -1,7 +1,7 @@
 use crate::cached::CachedString;
 use crate::error::{err, unexpected_kind, MyResult};
 use crate::parse::{Kind, Node};
-use crate::pass::{Gen, Visit, WithSpan};
+use crate::pass::{Gen, Visit};
 use crate::scope::Scope;
 use crate::span::Span;
 use std::fmt::{Display, Formatter};
@@ -9,16 +9,16 @@ use std::hash::{Hash, Hasher};
 use std::str::FromStr;
 
 #[derive(Debug, Copy, Clone)]
-pub enum Type {
+pub struct Type {
+    span: Span,
+    kind: Type,
+}
+#[derive(Debug, Copy, Clone)]
+pub enum TypeKind {
     Primitive(PrimitiveType),
-    Named(CachedString),
+    Struct(CachedString),
     Literal(LiteralType),
     CCode,
-}
-impl Default for Type {
-    fn default() -> Self {
-        Self::Primitive(PrimitiveType::Void)
-    }
 }
 impl Type {
     pub fn check(self, expected: Type) -> MyResult<()> {
@@ -48,29 +48,41 @@ pub enum PrimitiveType {
     Char,
     Void,
 }
+impl PrimitiveType {
+    pub fn ty(&self) -> Type {
+        Self::Primitive(*self)
+    }
+}
+
 #[derive(Debug, Copy, Clone, Hash, PartialEq, strum::Display)]
 pub enum LiteralType {
     Float,
     Int,
 }
+impl LiteralType {
+    pub fn ty(&self) -> Type {
+        Self::Literal(*self)
+    }
+}
 
 /// note: eq contains cases that hash doesnt cover, check both when comparing
 impl Hash for Type {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        match self {
-            Type::Primitive(ty) => ty.hash(state),
-            Type::Named(name) => name.hash(state),
-            Type::Literal(ty) => ty.hash(state),
-            Type::CCode => ().hash(state),
+        use TypeKind::*;
+        match &self.kind {
+            Primitive(ty) => ty.hash(state),
+            Struct(name) => name.hash(state),
+            Literal(ty) => ty.hash(state),
+            CCode => ().hash(state),
         }
     }
 }
 impl PartialEq for Type {
     fn eq(&self, other: &Self) -> bool {
-        use Type::*;
-        match (self, other) {
+        use TypeKind::*;
+        match (self.kind, other.kind) {
             (Primitive(ty1), Primitive(ty2)) => ty1 == ty2,
-            (Named(name1), Named(name2)) => name1 == name2,
+            (Struct(name1), Struct(name2)) => name1 == name2,
             (Literal(ty1), Literal(ty2)) => ty1 == ty2,
 
             // c code can be any type lol
@@ -83,11 +95,12 @@ impl PartialEq for Type {
 
 impl Display for Type {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+        use TypeKind::*;
         match self {
-            Type::Primitive(ty) => write!(f, "primitive type {}", ty),
-            Type::Named(name) => write!(f, "named type `{}`", name),
-            Type::Literal(ty) => write!(f, "literal type {}", ty),
-            Type::CCode => write!(f, "c code type"),
+            Primitive(ty) => write!(f, "primitive type {}", ty),
+            Struct(name) => write!(f, "named type `{}`", name),
+            Literal(ty) => write!(f, "literal type {}", ty),
+            CCode => write!(f, "c code type"),
         }
     }
 }
@@ -95,23 +108,29 @@ impl Display for Type {
 impl Visit for Type {
     fn visit_impl(node: Node) -> Self {
         let node = node.children_checked(Kind::ty).next().unwrap();
-        match node.kind() {
+        let kind = match node.kind() {
             Kind::primitive => Self::Primitive(PrimitiveType::from_str(node.as_str()).unwrap()),
-            Kind::ident => Self::Named(node.as_str().into()),
+            Kind::ident => Self::Struct(node.as_str().into()),
 
             _ => unexpected_kind(node),
+        };
+
+        Self {
+            span: node.span(),
+            kind,
         }
     }
 }
 
-impl Gen for WithSpan<Type> {
+impl Gen for Type {
     fn span(&self) -> Span {
-        self.1
+        self.span
     }
 
     fn gen_impl(self) -> MyResult<String> {
-        Ok(match self.0 {
-            Type::Primitive(ty) => {
+        use TypeKind::*;
+        Ok(match self.kind {
+            Primitive(ty) => {
                 use PrimitiveType::*;
                 match ty {
                     I8 => "signed char",
@@ -130,26 +149,11 @@ impl Gen for WithSpan<Type> {
                 }
                 .into()
             }
-            Type::Named(name) => {
+            Struct(name) => {
                 Scope::current().get_struct(name)?;
                 name.to_string()
             }
             ty => panic!("tried to gen {}", ty),
         })
-    }
-}
-
-/// todo make type checking a separate pass instead of shoving it after gen and doing a lot of dumb cloning
-pub trait HasType {
-    fn ty(&self) -> Type;
-}
-impl HasType for PrimitiveType {
-    fn ty(&self) -> Type {
-        Type::Primitive(*self)
-    }
-}
-impl HasType for LiteralType {
-    fn ty(&self) -> Type {
-        Type::Literal(*self)
     }
 }

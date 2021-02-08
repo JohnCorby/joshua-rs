@@ -2,24 +2,17 @@ use crate::error::MyResult;
 use crate::parse::Node;
 use crate::span::Span;
 use crate::ty::Type;
-use crate::with::{ToWith, With};
-
-pub type WithSpan<T> = With<T, Span>;
 
 /// take a parser node an turn it into ourselves
 pub trait Visit: Sized {
-    fn visit(node: Node) -> WithSpan<Self> {
+    fn visit(node: Node) -> Self {
         let span = node.span();
         span.set_current();
-        let result = Self::visit_impl(node);
-        result.with(span)
+        Self::visit_impl(node)
     }
 
     fn visit_impl(node: Node) -> Self;
 }
-
-#[allow(dead_code)]
-pub type WithType<T> = With<WithSpan<T>, Option<Type>>;
 
 pub trait InitType: Sized {
     fn span(&self) -> Span;

@@ -4,7 +4,7 @@
 
 use crate::cached::CachedString;
 use crate::error::{err, MyResult};
-use crate::ty::{HasType, Type};
+use crate::ty::Type;
 use parking_lot::{Mutex, MutexGuard};
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Display, Formatter};
@@ -38,12 +38,13 @@ pub enum Symbol {
         field_types: HashMap<CachedString, Type>,
     },
 }
-impl HasType for Symbol {
-    fn ty(&self) -> Type {
+impl Symbol {
+    pub fn ty(&self) -> Type {
+        use Symbol::*;
         match self {
-            Symbol::Func { ty, .. } => *ty,
-            Symbol::Var { ty, .. } => *ty,
-            Symbol::Struct { name, .. } => Type::Named(*name),
+            Func { ty, .. } => *ty,
+            Var { ty, .. } => *ty,
+            Struct { name, .. } => Type::Struct(*name),
         }
     }
 }
@@ -51,15 +52,16 @@ impl HasType for Symbol {
 /// note: eq contains cases that hash doesnt cover, check both when comparing
 impl Hash for Symbol {
     fn hash<H: Hasher>(&self, state: &mut H) {
+        use Symbol::*;
         match self {
-            Symbol::Func {
+            Func {
                 name, arg_types, ..
             } => {
                 name.hash(state);
                 arg_types.hash(state);
             }
-            Symbol::Var { name, .. } => name.hash(state),
-            Symbol::Struct { name, .. } => name.hash(state),
+            Var { name, .. } => name.hash(state),
+            Struct { name, .. } => name.hash(state),
         }
     }
 }
@@ -90,8 +92,9 @@ impl Eq for Symbol {}
 
 impl Display for Symbol {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+        use Symbol::*;
         match self {
-            Self::Func {
+            Func {
                 name, arg_types, ..
             } => write!(
                 f,
@@ -103,8 +106,8 @@ impl Display for Symbol {
                     .collect::<Vec<_>>()
                     .join(", ")
             ),
-            Self::Var { name, .. } => write!(f, "var `{}`", name),
-            Self::Struct { name, .. } => write!(f, "struct `{}`", name),
+            Var { name, .. } => write!(f, "var `{}`", name),
+            Struct { name, .. } => write!(f, "struct `{}`", name),
         }
     }
 }
