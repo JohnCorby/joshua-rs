@@ -20,12 +20,9 @@ impl Visit for Program {
         let span = node.span();
         let defines = node
             .children_checked(Kind::program)
-            .filter_map(|node| {
-                // last kind is EOI. dont visit it
-                if node.kind() == Kind::EOI {
-                    return None;
-                }
-                Some(node.visit())
+            .filter_map(|node| match node.kind() {
+                Kind::EOI => None,
+                _ => Some(node.visit()),
             })
             .collect();
 

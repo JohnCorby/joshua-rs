@@ -48,11 +48,6 @@ impl<'i> Node<'i> {
             panic!("expected kind {:?}, but got {:?}", expected, actual)
         }
     }
-    // pub fn as_cached_str_with_span(&self) -> CachedString {
-    //     let string = self.as_str();
-    //     let cached = CachedString::from(string);
-    //     cached.with(self.span())
-    // }
 }
 impl Debug for Node<'_> {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
@@ -61,19 +56,19 @@ impl Debug for Node<'_> {
 }
 impl Display for Node<'_> {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-        let kind = style(self.kind()).red();
-        let str = style(self.as_str()).blue();
+        let kind = style(self.kind());
+        let str = style(self.as_str());
         let children = self
             .clone()
             .children()
             .map(|node| node.to_string())
             .collect::<Vec<_>>();
         if children.is_empty() {
-            write!(f, "{:?}({:?})", kind, str)
+            write!(f, "{:?}({:?})", kind.red(), str.blue())
         } else if children.len() == 1 {
-            write!(f, "{:?}.{}", kind, children[0])
+            write!(f, "{:?}.{}", kind.green(), children[0])
         } else {
-            write!(f, "{:?}[{}]", kind, children.join(", "))
+            write!(f, "{:?}[{}]", kind.red(), children.join(", "))
         }
     }
 }

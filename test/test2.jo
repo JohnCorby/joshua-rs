@@ -23,7 +23,7 @@ im gimme_im() {
 }
 
 /// pretend this is a method of baba_booey
-//f32 baba_booey.kill_yourself(baba_booey this) {
+//f32 baba_booey::kill_yourself(baba_booey this) {
 //
 //}
 
