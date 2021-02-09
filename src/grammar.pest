@@ -14,9 +14,8 @@ statement = _{
     | iff
     | until
     | forr
-//     | field_assign
-    | var_assign
     | var_define
+    | expr_assign
     | expr
 }
 
@@ -30,9 +29,7 @@ func_call = { ident ~ "(" ~ (expr ~ ("," ~ expr)*)? ~ ")" }
 
 
 var_define = { ty ~ ident ~ ("=" ~ expr)? }
-var_assign = { ident ~ "=" ~ expr }
-// todo field assignment requires lvalue expressions
-// field_assign = { ident ~ ()+ ~ "=" ~ expr }
+expr_assign = { expr ~ "=" ~ expr }
 
 
 struct_define = { "struct" ~ ident ~ "{" ~ define* ~ "}" }

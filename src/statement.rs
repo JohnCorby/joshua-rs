@@ -35,9 +35,9 @@ pub enum StatementKind {
         update: Box<Statement>,
         block: Block,
     },
-    VarAssign {
-        name: CachedString,
-        value: Expr,
+    ExprAssign {
+        lvalue: Expr,
+        rvalue: Expr,
     },
     VarDefine(VarDefine),
     Expr(Expr),
@@ -78,12 +78,12 @@ impl Visit for Statement {
                     block: nodes.next().unwrap().visit(),
                 }
             }
-            Kind::var_assign => {
+            Kind::expr_assign => {
                 let mut nodes = node.children();
 
-                VarAssign {
-                    name: nodes.next().unwrap().as_str().into(),
-                    value: nodes.next().unwrap().visit(),
+                ExprAssign {
+                    lvalue: nodes.next().unwrap().visit(),
+                    rvalue: nodes.next().unwrap().visit(),
                 }
             }
             Kind::var_define => VarDefine(node.visit()),
@@ -188,13 +188,15 @@ impl Gen for Statement {
                 drop(scope);
                 s
             }
-            VarAssign { name, mut value } => {
+            ExprAssign {
+                mut lvalue,
+                mut rvalue,
+            } => {
                 // type check
-                value
-                    .init_type()?
-                    .check(&Scope::current().get_var(name)?.ty())?;
+                lvalue.check_assignable()?;
+                rvalue.init_type()?.check(&lvalue.init_type()?)?;
 
-                format!("{} = {};", name, value.gen()?)
+                format!("{} = {};", lvalue.gen()?, rvalue.gen()?)
             }
             VarDefine(var_define) => format!("{};", var_define.gen()?),
             Expr(expr) => format!("{};", expr.gen()?),
@@ -251,7 +253,7 @@ impl Visit for FuncCall {
             span,
             name: nodes.next().unwrap().as_str().into(),
             args: nodes.visit_rest(),
-            ty: Default::default(),
+            ty: LateInit::new("func call type"),
         }
     }
 }

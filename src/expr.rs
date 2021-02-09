@@ -52,6 +52,7 @@ pub enum ExprKind {
 impl Visit for Expr {
     fn visit_impl(node: Node) -> Self {
         let span = node.span();
+        let ty = LateInit::new("expr type");
         use ExprKind::*;
         let kind = match node.kind() {
             Kind::expr => node.children().next().unwrap().visit::<Expr>().kind,
@@ -63,11 +64,7 @@ impl Visit for Expr {
                 let mut span = left.span;
                 let mut kind = left.kind;
                 while let Some(op) = nodes.next() {
-                    left = Expr {
-                        span,
-                        kind,
-                        ty: Default::default(),
-                    };
+                    left = Expr { span, kind, ty };
                     span = left.span;
                     kind = Binary {
                         left: left.into(),
@@ -86,11 +83,7 @@ impl Visit for Expr {
                 let mut span = thing.span;
                 let mut kind = thing.kind;
                 for op in rev_nodes {
-                    thing = Expr {
-                        span,
-                        kind,
-                        ty: Default::default(),
-                    };
+                    thing = Expr { span, kind, ty };
                     span = thing.span;
                     kind = Unary {
                         op: op.as_str().into(),
@@ -107,16 +100,12 @@ impl Visit for Expr {
                 let mut thing = nodes.next().unwrap().visit::<Expr>();
                 let mut span = thing.span;
                 let mut kind = thing.kind;
-                for ty in nodes {
-                    thing = Expr {
-                        span,
-                        kind,
-                        ty: Default::default(),
-                    };
+                for ty_node in nodes {
+                    thing = Expr { span, kind, ty };
                     span = thing.span;
                     kind = Cast {
                         thing: thing.into(),
-                        ty: ty.visit(),
+                        ty: ty_node.visit(),
                     }
                 }
 
@@ -131,11 +120,7 @@ impl Visit for Expr {
                 let mut kind = left.kind;
                 let mut span = left.span;
                 for right in nodes {
-                    left = Expr {
-                        span,
-                        kind,
-                        ty: Default::default(),
-                    };
+                    left = Expr { span, kind, ty };
                     span = left.span;
                     kind = match right.kind() {
                         Kind::func_call => MethodCall {
@@ -164,11 +149,7 @@ impl Visit for Expr {
             _ => unexpected_kind(node),
         };
 
-        Self {
-            span,
-            kind,
-            ty: Default::default(),
-        }
+        Self { span, kind, ty }
     }
 }
 
@@ -232,6 +213,19 @@ impl InitType for Expr {
 
         self.ty.init(ty);
         Ok(ty)
+    }
+}
+
+impl Expr {
+    pub fn check_assignable(&self) -> MyResult<()> {
+        use ExprKind::*;
+        let is_assignable = matches!(self.kind, Field { .. } | Var(_));
+
+        if !is_assignable {
+            err("expr is not assignable")
+        } else {
+            Ok(())
+        }
     }
 }
 

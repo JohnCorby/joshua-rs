@@ -56,9 +56,12 @@ i32 main() {
     baba_booey ok
     f32 woah = ok.hello
     f32 woah2 = gimme_im().pain.hello
-    <{printf("woah2 is %f\n", woah2)}>
-//    ok.hello = 1 as f32
+    <{printf("woah2 is %f\n", ${woah2})}>
+    <{printf("ok.hello is %f\n", ${ok.hello})}>
+    ok.hello = 1 as f32
+    <{printf("ok.hello is %f\n", ${ok.hello})}>
 //    f32 yo = gimme_im().pain.kill_yourself(1, 2.0, true, 'd')
+//     <{printf("yo is %f\n", ${yo})}>
 
     hello(4 as i32)
 
@@ -70,14 +73,6 @@ i32 main() {
 //        char *oh_no = 0;
 //        int uh = (int) *oh_no;
 //    }>
-    if (true) {
-        // todo rvalues are literally just expressions that are assignable
-        //  which seems to be non-fancy types, which means derefed types and array get types also work
-        <{
-//            int* i2 = &i;
-//            (0, *i2) = 2;
-        }>
-    }
 
 
     return 1337 as i32

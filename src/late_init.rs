@@ -1,24 +1,27 @@
 use std::ops::Deref;
 
-#[derive(Debug, Clone)]
-pub struct LateInit<T>(Option<T>);
-
-impl<T> Default for LateInit<T> {
-    fn default() -> Self {
-        LateInit(Default::default())
-    }
+#[derive(Debug, Copy, Clone)]
+pub struct LateInit<T> {
+    inner: Option<T>,
+    what: &'static str,
 }
 
 impl<T> LateInit<T> {
+    pub fn new(what: &'static str) -> Self {
+        Self { inner: None, what }
+    }
+
     pub fn init(&mut self, value: T) {
-        assert!(self.0.is_none(), "late init already initialized");
-        self.0 = Some(value)
+        assert!(self.inner.is_none(), "{} already initialized", self.what);
+        self.inner = Some(value)
     }
 }
 
 impl<T> Deref for LateInit<T> {
     type Target = T;
     fn deref(&self) -> &Self::Target {
-        self.0.as_ref().expect("late init not initialized")
+        self.inner
+            .as_ref()
+            .unwrap_or_else(|| panic!("{} needs to be initialized", self.what))
     }
 }
