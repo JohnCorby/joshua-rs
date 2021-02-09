@@ -8,6 +8,7 @@ use crate::pass::{Gen, InitType, Visit};
 use crate::scope::Scope;
 use crate::span::Span;
 use crate::ty::{PrimitiveType, TypeKind};
+use crate::util::Mangle;
 use std::fmt::Write;
 
 #[derive(Debug, Clone)]
@@ -113,7 +114,7 @@ impl Gen for Statement {
                     .unwrap_or_else(|| PrimitiveType::Void.ty())
                     .check(&Scope::current().func_return_type())?;
 
-                let mut s = String::from("return");
+                let mut s = "return".to_string();
                 if let Some(value) = value {
                     write!(s, " {}", value.gen()?).unwrap();
                 }
@@ -288,9 +289,8 @@ impl Gen for FuncCall {
     fn gen_impl(self) -> MyResult<String> {
         let s = format!(
             "{}({})",
-            self.name,
+            self.name.to_string().mangle(),
             self.args
-                .clone()
                 .into_iter()
                 .map(Gen::gen)
                 .collect::<MyResult<Vec<_>>>()?

@@ -1,3 +1,4 @@
+use crate::error::warn_internal;
 use std::ops::Deref;
 
 #[derive(Debug, Copy, Clone)]
@@ -12,7 +13,9 @@ impl<T> LateInit<T> {
     }
 
     pub fn init(&mut self, value: T) {
-        assert!(self.inner.is_none(), "{} already initialized", self.what);
+        if self.inner.is_some() {
+            return warn_internal(format!("{} already initialized", self.what));
+        }
         self.inner = Some(value)
     }
 }
@@ -22,6 +25,6 @@ impl<T> Deref for LateInit<T> {
     fn deref(&self) -> &Self::Target {
         self.inner
             .as_ref()
-            .unwrap_or_else(|| panic!("{} needs to be initialized", self.what))
+            .unwrap_or_else(|| panic!("{} not initialized", self.what))
     }
 }

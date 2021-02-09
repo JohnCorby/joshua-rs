@@ -7,6 +7,7 @@ use crate::scope::{Scope, Symbol};
 use crate::span::Span;
 use crate::statement::{Block, CCode};
 use crate::ty::Type;
+use crate::util::Mangle;
 use std::fmt::Write;
 
 #[derive(Debug, Clone)]
@@ -157,7 +158,7 @@ impl Gen for Define {
                 let s = format!(
                     "{} {}({}) {}",
                     ty.gen()?,
-                    name,
+                    name.to_string().mangle(),
                     args.into_iter()
                         .map(Gen::gen)
                         .collect::<MyResult<Vec<_>>>()?
@@ -213,7 +214,7 @@ impl Gen for VarDefine {
             value.init_type()?.check(&self.ty.kind)?;
         }
 
-        let mut s = format!("{} {}", self.ty.gen()?, self.name);
+        let mut s = format!("{} {}", self.ty.gen()?, self.name.to_string().mangle());
         if let Some(value) = self.value {
             write!(s, " = {}", value.gen()?).unwrap();
         }

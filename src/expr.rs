@@ -9,6 +9,7 @@ use crate::scope::{Scope, Symbol};
 use crate::span::Span;
 use crate::statement::{CCode, FuncCall};
 use crate::ty::{LiteralType, PrimitiveType, Type, TypeKind};
+use crate::util::Mangle;
 
 #[derive(Debug, Clone)]
 pub struct Expr {
@@ -254,11 +255,13 @@ impl Gen for Expr {
 
                 func_call.gen()?
             }
-            Field { receiver, var } => format!("({}.{})", receiver.gen()?, var),
+            Field { receiver, var } => {
+                format!("({}.{})", receiver.gen()?, var.to_string().mangle())
+            }
 
             Literal(literal) => literal.gen()?,
             FuncCall(func_call) => func_call.gen()?,
-            Var(name) => name.to_string(),
+            Var(name) => name.to_string().mangle(),
 
             CCode(c_code) => c_code.gen()?,
         })

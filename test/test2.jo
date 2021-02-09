@@ -23,9 +23,9 @@ im gimme_im() {
 }
 
 /// pretend this is a method of baba_booey
-//f32 baba_booey::kill_yourself(baba_booey this) {
-//
-//}
+f32 baba_booey::kill_yourself(baba_booey this, i32 a, f32 b, bool c, char d) {
+    <{puts("woah! this is the method kill_yourself of baba_booey")}>
+}
 
 i32 ok = 2 as i32
 
@@ -60,7 +60,7 @@ i32 main() {
     <{printf("ok.hello is %f\n", ${ok.hello})}>
     ok.hello = 1 as f32
     <{printf("ok.hello is %f\n", ${ok.hello})}>
-//    f32 yo = gimme_im().pain.kill_yourself(1, 2.0, true, 'd')
+    f32 yo = gimme_im().pain.kill_yourself(1 as i32, 2.0 as f32, true, 'd')
 //     <{printf("yo is %f\n", ${yo})}>
 
     hello(4 as i32)

@@ -72,9 +72,13 @@ pub fn err<T>(str: impl AsRef<str>) -> MyResult<T> {
     Err(str.as_ref().into())
 }
 #[allow(dead_code)]
-pub fn warn<T: Debug>(str: impl AsRef<str>) {
-    let err = MyResult::<T>::Err(str.as_ref().into());
+pub fn warn(str: impl AsRef<str>) {
+    let err = MyResult::<()>::Err(str.as_ref().into());
     eprintln!("Warning: {:?}", err);
+}
+pub fn warn_internal(str: impl AsRef<str>) {
+    let err = MyResult::<()>::Err(str.as_ref().into());
+    eprintln!("Internal Warning: {:?}", err);
 }
 
 pub fn unexpected_kind(node: Node) -> ! {
