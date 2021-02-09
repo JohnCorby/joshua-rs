@@ -7,7 +7,7 @@ use crate::parse::{Kind, Node};
 use crate::scope::Scope;
 use crate::span::Span;
 use crate::ty::{PrimitiveType, TypeKind};
-use crate::util::{Mangle, Visit};
+use crate::util::{Mangle, Track, Visit};
 use std::fmt::Write;
 
 #[derive(Debug, Clone)]
@@ -95,11 +95,16 @@ impl Visit for Statement {
         Self { span, kind }
     }
 }
+impl Track for Statement {
+    fn span(&self) -> Span {
+        self.span
+    }
+}
 
 impl Statement {
     pub fn gen(self) -> MyResult<String> {
         use StatementKind::*;
-        Ok(match self.kind {
+        Ok(match self.track().kind {
             Return(mut value) => {
                 // type check
                 value
@@ -202,16 +207,14 @@ impl Statement {
 
 #[derive(Debug, Clone)]
 pub struct Block {
-    span: Span,
     statements: Vec<Statement>,
 }
 
 impl Visit for Block {
     fn visit(node: Node) -> Self {
-        let span = node.span();
-        let statements = node.children_checked(Kind::block).visit_rest();
-
-        Self { span, statements }
+        Self {
+            statements: node.children_checked(Kind::block).visit_rest(),
+        }
     }
 }
 
@@ -249,9 +252,15 @@ impl Visit for FuncCall {
         }
     }
 }
+impl Track for FuncCall {
+    fn span(&self) -> Span {
+        self.span
+    }
+}
 
 impl FuncCall {
     pub fn init_type(&mut self) -> MyResult<TypeKind> {
+        self.span.track();
         let name = self.name;
         let args = &mut self.args;
         self.ty
@@ -286,7 +295,6 @@ impl FuncCall {
 
 #[derive(Debug, Clone)]
 pub struct CCode {
-    span: Span,
     parts: Vec<CCodePart>,
 }
 #[derive(Debug, Clone)]
@@ -297,19 +305,18 @@ pub enum CCodePart {
 
 impl Visit for CCode {
     fn visit(node: Node) -> Self {
-        let span = node.span();
-        let parts = node
-            .children_checked(Kind::c_code)
-            .into_iter()
-            .map(|node| match node.kind() {
-                Kind::c_code_str => CCodePart::String(node.as_str().into()),
-                Kind::expr => CCodePart::Expr(node.visit()),
+        Self {
+            parts: node
+                .children_checked(Kind::c_code)
+                .into_iter()
+                .map(|node| match node.kind() {
+                    Kind::c_code_str => CCodePart::String(node.as_str().into()),
+                    Kind::expr => CCodePart::Expr(node.visit()),
 
-                _ => unexpected_kind(node),
-            })
-            .collect();
-
-        Self { span, parts }
+                    _ => unexpected_kind(node),
+                })
+                .collect(),
+        }
     }
 }
 

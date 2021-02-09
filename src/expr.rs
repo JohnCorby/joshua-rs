@@ -8,7 +8,7 @@ use crate::scope::{Scope, Symbol};
 use crate::span::Span;
 use crate::statement::{CCode, FuncCall};
 use crate::ty::{LiteralType, PrimitiveType, Type, TypeKind};
-use crate::util::{Mangle, Visit};
+use crate::util::{Mangle, Track, Visit};
 
 #[derive(Debug, Clone)]
 pub struct Expr {
@@ -152,9 +152,15 @@ impl Visit for Expr {
         Self { span, kind, ty }
     }
 }
+impl Track for Expr {
+    fn span(&self) -> Span {
+        self.span
+    }
+}
 
 impl Expr {
     pub fn ty(&mut self) -> MyResult<TypeKind> {
+        self.span.track();
         let kind = &mut self.kind;
         self.ty
             .get_or_try_init(|| {
@@ -231,7 +237,7 @@ impl Expr {
 
     pub fn gen(self) -> MyResult<String> {
         use ExprKind::*;
-        Ok(match self.kind {
+        Ok(match self.track().kind {
             Binary { left, op, right } => format!("({} {} {})", left.gen()?, op, right.gen()?),
             Unary { op, thing } => format!("({}{})", op, thing.gen()?),
             Cast { thing, ty } => format!("(({}) {})", ty.gen()?, thing.gen()?),
@@ -293,6 +299,11 @@ impl Visit for Literal {
         Self { span, kind }
     }
 }
+impl Track for Literal {
+    fn span(&self) -> Span {
+        self.span
+    }
+}
 
 impl Literal {
     pub fn ty(&self) -> TypeKind {
@@ -308,7 +319,7 @@ impl Literal {
 
     pub fn gen(self) -> MyResult<String> {
         use LiteralKind::*;
-        Ok(match self.kind {
+        Ok(match self.track().kind {
             Float(value) => value.to_string(),
             Int(value) => value.to_string(),
             Bool(value) => (value as u8).to_string(),

@@ -6,27 +6,25 @@ use crate::scope::{Scope, Symbol};
 use crate::span::Span;
 use crate::statement::{Block, CCode};
 use crate::ty::Type;
-use crate::util::{Mangle, Visit};
+use crate::util::{Mangle, Track, Visit};
 use std::fmt::Write;
 
 #[derive(Debug, Clone)]
 pub struct Program {
-    span: Span,
     defines: Vec<Define>,
 }
 
 impl Visit for Program {
     fn visit(node: Node) -> Self {
-        let span = node.span();
-        let defines = node
-            .children_checked(Kind::program)
-            .filter_map(|node| match node.kind() {
-                Kind::EOI => None,
-                _ => Some(node.visit()),
-            })
-            .collect();
-
-        Self { span, defines }
+        Self {
+            defines: node
+                .children_checked(Kind::program)
+                .filter_map(|node| match node.kind() {
+                    Kind::EOI => None,
+                    _ => Some(node.visit()),
+                })
+                .collect(),
+        }
     }
 }
 
@@ -107,11 +105,16 @@ impl Visit for Define {
         Self { span, kind }
     }
 }
+impl Track for Define {
+    fn span(&self) -> Span {
+        self.span
+    }
+}
 
 impl Define {
     pub fn gen(self) -> MyResult<String> {
         use DefineKind::*;
-        Ok(match self.kind {
+        Ok(match self.track().kind {
             Struct { name, body } => {
                 Scope::current().add(Symbol::Struct {
                     name,
@@ -188,9 +191,15 @@ impl Visit for VarDefine {
         }
     }
 }
+impl Track for VarDefine {
+    fn span(&self) -> Span {
+        self.span
+    }
+}
 
 impl VarDefine {
     pub fn gen(mut self) -> MyResult<String> {
+        self.span.track();
         Scope::current().add(Symbol::Var {
             ty: self.ty.kind,
             name: self.name,

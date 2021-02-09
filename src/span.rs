@@ -47,8 +47,9 @@ impl Span {
             None => None,
         }
     }
-    pub fn track(&self) {
-        *current_span() = Some(*self);
+    pub fn track(self) -> Self {
+        *current_span() = Some(self);
+        self
     }
 
     pub fn make_error(message: impl AsRef<str>) -> String {
