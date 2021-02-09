@@ -2,7 +2,7 @@ use crate::cached::CachedString;
 use crate::error::{unexpected_kind, MyResult};
 use crate::expr::Expr;
 use crate::parse::{Kind, Node};
-use crate::pass::{Gen, Visit};
+use crate::pass::{Gen, InitType, Visit};
 use crate::scope::{Scope, Symbol};
 use crate::span::Span;
 use crate::statement::{Block, CCode};
@@ -205,15 +205,15 @@ impl Gen for VarDefine {
         self.span
     }
 
-    fn gen_impl(self) -> MyResult<String> {
+    fn gen_impl(mut self) -> MyResult<String> {
         Scope::current().add(Symbol::Var {
             ty: self.ty.kind,
             name: self.name,
         })?;
 
         // type check
-        if let Some(value) = &self.value {
-            value.ty.check(&self.ty.kind)?;
+        if let Some(value) = &mut self.value {
+            value.init_type()?.check(&self.ty.kind)?;
         }
 
         let mut s = format!("{} {}", self.ty.gen()?, self.name);

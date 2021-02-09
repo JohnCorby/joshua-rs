@@ -17,12 +17,12 @@ pub trait Visit: Sized {
 pub trait InitType: Sized {
     fn span(&self) -> Span;
 
-    fn init_type(self) -> MyResult<TypeKind> {
+    fn init_type(&mut self) -> MyResult<TypeKind> {
         self.span().set_current();
         self.init_type_impl()
     }
 
-    fn init_type_impl(self) -> MyResult<TypeKind>;
+    fn init_type_impl(&mut self) -> MyResult<TypeKind>;
 }
 
 /// turn self into valid C code

@@ -14,7 +14,7 @@ use crate::ty::{LiteralType, PrimitiveType, Type, TypeKind};
 pub struct Expr {
     span: Span,
     kind: ExprKind,
-    pub ty: LateInit<TypeKind>,
+    ty: LateInit<TypeKind>,
 }
 #[derive(Debug, Clone)]
 pub enum ExprKind {
@@ -177,13 +177,13 @@ impl InitType for Expr {
         self.span
     }
 
-    fn init_type_impl(self) -> MyResult<TypeKind> {
+    fn init_type_impl(&mut self) -> MyResult<TypeKind> {
         use ExprKind::*;
-        let ty = match self.kind {
+        let ty = match &mut self.kind {
             Binary { left, op, right } => Scope::current()
-                .get_func(op, [left.init_type()?, right.init_type()?])?
+                .get_func(*op, [left.init_type()?, right.init_type()?])?
                 .ty(),
-            Unary { op, thing } => Scope::current().get_func(op, [thing.init_type()?])?.ty(),
+            Unary { op, thing } => Scope::current().get_func(*op, [thing.init_type()?])?.ty(),
             Cast { thing, ty } => Scope::current()
                 .get_func(format!("as {}", ty.kind).into(), [thing.init_type()?])?
                 .ty(),
@@ -200,7 +200,7 @@ impl InitType for Expr {
                 let name = format!("{}::{}", struct_name, func_call.name).into();
                 let mut arg_types = func_call
                     .args
-                    .into_iter()
+                    .iter_mut()
                     .map(|arg| arg.init_type())
                     .collect::<MyResult<Vec<_>>>()?;
                 arg_types.insert(0, receiver_ty);
@@ -208,7 +208,7 @@ impl InitType for Expr {
                 Scope::current().get_func(name, arg_types)?.ty()
             }
             Field { receiver, var } => {
-                let struct_name = match *receiver.ty {
+                let struct_name = match receiver.init_type()? {
                     TypeKind::Struct(struct_name) => struct_name,
                     ty => return err(format!("expected struct type, but got {}", ty)),
                 };
@@ -224,8 +224,8 @@ impl InitType for Expr {
             }
 
             Literal(literal) => literal.ty(),
-            FuncCall(func_call) => *func_call.ty,
-            Var(name) => Scope::current().get_var(name)?.ty(),
+            FuncCall(func_call) => func_call.init_type()?,
+            Var(name) => Scope::current().get_var(*name)?.ty(),
 
             CCode(c_code) => c_code.ty(),
         };
@@ -248,10 +248,10 @@ impl Gen for Expr {
             Cast { thing, ty } => format!("(({}) {})", ty.gen()?, thing.gen()?),
 
             MethodCall {
-                receiver,
+                mut receiver,
                 mut func_call,
             } => {
-                let struct_name = match *receiver.ty {
+                let struct_name = match receiver.init_type()? {
                     TypeKind::Struct(struct_name) => struct_name,
                     ty => return err(format!("expected struct type, but got {}", ty)),
                 };

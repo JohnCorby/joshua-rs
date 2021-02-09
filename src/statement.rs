@@ -104,11 +104,12 @@ impl Gen for Statement {
     fn gen_impl(self) -> MyResult<String> {
         use StatementKind::*;
         Ok(match self.kind {
-            Return(value) => {
+            Return(mut value) => {
                 // type check
                 value
-                    .as_ref()
-                    .map(|value| *value.ty)
+                    .as_mut()
+                    .map(|value| value.init_type())
+                    .transpose()?
                     .unwrap_or_else(|| PrimitiveType::Void.ty())
                     .check(&Scope::current().func_return_type())?;
 
@@ -133,12 +134,12 @@ impl Gen for Statement {
                 "continue;".into()
             }
             If {
-                cond,
+                mut cond,
                 then,
                 otherwise,
             } => {
                 // type check
-                cond.ty.check(&PrimitiveType::Bool.ty())?;
+                cond.init_type()?.check(&PrimitiveType::Bool.ty())?;
 
                 let mut s = format!("if({}) ", cond.gen()?);
                 let scope = Scope::new(false, None);
@@ -152,9 +153,9 @@ impl Gen for Statement {
 
                 s
             }
-            Until { cond, block } => {
+            Until { mut cond, block } => {
                 // type check
-                cond.ty.check(&PrimitiveType::Bool.ty())?;
+                cond.init_type()?.check(&PrimitiveType::Bool.ty())?;
 
                 let mut s = format!("while(!({})) ", cond.gen()?);
                 let scope = Scope::new(true, None);
@@ -165,29 +166,33 @@ impl Gen for Statement {
             }
             For {
                 init,
-                cond,
+                mut cond,
                 update,
                 block,
                 ..
             } => {
                 let scope = Scope::new(true, None);
+                let mut s = format!("for({}; ", init.gen()?);
 
                 // type check
-                cond.ty.check(&PrimitiveType::Bool.ty())?;
+                cond.init_type()?.check(&PrimitiveType::Bool.ty())?;
 
-                let s = format!(
-                    "for({}; {}; {}) {}",
-                    init.gen()?,
+                write!(
+                    s,
+                    "{}; {}) {}",
                     cond.gen()?,
                     update.gen()?.strip_suffix(';')?,
                     block.gen()?
-                );
+                )
+                .unwrap();
                 drop(scope);
                 s
             }
-            VarAssign { name, value } => {
+            VarAssign { name, mut value } => {
                 // type check
-                value.ty.check(&Scope::current().get_var(name)?.ty())?;
+                value
+                    .init_type()?
+                    .check(&Scope::current().get_var(name)?.ty())?;
 
                 format!("{} = {};", name, value.gen()?)
             }
@@ -234,7 +239,7 @@ pub struct FuncCall {
     pub span: Span,
     pub name: CachedString,
     pub args: Vec<Expr>,
-    pub ty: LateInit<TypeKind>,
+    ty: LateInit<TypeKind>,
 }
 
 impl Visit for FuncCall {
@@ -256,11 +261,14 @@ impl InitType for FuncCall {
         self.span
     }
 
-    fn init_type_impl(self) -> MyResult<TypeKind> {
+    fn init_type_impl(&mut self) -> MyResult<TypeKind> {
         let ty = Scope::current()
             .get_func(
                 self.name,
-                self.args.iter().map(|arg| *arg.ty).collect::<Vec<_>>(),
+                self.args
+                    .iter_mut()
+                    .map(|arg| arg.init_type())
+                    .collect::<MyResult<Vec<_>>>()?,
             )
             .unwrap()
             .ty();
@@ -286,12 +294,6 @@ impl Gen for FuncCall {
                 .collect::<MyResult<Vec<_>>>()?
                 .join(", "),
         );
-
-        // type check
-        Scope::current().get_func(
-            self.name,
-            self.args.iter().map(|arg| *arg.ty).collect::<Vec<_>>(),
-        )?;
 
         Ok(s)
     }
