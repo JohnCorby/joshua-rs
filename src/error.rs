@@ -33,16 +33,17 @@ impl MyError {
 
             // make error
             let err = MyError::from(message);
-            eprintln!("Internal Error: {:?}", err);
+            eprintln!("Internal Error: {}", err);
         }))
     }
 }
 
 impl Display for MyError {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-        writeln!(f, "{}", Span::make_error(&self.0)).unwrap();
+        write!(f, "{}", Span::make_error(&self.0))?;
         if let Some(backtrace) = &*current_backtrace() {
-            writeln!(f, "{}", backtrace).unwrap();
+            writeln!(f)?;
+            write!(f, "{}", backtrace)?;
         }
         Ok(())
     }
@@ -73,12 +74,10 @@ pub fn err<T>(str: impl AsRef<str>) -> MyResult<T> {
 }
 #[allow(dead_code)]
 pub fn warn(str: impl AsRef<str>) {
-    let err = MyResult::<()>::Err(str.as_ref().into());
-    eprintln!("Warning: {:?}", err);
+    eprintln!("Warning: {}", MyError::from(str.as_ref()));
 }
 pub fn warn_internal(str: impl AsRef<str>) {
-    let err = MyResult::<()>::Err(str.as_ref().into());
-    eprintln!("Internal Warning: {:?}", err);
+    eprintln!("Internal Warning: {}", MyError::from(str.as_ref()));
 }
 
 pub fn unexpected_kind(node: Node) -> ! {

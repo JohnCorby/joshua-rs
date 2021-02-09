@@ -1,3 +1,7 @@
+//!todo
+//! get rid of all the dumb visit/gen/whatever abstractions, we dont need em
+//! collect globals into 1 context struct, and just pass that around functions like a boss
+
 #![feature(try_trait)]
 #![feature(backtrace)]
 #![feature(once_cell)]
@@ -11,7 +15,6 @@ mod error;
 mod expr;
 mod late_init;
 mod parse;
-mod pass;
 mod scope;
 mod span;
 mod statement;
@@ -22,7 +25,6 @@ use crate::compile::compile_program;
 use crate::define::Program;
 use crate::error::{MyError, MyResult};
 use crate::parse::{Kind, Node};
-use crate::pass::Gen;
 use std::lazy::SyncOnceCell;
 use std::path::Path;
 

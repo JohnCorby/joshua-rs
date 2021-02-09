@@ -4,11 +4,10 @@ use crate::error::{err, unexpected_kind, MyResult};
 use crate::expr::Expr;
 use crate::late_init::LateInit;
 use crate::parse::{Kind, Node};
-use crate::pass::{Gen, InitType, Visit};
 use crate::scope::Scope;
 use crate::span::Span;
 use crate::ty::{PrimitiveType, TypeKind};
-use crate::util::Mangle;
+use crate::util::{Mangle, Visit};
 use std::fmt::Write;
 
 #[derive(Debug, Clone)]
@@ -45,7 +44,7 @@ pub enum StatementKind {
 }
 
 impl Visit for Statement {
-    fn visit_impl(node: Node) -> Self {
+    fn visit(node: Node) -> Self {
         let span = node.span();
         use StatementKind::*;
         let kind = match node.kind() {
@@ -97,19 +96,15 @@ impl Visit for Statement {
     }
 }
 
-impl Gen for Statement {
-    fn span(&self) -> Span {
-        self.span
-    }
-
-    fn gen_impl(self) -> MyResult<String> {
+impl Statement {
+    pub fn gen(self) -> MyResult<String> {
         use StatementKind::*;
         Ok(match self.kind {
             Return(mut value) => {
                 // type check
                 value
                     .as_mut()
-                    .map(|value| value.init_type())
+                    .map(|value| value.ty())
                     .transpose()?
                     .unwrap_or_else(|| PrimitiveType::Void.ty())
                     .check(&Scope::current().func_return_type())?;
@@ -140,7 +135,7 @@ impl Gen for Statement {
                 otherwise,
             } => {
                 // type check
-                cond.init_type()?.check(&PrimitiveType::Bool.ty())?;
+                cond.ty()?.check(&PrimitiveType::Bool.ty())?;
 
                 let mut s = format!("if({}) ", cond.gen()?);
                 let scope = Scope::new(false, None);
@@ -156,7 +151,7 @@ impl Gen for Statement {
             }
             Until { mut cond, block } => {
                 // type check
-                cond.init_type()?.check(&PrimitiveType::Bool.ty())?;
+                cond.ty()?.check(&PrimitiveType::Bool.ty())?;
 
                 let mut s = format!("while(!({})) ", cond.gen()?);
                 let scope = Scope::new(true, None);
@@ -176,7 +171,7 @@ impl Gen for Statement {
                 let mut s = format!("for({}; ", init.gen()?);
 
                 // type check
-                cond.init_type()?.check(&PrimitiveType::Bool.ty())?;
+                cond.ty()?.check(&PrimitiveType::Bool.ty())?;
 
                 write!(
                     s,
@@ -195,7 +190,7 @@ impl Gen for Statement {
             } => {
                 // type check
                 lvalue.check_assignable()?;
-                rvalue.init_type()?.check(&lvalue.init_type()?)?;
+                rvalue.ty()?.check(&lvalue.ty()?)?;
 
                 format!("{} = {};", lvalue.gen()?, rvalue.gen()?)
             }
@@ -212,7 +207,7 @@ pub struct Block {
 }
 
 impl Visit for Block {
-    fn visit_impl(node: Node) -> Self {
+    fn visit(node: Node) -> Self {
         let span = node.span();
         let statements = node.children_checked(Kind::block).visit_rest();
 
@@ -220,17 +215,13 @@ impl Visit for Block {
     }
 }
 
-impl Gen for Block {
-    fn span(&self) -> Span {
-        self.span
-    }
-
-    fn gen_impl(self) -> MyResult<String> {
+impl Block {
+    pub fn gen(self) -> MyResult<String> {
         Ok(format!(
             "{{\n{}\n}}",
             self.statements
                 .into_iter()
-                .map(Gen::gen)
+                .map(Statement::gen)
                 .collect::<MyResult<Vec<_>>>()?
                 .join("\n")
         ))
@@ -246,7 +237,7 @@ pub struct FuncCall {
 }
 
 impl Visit for FuncCall {
-    fn visit_impl(node: Node) -> Self {
+    fn visit(node: Node) -> Self {
         let span = node.span();
         let mut nodes = node.children_checked(Kind::func_call);
 
@@ -259,40 +250,32 @@ impl Visit for FuncCall {
     }
 }
 
-impl InitType for FuncCall {
-    fn span(&self) -> Span {
-        self.span
+impl FuncCall {
+    pub fn init_type(&mut self) -> MyResult<TypeKind> {
+        let name = self.name;
+        let args = &mut self.args;
+        self.ty
+            .get_or_try_init(|| {
+                Ok(Scope::current()
+                    .get_func(
+                        name,
+                        &mut args
+                            .iter_mut()
+                            .map(|arg| arg.ty())
+                            .collect::<MyResult<Vec<_>>>()?,
+                    )?
+                    .ty())
+            })
+            .map(|r| *r)
     }
 
-    fn init_type_impl(&mut self) -> MyResult<TypeKind> {
-        let ty = Scope::current()
-            .get_func(
-                self.name,
-                self.args
-                    .iter_mut()
-                    .map(|arg| arg.init_type())
-                    .collect::<MyResult<Vec<_>>>()?,
-            )
-            .unwrap()
-            .ty();
-
-        self.ty.init(ty);
-        Ok(ty)
-    }
-}
-
-impl Gen for FuncCall {
-    fn span(&self) -> Span {
-        self.span
-    }
-
-    fn gen_impl(self) -> MyResult<String> {
+    pub fn gen(self) -> MyResult<String> {
         let s = format!(
             "{}({})",
             self.name.to_string().mangle(),
             self.args
                 .into_iter()
-                .map(Gen::gen)
+                .map(Expr::gen)
                 .collect::<MyResult<Vec<_>>>()?
                 .join(", "),
         );
@@ -313,7 +296,7 @@ pub enum CCodePart {
 }
 
 impl Visit for CCode {
-    fn visit_impl(node: Node) -> Self {
+    fn visit(node: Node) -> Self {
         let span = node.span();
         let parts = node
             .children_checked(Kind::c_code)
@@ -334,14 +317,8 @@ impl CCode {
     pub fn ty(&self) -> TypeKind {
         TypeKind::CCode
     }
-}
 
-impl Gen for CCode {
-    fn span(&self) -> Span {
-        self.span
-    }
-
-    fn gen_impl(self) -> MyResult<String> {
+    pub fn gen(self) -> MyResult<String> {
         self.parts
             .into_iter()
             .map(|part| match part {

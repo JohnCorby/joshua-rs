@@ -2,12 +2,11 @@ use crate::cached::CachedString;
 use crate::error::{unexpected_kind, MyResult};
 use crate::expr::Expr;
 use crate::parse::{Kind, Node};
-use crate::pass::{Gen, InitType, Visit};
 use crate::scope::{Scope, Symbol};
 use crate::span::Span;
 use crate::statement::{Block, CCode};
 use crate::ty::Type;
-use crate::util::Mangle;
+use crate::util::{Mangle, Visit};
 use std::fmt::Write;
 
 #[derive(Debug, Clone)]
@@ -17,7 +16,7 @@ pub struct Program {
 }
 
 impl Visit for Program {
-    fn visit_impl(node: Node) -> Self {
+    fn visit(node: Node) -> Self {
         let span = node.span();
         let defines = node
             .children_checked(Kind::program)
@@ -31,17 +30,13 @@ impl Visit for Program {
     }
 }
 
-impl Gen for Program {
-    fn span(&self) -> Span {
-        self.span
-    }
-
-    fn gen_impl(self) -> MyResult<String> {
+impl Program {
+    pub fn gen(self) -> MyResult<String> {
         let scope = Scope::init();
         let s = self
             .defines
             .into_iter()
-            .map(Gen::gen)
+            .map(Define::gen)
             .collect::<MyResult<Vec<_>>>()?
             .join("\n");
         drop(scope);
@@ -72,7 +67,7 @@ pub enum DefineKind {
 }
 
 impl Visit for Define {
-    fn visit_impl(node: Node) -> Self {
+    fn visit(node: Node) -> Self {
         let span = node.span();
         use DefineKind::*;
         let kind = match node.kind() {
@@ -113,12 +108,8 @@ impl Visit for Define {
     }
 }
 
-impl Gen for Define {
-    fn span(&self) -> Span {
-        self.span
-    }
-
-    fn gen_impl(self) -> MyResult<String> {
+impl Define {
+    pub fn gen(self) -> MyResult<String> {
         use DefineKind::*;
         Ok(match self.kind {
             Struct { name, body } => {
@@ -136,7 +127,7 @@ impl Gen for Define {
                 format!(
                     "typedef struct {{\n{}\n}} {};",
                     body.into_iter()
-                        .map(Gen::gen)
+                        .map(Define::gen)
                         .collect::<MyResult<Vec<_>>>()?
                         .join("\n"),
                     name
@@ -160,7 +151,7 @@ impl Gen for Define {
                     ty.gen()?,
                     name.to_string().mangle(),
                     args.into_iter()
-                        .map(Gen::gen)
+                        .map(VarDefine::gen)
                         .collect::<MyResult<Vec<_>>>()?
                         .join(", "),
                     body.gen()?
@@ -185,7 +176,7 @@ pub struct VarDefine {
 }
 
 impl Visit for VarDefine {
-    fn visit_impl(node: Node) -> Self {
+    fn visit(node: Node) -> Self {
         let span = node.span();
         let mut nodes = node.children_checked(Kind::var_define);
 
@@ -198,12 +189,8 @@ impl Visit for VarDefine {
     }
 }
 
-impl Gen for VarDefine {
-    fn span(&self) -> Span {
-        self.span
-    }
-
-    fn gen_impl(mut self) -> MyResult<String> {
+impl VarDefine {
+    pub fn gen(mut self) -> MyResult<String> {
         Scope::current().add(Symbol::Var {
             ty: self.ty.kind,
             name: self.name,
@@ -211,7 +198,7 @@ impl Gen for VarDefine {
 
         // type check
         if let Some(value) = &mut self.value {
-            value.init_type()?.check(&self.ty.kind)?;
+            value.ty()?.check(&self.ty.kind)?;
         }
 
         let mut s = format!("{} {}", self.ty.gen()?, self.name.to_string().mangle());

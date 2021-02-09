@@ -1,3 +1,9 @@
+use crate::parse::Node;
+
+pub trait Visit: Sized {
+    fn visit(node: Node) -> Self;
+}
+
 pub trait Mangle {
     fn mangle(&self) -> String;
     fn demangle(&self) -> String;

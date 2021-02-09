@@ -47,7 +47,7 @@ impl Span {
             None => None,
         }
     }
-    pub fn set_current(&self) {
+    pub fn track(&self) {
         *current_span() = Some(*self);
     }
 

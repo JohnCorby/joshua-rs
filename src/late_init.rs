@@ -1,5 +1,4 @@
-use crate::error::warn_internal;
-use std::ops::Deref;
+use crate::error::{warn_internal, MyResult};
 
 #[derive(Debug, Copy, Clone)]
 pub struct LateInit<T> {
@@ -9,22 +8,22 @@ pub struct LateInit<T> {
 
 impl<T> LateInit<T> {
     pub fn new(what: &'static str) -> Self {
-        Self { inner: None, what }
-    }
-
-    pub fn init(&mut self, value: T) {
-        if self.inner.is_some() {
-            return warn_internal(format!("{} already initialized", self.what));
+        Self {
+            inner: Default::default(),
+            what,
         }
-        self.inner = Some(value)
     }
-}
 
-impl<T> Deref for LateInit<T> {
-    type Target = T;
-    fn deref(&self) -> &Self::Target {
-        self.inner
-            .as_ref()
-            .unwrap_or_else(|| panic!("{} not initialized", self.what))
+    pub fn get_or_try_init(&mut self, f: impl FnOnce() -> MyResult<T>) -> MyResult<&T> {
+        Ok(match self.inner {
+            Some(ref inner) => {
+                warn_internal(format!("{} already initialized", self.what));
+                inner
+            }
+            None => {
+                self.inner = Some(f()?);
+                self.inner.as_ref().unwrap()
+            }
+        })
     }
 }

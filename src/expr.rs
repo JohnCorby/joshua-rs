@@ -4,12 +4,11 @@ use crate::cached::CachedString;
 use crate::error::{err, unexpected_kind, MyResult};
 use crate::late_init::LateInit;
 use crate::parse::{Kind, Node};
-use crate::pass::{Gen, InitType, Visit};
 use crate::scope::{Scope, Symbol};
 use crate::span::Span;
 use crate::statement::{CCode, FuncCall};
 use crate::ty::{LiteralType, PrimitiveType, Type, TypeKind};
-use crate::util::Mangle;
+use crate::util::{Mangle, Visit};
 
 #[derive(Debug, Clone)]
 pub struct Expr {
@@ -51,7 +50,7 @@ pub enum ExprKind {
 }
 
 impl Visit for Expr {
-    fn visit_impl(node: Node) -> Self {
+    fn visit(node: Node) -> Self {
         let span = node.span();
         let ty = LateInit::new("expr type");
         use ExprKind::*;
@@ -154,70 +153,71 @@ impl Visit for Expr {
     }
 }
 
-impl InitType for Expr {
-    fn span(&self) -> Span {
-        self.span
-    }
-
-    fn init_type_impl(&mut self) -> MyResult<TypeKind> {
-        use ExprKind::*;
-        let ty = match &mut self.kind {
-            Binary { left, op, right } => Scope::current()
-                .get_func(*op, [left.init_type()?, right.init_type()?])?
-                .ty(),
-            Unary { op, thing } => Scope::current().get_func(*op, [thing.init_type()?])?.ty(),
-            Cast { thing, ty } => Scope::current()
-                .get_func(format!("as {}", ty.kind).into(), [thing.init_type()?])?
-                .ty(),
-
-            MethodCall {
-                receiver,
-                func_call,
-            } => {
-                let receiver_ty = receiver.init_type()?;
-                let struct_name = match receiver_ty {
-                    TypeKind::Struct(struct_name) => struct_name,
-                    _ => return err(format!("expected struct type, but got {}", receiver_ty)),
-                };
-                let name = format!("{}::{}", struct_name, func_call.name).into();
-                let mut arg_types = func_call
-                    .args
-                    .iter_mut()
-                    .map(|arg| arg.init_type())
-                    .collect::<MyResult<Vec<_>>>()?;
-                arg_types.insert(0, receiver_ty);
-
-                Scope::current().get_func(name, arg_types)?.ty()
-            }
-            Field { receiver, var } => {
-                let struct_name = match receiver.init_type()? {
-                    TypeKind::Struct(struct_name) => struct_name,
-                    ty => return err(format!("expected struct type, but got {}", ty)),
-                };
-                let symbol = Scope::current().get_struct(struct_name)?;
-                let field_types = match &symbol {
-                    Symbol::Struct { field_types, .. } => field_types,
-                    _ => return err(format!("expected struct symbol, but got {}", symbol)),
-                };
-                match field_types.get(&var) {
-                    Some(&field_type) => field_type,
-                    None => return err(format!("no field named {} in {}", var, symbol)),
-                }
-            }
-
-            Literal(literal) => literal.ty(),
-            FuncCall(func_call) => func_call.init_type()?,
-            Var(name) => Scope::current().get_var(*name)?.ty(),
-
-            CCode(c_code) => c_code.ty(),
-        };
-
-        self.ty.init(ty);
-        Ok(ty)
-    }
-}
-
 impl Expr {
+    pub fn ty(&mut self) -> MyResult<TypeKind> {
+        let kind = &mut self.kind;
+        self.ty
+            .get_or_try_init(|| {
+                use ExprKind::*;
+                Ok(match kind {
+                    Binary { left, op, right } => Scope::current()
+                        .get_func(*op, [left.ty()?, right.ty()?])?
+                        .ty(),
+                    Unary { op, thing } => Scope::current().get_func(*op, [thing.ty()?])?.ty(),
+                    Cast { thing, ty } => Scope::current()
+                        .get_func(format!("as {}", ty.kind).into(), [thing.ty()?])?
+                        .ty(),
+
+                    MethodCall {
+                        receiver,
+                        func_call,
+                    } => {
+                        let receiver_ty = receiver.ty()?;
+                        let struct_name = match receiver_ty {
+                            TypeKind::Struct(struct_name) => struct_name,
+                            _ => {
+                                return err(format!(
+                                    "expected struct type, but got {}",
+                                    receiver_ty
+                                ))
+                            }
+                        };
+                        let name = format!("{}::{}", struct_name, func_call.name).into();
+                        let mut arg_types = func_call
+                            .args
+                            .iter_mut()
+                            .map(|arg| arg.ty())
+                            .collect::<MyResult<Vec<_>>>()?;
+                        arg_types.insert(0, receiver_ty);
+
+                        Scope::current().get_func(name, arg_types)?.ty()
+                    }
+                    Field { receiver, var } => {
+                        let struct_name = match receiver.ty()? {
+                            TypeKind::Struct(struct_name) => struct_name,
+                            ty => return err(format!("expected struct type, but got {}", ty)),
+                        };
+                        let symbol = Scope::current().get_struct(struct_name)?;
+                        let field_types = match &symbol {
+                            Symbol::Struct { field_types, .. } => field_types,
+                            _ => return err(format!("expected struct symbol, but got {}", symbol)),
+                        };
+                        match field_types.get(&var) {
+                            Some(&field_type) => field_type,
+                            None => return err(format!("no field named {} in {}", var, symbol)),
+                        }
+                    }
+
+                    Literal(literal) => literal.ty(),
+                    FuncCall(func_call) => func_call.init_type()?,
+                    Var(name) => Scope::current().get_var(*name)?.ty(),
+
+                    CCode(c_code) => c_code.ty(),
+                })
+            })
+            .map(|r| *r)
+    }
+
     pub fn check_assignable(&self) -> MyResult<()> {
         use ExprKind::*;
         let is_assignable = matches!(self.kind, Field { .. } | Var(_));
@@ -228,14 +228,8 @@ impl Expr {
             Ok(())
         }
     }
-}
 
-impl Gen for Expr {
-    fn span(&self) -> Span {
-        self.span
-    }
-
-    fn gen_impl(self) -> MyResult<String> {
+    pub fn gen(self) -> MyResult<String> {
         use ExprKind::*;
         Ok(match self.kind {
             Binary { left, op, right } => format!("({} {} {})", left.gen()?, op, right.gen()?),
@@ -246,7 +240,7 @@ impl Gen for Expr {
                 mut receiver,
                 mut func_call,
             } => {
-                let struct_name = match receiver.init_type()? {
+                let struct_name = match receiver.ty()? {
                     TypeKind::Struct(struct_name) => struct_name,
                     ty => return err(format!("expected struct type, but got {}", ty)),
                 };
@@ -283,7 +277,7 @@ pub enum LiteralKind {
 }
 
 impl Visit for Literal {
-    fn visit_impl(node: Node) -> Self {
+    fn visit(node: Node) -> Self {
         let span = node.span();
         use LiteralKind::*;
         let kind = match node.kind() {
@@ -311,14 +305,8 @@ impl Literal {
             Str(_) => todo!("usage of string literals is not yet supported"),
         }
     }
-}
 
-impl Gen for Literal {
-    fn span(&self) -> Span {
-        self.span
-    }
-
-    fn gen_impl(self) -> MyResult<String> {
+    pub fn gen(self) -> MyResult<String> {
         use LiteralKind::*;
         Ok(match self.kind {
             Float(value) => value.to_string(),

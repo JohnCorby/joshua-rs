@@ -1,6 +1,6 @@
 use crate::error::MyResult;
-use crate::pass::Visit;
 use crate::span::Span;
+use crate::util::Visit;
 use console::style;
 use pest::iterators::{Pair, Pairs};
 use pest::Parser;
@@ -33,6 +33,10 @@ impl<'i> Node<'i> {
     }
     pub fn as_str(&self) -> &'i str {
         self.0.as_str()
+    }
+
+    pub fn track(&self) {
+        self.span().track()
     }
 
     /// turns visit into an extension method for node

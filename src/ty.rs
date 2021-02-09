@@ -1,9 +1,9 @@
 use crate::cached::CachedString;
 use crate::error::{err, unexpected_kind, MyResult};
 use crate::parse::{Kind, Node};
-use crate::pass::{Gen, Visit};
 use crate::scope::Scope;
 use crate::span::Span;
+use crate::util::Visit;
 use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
 
@@ -12,6 +12,55 @@ pub struct Type {
     pub span: Span,
     pub kind: TypeKind,
 }
+impl Visit for Type {
+    fn visit(node: Node) -> Self {
+        let node = node.children_checked(Kind::ty).next().unwrap();
+        let kind = match node.kind() {
+            Kind::primitive => TypeKind::Primitive(node.as_str().parse().unwrap()),
+            Kind::ident => TypeKind::Struct(node.as_str().into()),
+
+            _ => unexpected_kind(node),
+        };
+
+        Self {
+            span: node.span(),
+            kind,
+        }
+    }
+}
+
+impl Type {
+    pub fn gen(self) -> MyResult<String> {
+        use TypeKind::*;
+        Ok(match self.kind {
+            Primitive(ty) => {
+                use PrimitiveType::*;
+                match ty {
+                    I8 => "signed char",
+                    U8 => "unsigned char",
+                    I16 => "signed short",
+                    U16 => "unsigned short",
+                    I32 => "signed int",
+                    U32 => "unsigned int",
+                    I64 => "signed long long",
+                    U64 => "unsigned long long",
+                    F32 => "float",
+                    F64 => "double",
+                    Bool => "unsigned char",
+                    Char => "unsigned char",
+                    Void => "void",
+                }
+                .into()
+            }
+            Struct(name) => {
+                Scope::current().get_struct(name)?;
+                name.to_string()
+            }
+            kind => panic!("tried to gen {}", kind),
+        })
+    }
+}
+
 #[derive(Debug, Copy, Clone)]
 pub enum TypeKind {
     Primitive(PrimitiveType),
@@ -32,40 +81,6 @@ impl TypeKind {
 impl Default for TypeKind {
     fn default() -> Self {
         Self::Primitive(PrimitiveType::Void)
-    }
-}
-
-#[derive(Debug, Copy, Clone, Hash, PartialEq, strum::EnumString, strum::Display)]
-#[strum(serialize_all = "snake_case")]
-pub enum PrimitiveType {
-    I8,
-    U8,
-    I16,
-    U16,
-    I32,
-    U32,
-    I64,
-    U64,
-    F32,
-    F64,
-    Bool,
-    Char,
-    Void,
-}
-impl PrimitiveType {
-    pub fn ty(&self) -> TypeKind {
-        TypeKind::Primitive(*self)
-    }
-}
-
-#[derive(Debug, Copy, Clone, Hash, PartialEq, strum::Display)]
-pub enum LiteralType {
-    Float,
-    Int,
-}
-impl LiteralType {
-    pub fn ty(&self) -> TypeKind {
-        TypeKind::Literal(*self)
     }
 }
 
@@ -109,55 +124,36 @@ impl Display for TypeKind {
     }
 }
 
-impl Visit for Type {
-    fn visit_impl(node: Node) -> Self {
-        let node = node.children_checked(Kind::ty).next().unwrap();
-        let kind = match node.kind() {
-            Kind::primitive => TypeKind::Primitive(node.as_str().parse().unwrap()),
-            Kind::ident => TypeKind::Struct(node.as_str().into()),
-
-            _ => unexpected_kind(node),
-        };
-
-        Self {
-            span: node.span(),
-            kind,
-        }
+#[derive(Debug, Copy, Clone, Hash, PartialEq, strum::EnumString, strum::Display)]
+#[strum(serialize_all = "snake_case")]
+pub enum PrimitiveType {
+    I8,
+    U8,
+    I16,
+    U16,
+    I32,
+    U32,
+    I64,
+    U64,
+    F32,
+    F64,
+    Bool,
+    Char,
+    Void,
+}
+impl PrimitiveType {
+    pub fn ty(&self) -> TypeKind {
+        TypeKind::Primitive(*self)
     }
 }
 
-impl Gen for Type {
-    fn span(&self) -> Span {
-        self.span
-    }
-
-    fn gen_impl(self) -> MyResult<String> {
-        use TypeKind::*;
-        Ok(match self.kind {
-            Primitive(ty) => {
-                use PrimitiveType::*;
-                match ty {
-                    I8 => "signed char",
-                    U8 => "unsigned char",
-                    I16 => "signed short",
-                    U16 => "unsigned short",
-                    I32 => "signed int",
-                    U32 => "unsigned int",
-                    I64 => "signed long long",
-                    U64 => "unsigned long long",
-                    F32 => "float",
-                    F64 => "double",
-                    Bool => "unsigned char",
-                    Char => "unsigned char",
-                    Void => "void",
-                }
-                .into()
-            }
-            Struct(name) => {
-                Scope::current().get_struct(name)?;
-                name.to_string()
-            }
-            kind => panic!("tried to gen {}", kind),
-        })
+#[derive(Debug, Copy, Clone, Hash, PartialEq, strum::Display)]
+pub enum LiteralType {
+    Float,
+    Int,
+}
+impl LiteralType {
+    pub fn ty(&self) -> TypeKind {
+        TypeKind::Literal(*self)
     }
 }
