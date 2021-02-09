@@ -8,13 +8,13 @@ use crate::pass::{Gen, InitType, Visit};
 use crate::scope::{Scope, Symbol};
 use crate::span::Span;
 use crate::statement::{CCode, FuncCall};
-use crate::ty::{LiteralType, PrimitiveType, Type};
+use crate::ty::{LiteralType, PrimitiveType, Type, TypeKind};
 
 #[derive(Debug, Clone)]
 pub struct Expr {
     span: Span,
     kind: ExprKind,
-    ty: LateInit<Type>,
+    pub ty: LateInit<TypeKind>,
 }
 #[derive(Debug, Clone)]
 pub enum ExprKind {
@@ -51,74 +51,107 @@ pub enum ExprKind {
 
 impl Visit for Expr {
     fn visit_impl(node: Node) -> Self {
+        let span = node.span();
         use ExprKind::*;
         let kind = match node.kind() {
-            Kind::expr => node.children().next().unwrap().visit().0,
+            Kind::expr => node.children().next().unwrap().visit::<Expr>().kind,
             Kind::equality_expr | Kind::compare_expr | Kind::add_expr | Kind::mul_expr => {
                 // left assoc
                 let mut nodes = node.children();
 
-                let mut left: Expr = nodes.next().unwrap().visit();
+                let mut left = nodes.next().unwrap().visit::<Expr>();
+                let mut span = left.span;
+                let mut kind = left.kind;
                 while let Some(op) = nodes.next() {
-                    left.kind = Binary {
+                    left = Expr {
+                        span,
+                        kind,
+                        ty: Default::default(),
+                    };
+                    span = left.span;
+                    kind = Binary {
                         left: left.into(),
                         op: op.as_str().into(),
                         right: nodes.next().unwrap().visit::<Expr>().into(),
-                    }
+                    };
                 }
 
-                left.kind
+                kind
             }
             Kind::unary_expr => {
                 // right assoc
                 let mut rev_nodes = node.children().rev();
 
-                let mut thing: Expr = rev_nodes.next().unwrap().visit();
+                let mut thing = rev_nodes.next().unwrap().visit::<Expr>();
+                let mut span = thing.span;
+                let mut kind = thing.kind;
                 for op in rev_nodes {
-                    thing.kind = Unary {
-                        op: op.as_cached_str_with_span(),
+                    thing = Expr {
+                        span,
+                        kind,
+                        ty: Default::default(),
+                    };
+                    span = thing.span;
+                    kind = Unary {
+                        op: op.as_str().into(),
                         thing: thing.into(),
-                    }
+                    };
                 }
 
-                thing.kind
+                kind
             }
             Kind::cast_expr => {
                 // left assoc
                 let mut nodes = node.children();
 
-                let mut thing: Expr = nodes.next().unwrap().visit();
+                let mut thing = nodes.next().unwrap().visit::<Expr>();
+                let mut span = thing.span;
+                let mut kind = thing.kind;
                 for ty in nodes {
-                    thing.kind = Cast {
+                    thing = Expr {
+                        span,
+                        kind,
+                        ty: Default::default(),
+                    };
+                    span = thing.span;
+                    kind = Cast {
                         thing: thing.into(),
                         ty: ty.visit(),
                     }
                 }
 
-                thing.kind
+                kind
             }
 
             Kind::dot_expr => {
                 // left assoc
                 let mut nodes = node.children();
 
-                let mut left: Expr = nodes.next().unwrap().visit();
+                let mut left = nodes.next().unwrap().visit::<Expr>();
+                let mut kind = left.kind;
+                let mut span = left.span;
                 for right in nodes {
-                    left.kind = match right.kind() {
+                    left = Expr {
+                        span,
+                        kind,
+                        ty: Default::default(),
+                    };
+                    span = left.span;
+                    kind = match right.kind() {
                         Kind::func_call => MethodCall {
                             receiver: left.into(),
                             func_call: right.visit(),
                         },
                         Kind::ident => Field {
                             receiver: left.into(),
-                            var: right.as_cached_str_with_span(),
+                            var: right.as_str().into(),
                         },
 
                         _ => unexpected_kind(right),
                     }
                 }
 
-                left.kind
+                kind
             }
 
             // primary
@@ -132,7 +165,7 @@ impl Visit for Expr {
         };
 
         Self {
-            span: node.span(),
+            span,
             kind,
             ty: Default::default(),
         }
@@ -143,68 +176,62 @@ impl InitType for Expr {
     fn span(&self) -> Span {
         self.span
     }
-    fn ty(&self) -> Type {
-        *self.ty
-    }
 
-    fn init_type_impl(self) -> MyResult<Self> {
+    fn init_type_impl(self) -> MyResult<TypeKind> {
         use ExprKind::*;
-        *self.ty = match &self.kind {
+        let ty = match self.kind {
             Binary { left, op, right } => Scope::current()
-                .get_func(*op, [left.init_type()?.ty(), right.init_type()?.ty()])?
+                .get_func(op, [left.init_type()?, right.init_type()?])?
                 .ty(),
-            Unary { op, thing } => Scope::current()
-                .get_func(*op, [thing.init_type()?.ty()])?
-                .ty(),
+            Unary { op, thing } => Scope::current().get_func(op, [thing.init_type()?])?.ty(),
             Cast { thing, ty } => Scope::current()
-                .get_func(format!("as {}", *ty).into(), [thing.init_type()?.ty()])?
+                .get_func(format!("as {}", ty.kind).into(), [thing.init_type()?])?
                 .ty(),
 
             MethodCall {
                 receiver,
                 func_call,
             } => {
-                let receiver_ty = receiver.init_type()?.ty();
+                let receiver_ty = receiver.init_type()?;
                 let struct_name = match receiver_ty {
-                    Type::Struct(struct_name) => struct_name,
-                    ty => return err(format!("expected struct type, but got {}", ty)),
+                    TypeKind::Struct(struct_name) => struct_name,
+                    _ => return err(format!("expected struct type, but got {}", receiver_ty)),
                 };
-                let name = *func_call
-                    .name
-                    .map(|name| format!("{}.{}", struct_name, name).into());
+                let name = format!("{}::{}", struct_name, func_call.name).into();
                 let mut arg_types = func_call
                     .args
-                    .iter()
-                    .map(|arg| arg.ty())
-                    .collect::<Vec<_>>();
+                    .into_iter()
+                    .map(|arg| arg.init_type())
+                    .collect::<MyResult<Vec<_>>>()?;
                 arg_types.insert(0, receiver_ty);
 
                 Scope::current().get_func(name, arg_types)?.ty()
             }
             Field { receiver, var } => {
-                let struct_name = match receiver.ty() {
-                    Type::Struct(struct_name) => struct_name,
+                let struct_name = match *receiver.ty {
+                    TypeKind::Struct(struct_name) => struct_name,
                     ty => return err(format!("expected struct type, but got {}", ty)),
                 };
-                let symbol = Scope::current().get_struct(struct_name).unwrap();
-                let field_types = match symbol {
+                let symbol = Scope::current().get_struct(struct_name)?;
+                let field_types = match &symbol {
                     Symbol::Struct { field_types, .. } => field_types,
                     _ => return err(format!("expected struct symbol, but got {}", symbol)),
                 };
                 match field_types.get(&var) {
                     Some(&field_type) => field_type,
-                    None => return err(format!("no field named {} in {}", *var, symbol)),
+                    None => return err(format!("no field named {} in {}", var, symbol)),
                 }
             }
 
             Literal(literal) => literal.ty(),
-            FuncCall(func_call) => func_call.ty(),
-            Var(name) => Scope::current().get_var(*name).unwrap().ty(),
+            FuncCall(func_call) => *func_call.ty,
+            Var(name) => Scope::current().get_var(name)?.ty(),
 
             CCode(c_code) => c_code.ty(),
         };
 
-        Ok(self)
+        self.ty.init(ty);
+        Ok(ty)
     }
 }
 
@@ -224,45 +251,22 @@ impl Gen for Expr {
                 receiver,
                 mut func_call,
             } => {
-                let struct_name = match receiver.ty() {
-                    Type::Struct(struct_name) => struct_name,
+                let struct_name = match *receiver.ty {
+                    TypeKind::Struct(struct_name) => struct_name,
                     ty => return err(format!("expected struct type, but got {}", ty)),
                 };
-                func_call.name = func_call
-                    .name
-                    .map(|name| format!("{}.{}", struct_name, name).into());
+                func_call.name = format!("{}::{}", struct_name, func_call.name).into();
                 func_call.args.insert(0, *receiver);
 
                 func_call.gen()?
             }
-            Field { receiver, var } => {
-                let s = format!("({}.{})", receiver.clone().gen()?, *var);
+            Field { receiver, var } => format!("({}.{})", receiver.gen()?, var),
 
-                // symbol check
-                let struct_name = match receiver.ty() {
-                    Type::Struct(struct_name) => struct_name,
-                    ty => return err(format!("expected struct type, but got {}", ty)),
-                };
-                let symbol = Scope::current().get_struct(struct_name).unwrap();
-                let field_types = match &symbol {
-                    Symbol::Struct { field_types, .. } => field_types,
-                    _ => return err(format!("expected struct symbol, but got {}", symbol)),
-                };
-                if !field_types.contains_key(&var) {
-                    return err(format!("no field named {} in {}", *var, symbol));
-                }
+            Literal(literal) => literal.gen()?,
+            FuncCall(func_call) => func_call.gen()?,
+            Var(name) => name.to_string(),
 
-                s
-            }
-
-            Literal(literal) => literal.with(self.1).gen()?,
-            FuncCall(func_call) => func_call.with(self.1).gen()?,
-            Var(name) => {
-                Scope::current().get_var(name)?;
-                name.to_string()
-            }
-
-            CCode(c_code) => c_code.with(self.1).gen()?,
+            CCode(c_code) => c_code.gen()?,
         })
     }
 }
@@ -271,7 +275,6 @@ impl Gen for Expr {
 pub struct Literal {
     span: Span,
     kind: LiteralKind,
-    ty: LateInit<Type>,
 }
 #[derive(Debug, Clone)]
 pub enum LiteralKind {
@@ -284,6 +287,7 @@ pub enum LiteralKind {
 
 impl Visit for Literal {
     fn visit_impl(node: Node) -> Self {
+        let span = node.span();
         use LiteralKind::*;
         let kind = match node.kind() {
             Kind::float_literal => Float(node.as_str().parse().unwrap()),
@@ -295,33 +299,20 @@ impl Visit for Literal {
             _ => unexpected_kind(node),
         };
 
-        Self {
-            span: node.span(),
-            kind,
-            ty: Default::default(),
-        }
+        Self { span, kind }
     }
 }
 
-impl InitType for Literal {
-    fn span(&self) -> Span {
-        self.span
-    }
-    fn ty(&self) -> Type {
-        *self.ty
-    }
-
-    fn init_type_impl(self) -> MyResult<Self> {
+impl Literal {
+    pub fn ty(&self) -> TypeKind {
         use LiteralKind::*;
-        *self.ty = match self.kind {
+        match self.kind {
             Float(_) => LiteralType::Float.ty(),
             Int(_) => LiteralType::Int.ty(),
             Bool(_) => PrimitiveType::Bool.ty(),
             Char(_) => PrimitiveType::Char.ty(),
             Str(_) => todo!("usage of string literals is not yet supported"),
-        };
-
-        Ok(self)
+        }
     }
 }
 

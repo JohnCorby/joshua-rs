@@ -6,12 +6,11 @@ use crate::scope::Scope;
 use crate::span::Span;
 use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
-use std::str::FromStr;
 
 #[derive(Debug, Copy, Clone)]
 pub struct Type {
-    span: Span,
-    kind: Type,
+    pub span: Span,
+    pub kind: TypeKind,
 }
 #[derive(Debug, Copy, Clone)]
 pub enum TypeKind {
@@ -20,14 +19,19 @@ pub enum TypeKind {
     Literal(LiteralType),
     CCode,
 }
-impl Type {
-    pub fn check(self, expected: Type) -> MyResult<()> {
+impl TypeKind {
+    pub fn check(&self, expected: &TypeKind) -> MyResult<()> {
         let actual = self;
         if expected == actual {
             Ok(())
         } else {
             err(format!("expected {}, but got {}", expected, actual))
         }
+    }
+}
+impl Default for TypeKind {
+    fn default() -> Self {
+        Self::Primitive(PrimitiveType::Void)
     }
 }
 
@@ -49,8 +53,8 @@ pub enum PrimitiveType {
     Void,
 }
 impl PrimitiveType {
-    pub fn ty(&self) -> Type {
-        Self::Primitive(*self)
+    pub fn ty(&self) -> TypeKind {
+        TypeKind::Primitive(*self)
     }
 }
 
@@ -60,16 +64,16 @@ pub enum LiteralType {
     Int,
 }
 impl LiteralType {
-    pub fn ty(&self) -> Type {
-        Self::Literal(*self)
+    pub fn ty(&self) -> TypeKind {
+        TypeKind::Literal(*self)
     }
 }
 
 /// note: eq contains cases that hash doesnt cover, check both when comparing
-impl Hash for Type {
+impl Hash for TypeKind {
     fn hash<H: Hasher>(&self, state: &mut H) {
         use TypeKind::*;
-        match &self.kind {
+        match self {
             Primitive(ty) => ty.hash(state),
             Struct(name) => name.hash(state),
             Literal(ty) => ty.hash(state),
@@ -77,10 +81,10 @@ impl Hash for Type {
         }
     }
 }
-impl PartialEq for Type {
+impl PartialEq for TypeKind {
     fn eq(&self, other: &Self) -> bool {
         use TypeKind::*;
-        match (self.kind, other.kind) {
+        match (self, other) {
             (Primitive(ty1), Primitive(ty2)) => ty1 == ty2,
             (Struct(name1), Struct(name2)) => name1 == name2,
             (Literal(ty1), Literal(ty2)) => ty1 == ty2,
@@ -93,7 +97,7 @@ impl PartialEq for Type {
     }
 }
 
-impl Display for Type {
+impl Display for TypeKind {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         use TypeKind::*;
         match self {
@@ -109,8 +113,8 @@ impl Visit for Type {
     fn visit_impl(node: Node) -> Self {
         let node = node.children_checked(Kind::ty).next().unwrap();
         let kind = match node.kind() {
-            Kind::primitive => Self::Primitive(PrimitiveType::from_str(node.as_str()).unwrap()),
-            Kind::ident => Self::Struct(node.as_str().into()),
+            Kind::primitive => TypeKind::Primitive(node.as_str().parse().unwrap()),
+            Kind::ident => TypeKind::Struct(node.as_str().into()),
 
             _ => unexpected_kind(node),
         };
@@ -153,7 +157,7 @@ impl Gen for Type {
                 Scope::current().get_struct(name)?;
                 name.to_string()
             }
-            ty => panic!("tried to gen {}", ty),
+            kind => panic!("tried to gen {}", kind),
         })
     }
 }

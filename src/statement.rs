@@ -2,37 +2,42 @@ use crate::cached::CachedString;
 use crate::define::VarDefine;
 use crate::error::{err, unexpected_kind, MyResult};
 use crate::expr::Expr;
+use crate::late_init::LateInit;
 use crate::parse::{Kind, Node};
-use crate::pass::{Gen, Visit, WithSpan};
+use crate::pass::{Gen, InitType, Visit};
 use crate::scope::Scope;
 use crate::span::Span;
-use crate::ty::{HasType, PrimitiveType, Type};
-use crate::with::ToWith;
+use crate::ty::{PrimitiveType, TypeKind};
 use std::fmt::Write;
 
 #[derive(Debug, Clone)]
-pub enum Statement {
-    Return(Option<WithSpan<Expr>>),
+pub struct Statement {
+    span: Span,
+    kind: StatementKind,
+}
+#[derive(Debug, Clone)]
+pub enum StatementKind {
+    Return(Option<Expr>),
     Break,
     Continue,
     If {
-        cond: WithSpan<Expr>,
-        then: WithSpan<Block>,
-        otherwise: Option<WithSpan<Block>>,
+        cond: Expr,
+        then: Block,
+        otherwise: Option<Block>,
     },
     Until {
-        cond: WithSpan<Expr>,
-        block: WithSpan<Block>,
+        cond: Expr,
+        block: Block,
     },
     For {
-        init: WithSpan<VarDefine>,
-        cond: WithSpan<Expr>,
-        update: Box<WithSpan<Statement>>,
-        block: WithSpan<Block>,
+        init: VarDefine,
+        cond: Expr,
+        update: Box<Statement>,
+        block: Block,
     },
     VarAssign {
-        name: WithSpan<CachedString>,
-        value: WithSpan<Expr>,
+        name: CachedString,
+        value: Expr,
     },
     VarDefine(VarDefine),
     Expr(Expr),
@@ -40,14 +45,16 @@ pub enum Statement {
 
 impl Visit for Statement {
     fn visit_impl(node: Node) -> Self {
-        match node.kind() {
-            Kind::ret => Self::Return(node.children().next().map(Node::visit)),
-            Kind::brk => Self::Break,
-            Kind::cont => Self::Continue,
+        let span = node.span();
+        use StatementKind::*;
+        let kind = match node.kind() {
+            Kind::ret => Return(node.children().next().map(Node::visit)),
+            Kind::brk => Break,
+            Kind::cont => Continue,
             Kind::iff => {
                 let mut nodes = node.children();
 
-                Self::If {
+                If {
                     cond: nodes.next().unwrap().visit(),
                     then: nodes.next().unwrap().visit(),
                     otherwise: nodes.next().map(Node::visit),
@@ -56,7 +63,7 @@ impl Visit for Statement {
             Kind::until => {
                 let mut nodes = node.children();
 
-                Self::Until {
+                Until {
                     cond: nodes.next().unwrap().visit(),
                     block: nodes.next().unwrap().visit(),
                 }
@@ -64,7 +71,7 @@ impl Visit for Statement {
             Kind::forr => {
                 let mut nodes = node.children();
 
-                Self::For {
+                For {
                     init: nodes.next().unwrap().visit(),
                     cond: nodes.next().unwrap().visit(),
                     update: nodes.next().unwrap().visit::<Statement>().into(),
@@ -74,59 +81,66 @@ impl Visit for Statement {
             Kind::var_assign => {
                 let mut nodes = node.children();
 
-                Self::VarAssign {
-                    name: nodes.next().unwrap().as_cached_str_with_span(),
+                VarAssign {
+                    name: nodes.next().unwrap().as_str().into(),
                     value: nodes.next().unwrap().visit(),
                 }
             }
-            Kind::var_define => Self::VarDefine(node.visit().0),
-            Kind::expr => Self::Expr(node.visit().0),
+            Kind::var_define => VarDefine(node.visit()),
+            Kind::expr => Expr(node.visit()),
 
             _ => unexpected_kind(node),
-        }
+        };
+
+        Self { span, kind }
     }
 }
 
-impl Gen for WithSpan<Statement> {
+impl Gen for Statement {
     fn span(&self) -> Span {
-        self.1
+        self.span
     }
 
     fn gen_impl(self) -> MyResult<String> {
-        Ok(match self.0 {
-            Statement::Return(value) => {
+        use StatementKind::*;
+        Ok(match self.kind {
+            Return(value) => {
+                // type check
+                value
+                    .as_ref()
+                    .map(|value| *value.ty)
+                    .unwrap_or_else(|| PrimitiveType::Void.ty())
+                    .check(&Scope::current().func_return_type())?;
+
                 let mut s = String::from("return");
-                if let Some(value) = value.clone() {
+                if let Some(value) = value {
                     write!(s, " {}", value.gen()?).unwrap();
                 }
                 s.push(';');
 
-                // type check
-                value
-                    .map(|value| value.ty())
-                    .unwrap_or_else(|| PrimitiveType::Void.ty())
-                    .check(Scope::current().func_return_type())?;
-
                 s
             }
-            Statement::Break => {
+            Break => {
                 if !Scope::current().in_loop() {
                     return err("break cant be used outside of loops");
                 }
                 "break;".into()
             }
-            Statement::Continue => {
+            Continue => {
                 if !Scope::current().in_loop() {
                     return err("continue cant be used outside of loops");
                 }
                 "continue;".into()
             }
-            Statement::If {
+            If {
                 cond,
                 then,
                 otherwise,
             } => {
-                let mut s = format!("if({}) ", cond.clone().gen()?);
+                // type check
+                cond.ty.check(&PrimitiveType::Bool.ty())?;
+
+                let mut s = format!("if({}) ", cond.gen()?);
                 let scope = Scope::new(false, None);
                 s.write_str(&then.gen()?).unwrap();
                 drop(scope);
@@ -136,23 +150,20 @@ impl Gen for WithSpan<Statement> {
                     drop(scope);
                 }
 
-                // type check
-                cond.ty().check(PrimitiveType::Bool.ty())?;
-
                 s
             }
-            Statement::Until { cond, block } => {
-                let mut s = format!("while(!({})) ", cond.clone().gen()?);
+            Until { cond, block } => {
+                // type check
+                cond.ty.check(&PrimitiveType::Bool.ty())?;
+
+                let mut s = format!("while(!({})) ", cond.gen()?);
                 let scope = Scope::new(true, None);
                 s.write_str(&block.gen()?).unwrap();
                 drop(scope);
 
-                // type check
-                cond.ty().check(PrimitiveType::Bool.ty())?;
-
                 s
             }
-            Statement::For {
+            For {
                 init,
                 cond,
                 update,
@@ -160,49 +171,56 @@ impl Gen for WithSpan<Statement> {
                 ..
             } => {
                 let scope = Scope::new(true, None);
+
+                // type check
+                cond.ty.check(&PrimitiveType::Bool.ty())?;
+
                 let s = format!(
                     "for({}; {}; {}) {}",
                     init.gen()?,
-                    cond.clone().gen()?,
+                    cond.gen()?,
                     update.gen()?.strip_suffix(';')?,
                     block.gen()?
                 );
-
-                // type check
-                cond.ty().check(PrimitiveType::Bool.ty())?;
-
                 drop(scope);
                 s
             }
-            Statement::VarAssign { name, value } => {
-                let s = format!("{} = {};", *name, value.clone().gen()?);
+            VarAssign { name, value } => {
                 // type check
-                value.ty().check(Scope::current().get_var(name.0)?.ty())?;
-                s
+                value.ty.check(&Scope::current().get_var(name)?.ty())?;
+
+                format!("{} = {};", name, value.gen()?)
             }
-            Statement::VarDefine(var_define) => format!("{};", var_define.with(self.1).gen()?),
-            Statement::Expr(expr) => format!("{};", expr.with(self.1).gen()?),
+            VarDefine(var_define) => format!("{};", var_define.gen()?),
+            Expr(expr) => format!("{};", expr.gen()?),
         })
     }
 }
 
-pub type Block = Vec<WithSpan<Statement>>;
+#[derive(Debug, Clone)]
+pub struct Block {
+    span: Span,
+    statements: Vec<Statement>,
+}
 
 impl Visit for Block {
     fn visit_impl(node: Node) -> Self {
-        node.children_checked(Kind::block).visit_rest()
+        let span = node.span();
+        let statements = node.children_checked(Kind::block).visit_rest();
+
+        Self { span, statements }
     }
 }
 
-impl Gen for WithSpan<Block> {
+impl Gen for Block {
     fn span(&self) -> Span {
-        self.1
+        self.span
     }
 
     fn gen_impl(self) -> MyResult<String> {
         Ok(format!(
             "{{\n{}\n}}",
-            self.0
+            self.statements
                 .into_iter()
                 .map(Gen::gen)
                 .collect::<MyResult<Vec<_>>>()?
@@ -213,30 +231,54 @@ impl Gen for WithSpan<Block> {
 
 #[derive(Debug, Clone)]
 pub struct FuncCall {
-    pub name: WithSpan<CachedString>,
-    pub args: Vec<WithSpan<Expr>>,
+    pub span: Span,
+    pub name: CachedString,
+    pub args: Vec<Expr>,
+    pub ty: LateInit<TypeKind>,
 }
 
 impl Visit for FuncCall {
     fn visit_impl(node: Node) -> Self {
+        let span = node.span();
         let mut nodes = node.children_checked(Kind::func_call);
 
         Self {
-            name: nodes.next().unwrap().as_cached_str_with_span(),
+            span,
+            name: nodes.next().unwrap().as_str().into(),
             args: nodes.visit_rest(),
+            ty: Default::default(),
         }
     }
 }
 
-impl Gen for WithSpan<FuncCall> {
+impl InitType for FuncCall {
     fn span(&self) -> Span {
-        self.1
+        self.span
+    }
+
+    fn init_type_impl(self) -> MyResult<TypeKind> {
+        let ty = Scope::current()
+            .get_func(
+                self.name,
+                self.args.iter().map(|arg| *arg.ty).collect::<Vec<_>>(),
+            )
+            .unwrap()
+            .ty();
+
+        self.ty.init(ty);
+        Ok(ty)
+    }
+}
+
+impl Gen for FuncCall {
+    fn span(&self) -> Span {
+        self.span
     }
 
     fn gen_impl(self) -> MyResult<String> {
         let s = format!(
             "{}({})",
-            *self.name,
+            self.name,
             self.args
                 .clone()
                 .into_iter()
@@ -247,35 +289,30 @@ impl Gen for WithSpan<FuncCall> {
 
         // type check
         Scope::current().get_func(
-            *self.name,
-            self.args.iter().map(|arg| arg.ty()).collect::<Vec<_>>(),
+            self.name,
+            self.args.iter().map(|arg| *arg.ty).collect::<Vec<_>>(),
         )?;
 
         Ok(s)
     }
 }
 
-impl HasType for FuncCall {
-    fn ty(&self) -> Type {
-        Scope::current()
-            .get_func(
-                *self.name,
-                self.args.iter().map(|arg| arg.ty()).collect::<Vec<_>>(),
-            )
-            .unwrap()
-            .ty()
-    }
+#[derive(Debug, Clone)]
+pub struct CCode {
+    span: Span,
+    parts: Vec<CCodePart>,
 }
-
-pub type CCode = Vec<CCodePart>;
 #[derive(Debug, Clone)]
 pub enum CCodePart {
     String(String),
-    Expr(WithSpan<Expr>),
+    Expr(Expr),
 }
+
 impl Visit for CCode {
     fn visit_impl(node: Node) -> Self {
-        node.children_checked(Kind::c_code)
+        let span = node.span();
+        let parts = node
+            .children_checked(Kind::c_code)
             .into_iter()
             .map(|node| match node.kind() {
                 Kind::c_code_str => CCodePart::String(node.as_str().into()),
@@ -283,28 +320,30 @@ impl Visit for CCode {
 
                 _ => unexpected_kind(node),
             })
-            .collect()
+            .collect();
+
+        Self { span, parts }
     }
 }
 
-impl Gen for WithSpan<CCode> {
+impl CCode {
+    pub fn ty(&self) -> TypeKind {
+        TypeKind::CCode
+    }
+}
+
+impl Gen for CCode {
     fn span(&self) -> Span {
-        self.1
+        self.span
     }
 
     fn gen_impl(self) -> MyResult<String> {
-        self.0
+        self.parts
             .into_iter()
             .map(|part| match part {
                 CCodePart::String(string) => Ok(string),
                 CCodePart::Expr(expr) => expr.gen(),
             })
             .collect()
-    }
-}
-
-impl HasType for CCode {
-    fn ty(&self) -> Type {
-        Type::CCode
     }
 }

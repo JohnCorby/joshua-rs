@@ -4,7 +4,7 @@
 
 use crate::cached::CachedString;
 use crate::error::{err, MyResult};
-use crate::ty::Type;
+use crate::ty::TypeKind;
 use parking_lot::{Mutex, MutexGuard};
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Display, Formatter};
@@ -18,33 +18,33 @@ fn scopes() -> MutexGuard<'static, Vec<Scope>> {
 #[derive(Debug)]
 pub struct Scope {
     in_loop: bool,
-    func_return_type: Option<Type>,
+    func_return_type: Option<TypeKind>,
     symbols: HashSet<Symbol>,
 }
 
 #[derive(Debug, Clone)]
 pub enum Symbol {
     Func {
-        ty: Type,
+        ty: TypeKind,
         name: CachedString,
-        arg_types: Vec<Type>,
+        arg_types: Vec<TypeKind>,
     },
     Var {
-        ty: Type,
+        ty: TypeKind,
         name: CachedString,
     },
     Struct {
         name: CachedString,
-        field_types: HashMap<CachedString, Type>,
+        field_types: HashMap<CachedString, TypeKind>,
     },
 }
 impl Symbol {
-    pub fn ty(&self) -> Type {
+    pub fn ty(&self) -> TypeKind {
         use Symbol::*;
         match self {
             Func { ty, .. } => *ty,
             Var { ty, .. } => *ty,
-            Struct { name, .. } => Type::Struct(*name),
+            Struct { name, .. } => TypeKind::Struct(*name),
         }
     }
 }
@@ -102,7 +102,7 @@ impl Display for Symbol {
                 name,
                 arg_types
                     .iter()
-                    .map(Type::to_string)
+                    .map(ToString::to_string)
                     .collect::<Vec<_>>()
                     .join(", ")
             ),
@@ -129,7 +129,7 @@ impl ScopeHandle {
         }
         false
     }
-    pub fn func_return_type(&self) -> Type {
+    pub fn func_return_type(&self) -> TypeKind {
         for scope in scopes()[..=self.index].iter().rev() {
             if let Some(ty) = scope.func_return_type {
                 return ty;
@@ -173,7 +173,11 @@ impl ScopeHandle {
             name,
         })
     }
-    pub fn get_func(&self, name: CachedString, arg_types: impl AsRef<[Type]>) -> MyResult<Symbol> {
+    pub fn get_func(
+        &self,
+        name: CachedString,
+        arg_types: impl AsRef<[TypeKind]>,
+    ) -> MyResult<Symbol> {
         self.find(Symbol::Func {
             ty: Default::default(),
             name,
@@ -204,7 +208,7 @@ impl Scope {
             scope: &mut ScopeHandle,
             names: impl AsRef<[Str]>,
             num_args: usize,
-            types: impl AsRef<[Type]>,
+            types: impl AsRef<[TypeKind]>,
         ) {
             for name in names.as_ref() {
                 for ty in types.as_ref() {
@@ -222,8 +226,8 @@ impl Scope {
             scope: &mut ScopeHandle,
             names: impl AsRef<[Str]>,
             num_args: usize,
-            arg_types: impl AsRef<[Type]>,
-            ret_type: Type,
+            arg_types: impl AsRef<[TypeKind]>,
+            ret_type: TypeKind,
         ) {
             for name in names.as_ref() {
                 for arg_type in arg_types.as_ref() {
@@ -271,7 +275,7 @@ impl Scope {
     }
 
     #[allow(clippy::new_ret_no_self)]
-    pub fn new(in_loop: bool, func_return_type: Option<Type>) -> ScopeHandle {
+    pub fn new(in_loop: bool, func_return_type: Option<TypeKind>) -> ScopeHandle {
         let mut scopes = scopes();
         let index = scopes.len();
         scopes.push(Self {

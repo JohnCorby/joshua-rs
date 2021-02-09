@@ -2,19 +2,24 @@ use crate::cached::CachedString;
 use crate::error::{unexpected_kind, MyResult};
 use crate::expr::Expr;
 use crate::parse::{Kind, Node};
-use crate::pass::{Gen, Visit, WithSpan};
+use crate::pass::{Gen, Visit};
 use crate::scope::{Scope, Symbol};
 use crate::span::Span;
 use crate::statement::{Block, CCode};
-use crate::ty::{HasType, Type};
-use crate::with::ToWith;
+use crate::ty::Type;
 use std::fmt::Write;
 
-pub type Program = Vec<WithSpan<Define>>;
+#[derive(Debug, Clone)]
+pub struct Program {
+    span: Span,
+    defines: Vec<Define>,
+}
 
 impl Visit for Program {
     fn visit_impl(node: Node) -> Self {
-        node.children_checked(Kind::program)
+        let span = node.span();
+        let defines = node
+            .children_checked(Kind::program)
             .filter_map(|node| {
                 // last kind is EOI. dont visit it
                 if node.kind() == Kind::EOI {
@@ -22,19 +27,21 @@ impl Visit for Program {
                 }
                 Some(node.visit())
             })
-            .collect()
+            .collect();
+
+        Self { span, defines }
     }
 }
 
-impl Gen for WithSpan<Program> {
+impl Gen for Program {
     fn span(&self) -> Span {
-        self.1
+        self.span
     }
 
     fn gen_impl(self) -> MyResult<String> {
         let scope = Scope::init();
         let s = self
-            .0
+            .defines
             .into_iter()
             .map(Gen::gen)
             .collect::<MyResult<Vec<_>>>()?
@@ -45,16 +52,21 @@ impl Gen for WithSpan<Program> {
 }
 
 #[derive(Debug, Clone)]
-pub enum Define {
+pub struct Define {
+    span: Span,
+    kind: DefineKind,
+}
+#[derive(Debug, Clone)]
+pub enum DefineKind {
     Struct {
-        name: WithSpan<CachedString>,
-        body: Vec<WithSpan<Define>>,
+        name: CachedString,
+        body: Vec<Define>,
     },
     Func {
-        ty: WithSpan<Type>,
-        name: WithSpan<CachedString>,
-        args: Vec<WithSpan<VarDefine>>,
-        body: WithSpan<Block>,
+        ty: Type,
+        name: CachedString,
+        args: Vec<VarDefine>,
+        body: Block,
     },
     Var(VarDefine),
 
@@ -63,12 +75,14 @@ pub enum Define {
 
 impl Visit for Define {
     fn visit_impl(node: Node) -> Self {
-        match node.kind() {
+        let span = node.span();
+        use DefineKind::*;
+        let kind = match node.kind() {
             Kind::struct_define => {
                 let mut nodes = node.children();
 
-                Self::Struct {
-                    name: nodes.next().unwrap().as_cached_str_with_span(),
+                Struct {
+                    name: nodes.next().unwrap().as_str().into(),
                     body: nodes.visit_rest(),
                 }
             }
@@ -76,76 +90,78 @@ impl Visit for Define {
                 let mut nodes = node.children().peekable();
 
                 let ty = nodes.next().unwrap().visit();
-                let name = nodes.next().unwrap().as_cached_str_with_span();
+                let name = nodes.next().unwrap().as_str().into();
                 let mut args = vec![];
                 while nodes.peek().is_some() && nodes.peek().unwrap().kind() == Kind::var_define {
                     args.push(nodes.next().unwrap().visit())
                 }
                 let body = nodes.next().unwrap().visit();
 
-                Self::Func {
+                Func {
                     ty,
                     name,
                     args,
                     body,
                 }
             }
-            Kind::var_define => Self::Var(node.visit().0),
+            Kind::var_define => Var(node.visit()),
 
-            Kind::c_code => Self::CCode(node.visit().0),
+            Kind::c_code => CCode(node.visit()),
 
             _ => unexpected_kind(node),
-        }
+        };
+
+        Self { span, kind }
     }
 }
 
-impl Gen for WithSpan<Define> {
+impl Gen for Define {
     fn span(&self) -> Span {
-        self.1
+        self.span
     }
 
     fn gen_impl(self) -> MyResult<String> {
-        Ok(match self.0 {
-            Define::Struct { name, body } => {
-                let s = format!(
-                    "typedef struct {{\n{}\n}} {};",
-                    body.clone()
-                        .into_iter()
-                        .map(Gen::gen)
-                        .collect::<MyResult<Vec<_>>>()?
-                        .join("\n"),
-                    *name
-                );
-
+        use DefineKind::*;
+        Ok(match self.kind {
+            Struct { name, body } => {
                 Scope::current().add(Symbol::Struct {
-                    name: *name,
+                    name,
                     field_types: body
                         .iter()
-                        .filter_map(|define| {
-                            if let Define::Var(VarDefine { ty, name, .. }) = define.0 {
-                                Some((*name, *ty))
-                            } else {
-                                None
-                            }
+                        .filter_map(|define| match &define.kind {
+                            Var(var_define) => Some((var_define.name, var_define.ty.kind)),
+                            _ => None,
                         })
                         .collect(),
                 })?;
 
-                s
+                format!(
+                    "typedef struct {{\n{}\n}} {};",
+                    body.into_iter()
+                        .map(Gen::gen)
+                        .collect::<MyResult<Vec<_>>>()?
+                        .join("\n"),
+                    name
+                )
             }
-            Define::Func {
+            Func {
                 ty,
                 name,
                 args,
                 body,
             } => {
-                let scope = Scope::new(false, Some(ty.0));
+                Scope::current().add(Symbol::Func {
+                    ty: ty.kind,
+                    name,
+                    arg_types: args.iter().map(|arg| arg.ty.kind).collect(),
+                })?;
+
+                let scope = Scope::new(false, Some(ty.kind));
                 let s = format!(
                     "{} {}({}) {}",
-                    ty.clone().gen()?,
-                    *name,
-                    args.clone()
-                        .into_iter()
+                    ty.gen()?,
+                    name,
+                    args.into_iter()
                         .map(Gen::gen)
                         .collect::<MyResult<Vec<_>>>()?
                         .join(", "),
@@ -153,60 +169,57 @@ impl Gen for WithSpan<Define> {
                 );
                 drop(scope);
 
-                Scope::current().add(Symbol::Func {
-                    ty: *ty,
-                    name: *name,
-                    arg_types: args.into_iter().map(|arg| *arg.ty).collect(),
-                })?;
-
                 s
             }
-            Define::Var(var_define) => format!("{};", var_define.with(self.1).gen()?),
+            Var(var_define) => format!("{};", var_define.gen()?),
 
-            Define::CCode(c_code) => c_code.with(self.1).gen()?,
+            CCode(c_code) => c_code.gen()?,
         })
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct VarDefine {
-    ty: WithSpan<Type>,
-    name: WithSpan<CachedString>,
-    value: Option<WithSpan<Expr>>,
+    span: Span,
+    ty: Type,
+    name: CachedString,
+    value: Option<Expr>,
 }
 
 impl Visit for VarDefine {
     fn visit_impl(node: Node) -> Self {
+        let span = node.span();
         let mut nodes = node.children_checked(Kind::var_define);
 
         Self {
+            span,
             ty: nodes.next().unwrap().visit(),
-            name: nodes.next().unwrap().as_cached_str_with_span(),
+            name: nodes.next().unwrap().as_str().into(),
             value: nodes.next().map(Node::visit),
         }
     }
 }
 
-impl Gen for WithSpan<VarDefine> {
+impl Gen for VarDefine {
     fn span(&self) -> Span {
-        self.1
+        self.span
     }
 
     fn gen_impl(self) -> MyResult<String> {
-        let mut s = format!("{} {}", self.ty.clone().gen()?, *self.name);
-        if let Some(value) = self.value.clone() {
-            write!(s, " = {}", value.gen()?).unwrap();
-        }
+        Scope::current().add(Symbol::Var {
+            ty: self.ty.kind,
+            name: self.name,
+        })?;
 
         // type check
         if let Some(value) = &self.value {
-            value.ty().check(*self.ty)?;
+            value.ty.check(&self.ty.kind)?;
         }
 
-        Scope::current().add(Symbol::Var {
-            ty: self.ty.0,
-            name: self.name.0,
-        })?;
+        let mut s = format!("{} {}", self.ty.gen()?, self.name);
+        if let Some(value) = self.value {
+            write!(s, " = {}", value.gen()?).unwrap();
+        }
 
         Ok(s)
     }

@@ -1,7 +1,7 @@
 use crate::error::MyResult;
 use crate::parse::Node;
 use crate::span::Span;
-use crate::ty::Type;
+use crate::ty::TypeKind;
 
 /// take a parser node an turn it into ourselves
 pub trait Visit: Sized {
@@ -16,14 +16,13 @@ pub trait Visit: Sized {
 
 pub trait InitType: Sized {
     fn span(&self) -> Span;
-    fn ty(&self) -> Type;
 
-    fn init_type(self) -> MyResult<Self> {
+    fn init_type(self) -> MyResult<TypeKind> {
         self.span().set_current();
         self.init_type_impl()
     }
 
-    fn init_type_impl(self) -> MyResult<Self>;
+    fn init_type_impl(self) -> MyResult<TypeKind>;
 }
 
 /// turn self into valid C code

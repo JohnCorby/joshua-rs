@@ -1,8 +1,6 @@
-use crate::cached::CachedString;
 use crate::error::MyResult;
-use crate::pass::{Visit, WithSpan};
+use crate::pass::Visit;
 use crate::span::Span;
-use crate::with::ToWith;
 use console::style;
 use pest::iterators::{Pair, Pairs};
 use pest::Parser;
@@ -38,7 +36,7 @@ impl<'i> Node<'i> {
     }
 
     /// turns visit into an extension method for node
-    pub fn visit<T: Visit>(self) -> WithSpan<T> {
+    pub fn visit<T: Visit>(self) -> T {
         T::visit(self)
     }
     /// check that a node matches a kind, and then return its inner nodes
@@ -50,11 +48,11 @@ impl<'i> Node<'i> {
             panic!("expected kind {:?}, but got {:?}", expected, actual)
         }
     }
-    pub fn as_cached_str_with_span(&self) -> WithSpan<CachedString> {
-        let string = self.as_str();
-        let cached = CachedString::from(string);
-        cached.with(self.span())
-    }
+    // pub fn as_cached_str_with_span(&self) -> CachedString {
+    //     let string = self.as_str();
+    //     let cached = CachedString::from(string);
+    //     cached.with(self.span())
+    // }
 }
 impl Debug for Node<'_> {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
@@ -102,7 +100,7 @@ impl<'i> DoubleEndedIterator for Nodes<'i> {
 impl<'i> Nodes<'i> {
     /// visits any not iterated nodes,
     /// short circuiting if any of them error
-    pub fn visit_rest<T: Visit>(self) -> Vec<WithSpan<T>> {
+    pub fn visit_rest<T: Visit>(self) -> Vec<T> {
         self.map(Node::visit).collect()
     }
 }
