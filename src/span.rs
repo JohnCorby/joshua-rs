@@ -37,24 +37,9 @@ impl Debug for Span {
 }
 
 impl Span {
-    pub fn reset() {
-        *current_span() = None
-    }
-
-    pub fn current() -> Option<Span> {
-        match *current_span() {
-            Some(span) => Some(span),
-            None => None,
-        }
-    }
-    pub fn track(self) -> Self {
-        *current_span() = Some(self);
-        self
-    }
-
     pub fn make_error(message: impl AsRef<str>) -> String {
         let message = message.as_ref().to_string();
-        let span = match Span::current() {
+        let span = match *current_span() {
             Some(span) => span,
             None => return message,
         };

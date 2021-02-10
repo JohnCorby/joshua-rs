@@ -1,5 +1,4 @@
 //!todo
-//! get rid of all the dumb visit/gen/whatever abstractions, we dont need em
 //! collect globals into 1 context struct, and just pass that around functions like a boss
 
 #![feature(try_trait)]

@@ -7,7 +7,7 @@ use crate::parse::{Kind, Node};
 use crate::scope::Scope;
 use crate::span::Span;
 use crate::ty::{PrimitiveType, TypeKind};
-use crate::util::{Mangle, Track, Visit};
+use crate::util::{Mangle, Visit};
 use std::fmt::Write;
 
 #[derive(Debug, Clone)]
@@ -95,16 +95,11 @@ impl Visit for Statement {
         Self { span, kind }
     }
 }
-impl Track for Statement {
-    fn span(&self) -> Span {
-        self.span
-    }
-}
 
 impl Statement {
     pub fn gen(self) -> MyResult<String> {
         use StatementKind::*;
-        Ok(match self.track().kind {
+        Ok(match self.kind {
             Return(mut value) => {
                 // type check
                 value
@@ -144,7 +139,7 @@ impl Statement {
 
                 let mut s = format!("if({}) ", cond.gen()?);
                 let scope = Scope::new(false, None);
-                s.write_str(&then.gen()?).unwrap();
+                s.push_str(&then.gen()?);
                 drop(scope);
                 if let Some(otherwise) = otherwise {
                     let scope = Scope::new(false, None);
@@ -160,7 +155,7 @@ impl Statement {
 
                 let mut s = format!("while(!({})) ", cond.gen()?);
                 let scope = Scope::new(true, None);
-                s.write_str(&block.gen()?).unwrap();
+                s.push_str(&block.gen()?);
                 drop(scope);
 
                 s
@@ -252,15 +247,9 @@ impl Visit for FuncCall {
         }
     }
 }
-impl Track for FuncCall {
-    fn span(&self) -> Span {
-        self.span
-    }
-}
 
 impl FuncCall {
     pub fn init_type(&mut self) -> MyResult<TypeKind> {
-        self.span.track();
         let name = self.name;
         let args = &mut self.args;
         self.ty

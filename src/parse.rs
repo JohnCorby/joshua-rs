@@ -35,11 +35,6 @@ impl<'i> Node<'i> {
         self.0.as_str()
     }
 
-    pub fn track(self) -> Self {
-        self.span().track();
-        self
-    }
-
     /// turns visit into an extension method for node
     pub fn visit<T: Visit>(self) -> T {
         T::visit(self)
@@ -89,7 +84,7 @@ impl<'i> From<Pairs<'i, Kind>> for Nodes<'i> {
 impl<'i> Iterator for Nodes<'i> {
     type Item = Node<'i>;
     fn next(&mut self) -> Option<Self::Item> {
-        self.0.next().map(Node::from).map(Node::track)
+        self.0.next().map(Node::from)
     }
 }
 impl<'i> DoubleEndedIterator for Nodes<'i> {

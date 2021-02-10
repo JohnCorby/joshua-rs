@@ -3,7 +3,7 @@ use crate::error::{err, unexpected_kind, MyResult};
 use crate::parse::{Kind, Node};
 use crate::scope::Scope;
 use crate::span::Span;
-use crate::util::{Track, Visit};
+use crate::util::Visit;
 use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
 
@@ -28,16 +28,11 @@ impl Visit for Type {
         }
     }
 }
-impl Track for Type {
-    fn span(&self) -> Span {
-        self.span
-    }
-}
 
 impl Type {
     pub fn gen(self) -> MyResult<String> {
         use TypeKind::*;
-        Ok(match self.track().kind {
+        Ok(match self.kind {
             Primitive(ty) => {
                 use PrimitiveType::*;
                 match ty {
