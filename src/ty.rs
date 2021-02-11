@@ -1,5 +1,5 @@
 use crate::cached::CachedString;
-use crate::error::{err, unexpected_kind, Context, MyResult};
+use crate::error::{err, unexpected_kind, MyResult};
 use crate::init_cached::InitCached;
 use crate::parse::{Kind, Node};
 use crate::scope::Scope;
@@ -41,13 +41,13 @@ impl Visit for Type {
 }
 
 impl Type {
-    pub fn ty(&mut self) -> MyResult<TypeKind> {
+    pub fn init_ty(&mut self) -> MyResult<TypeKind> {
         let span = self.span;
         let kind = &mut self.kind;
         self.ty
             .get_or_try_init(|| {
                 if let TypeKind::Struct(name) = kind {
-                    Scope::current().get_struct(*name).ctx(span)?;
+                    Scope::current().get_struct(*name, span)?;
                 }
                 Ok(*kind)
             })
@@ -77,7 +77,7 @@ impl Type {
                 .into()
             }
             Struct(name) => {
-                Scope::current().get_struct(name).ctx(self.span)?;
+                Scope::current().get_struct(name, self.span)?;
                 name.to_string()
             }
             kind => panic!("tried to gen {}", kind),
@@ -86,12 +86,15 @@ impl Type {
 }
 
 impl TypeKind {
-    pub fn check(&self, expected: &TypeKind) -> MyResult<()> {
+    pub fn check(&self, expected: &TypeKind, span: impl Into<Option<Span>>) -> MyResult<()> {
         let actual = self;
         if expected == actual {
             Ok(())
         } else {
-            err(format!("expected {}, but got {}", expected, actual))
+            err(
+                format!("expected {}, but got {}", expected, actual),
+                span.into(),
+            )
         }
     }
 }

@@ -1,5 +1,5 @@
 use crate::cached::CachedString;
-use crate::error::{unexpected_kind, Context, MyResult};
+use crate::error::{unexpected_kind, MyResult};
 use crate::expr::Expr;
 use crate::parse::{Kind, Node};
 use crate::scope::{Scope, Symbol};
@@ -11,21 +11,18 @@ use std::collections::HashMap;
 use std::fmt::Write;
 
 #[derive(Debug, Clone)]
-pub struct Program {
-    defines: Vec<Define>,
-}
+pub struct Program(Vec<Define>);
 
 impl Visit for Program {
     fn visit(node: Node) -> Self {
-        Self {
-            defines: node
-                .children_checked(Kind::program)
+        Self(
+            node.children_checked(Kind::program)
                 .filter_map(|node| match node.kind() {
                     Kind::EOI => None,
                     _ => Some(node.visit()),
                 })
                 .collect(),
-        }
+        )
     }
 }
 
@@ -33,7 +30,7 @@ impl Program {
     pub fn gen(self) -> MyResult<String> {
         let scope = Scope::init();
         let s = self
-            .defines
+            .0
             .into_iter()
             .map(Define::gen)
             .collect::<MyResult<Vec<_>>>()?
@@ -112,27 +109,27 @@ impl Define {
         use DefineKind::*;
         Ok(match self.kind {
             Struct { name, body } => {
-                Scope::current()
-                    .add(Symbol::Struct {
+                Scope::current().add(
+                    Symbol::Struct {
                         name,
                         field_types: {
                             let mut map = HashMap::new();
                             for define in &body {
                                 if let Var(VarDefine { name, mut ty, .. }) = define.kind {
-                                    map.insert(name, ty.ty().ctx(self.span)?).unwrap_none();
+                                    map.insert(name, ty.init_ty()?).unwrap_none();
                                 }
                             }
                             map
                         },
-                    })
-                    .ctx(self.span)?;
+                    },
+                    self.span,
+                )?;
 
                 format!(
                     "typedef struct {{\n{}\n}} {};",
                     body.into_iter()
                         .map(Define::gen)
-                        .collect::<MyResult<Vec<_>>>()
-                        .ctx(self.span)?
+                        .collect::<MyResult<Vec<_>>>()?
                         .join("\n"),
                     name
                 )
@@ -143,37 +140,36 @@ impl Define {
                 mut args,
                 body,
             } => {
-                Scope::current()
-                    .add(Symbol::Func {
-                        ty: ty.ty().ctx(self.span)?,
+                Scope::current().add(
+                    Symbol::Func {
+                        ty: ty.init_ty()?,
                         name,
                         arg_types: args
                             .iter_mut()
-                            .map(|arg| arg.ty.ty())
-                            .collect::<MyResult<Vec<_>>>()
-                            .ctx(self.span)?,
-                    })
-                    .ctx(self.span)?;
+                            .map(|arg| arg.ty.init_ty())
+                            .collect::<MyResult<Vec<_>>>()?,
+                    },
+                    self.span,
+                )?;
 
-                let scope = Scope::new(false, Some(ty.ty().ctx(self.span)?));
+                let scope = Scope::new(false, ty.init_ty()?);
                 let s = format!(
                     "{} {}({}) {}",
-                    ty.gen().ctx(self.span)?,
+                    ty.gen()?,
                     name.to_string().mangle(),
                     args.into_iter()
                         .map(VarDefine::gen)
-                        .collect::<MyResult<Vec<_>>>()
-                        .ctx(self.span)?
+                        .collect::<MyResult<Vec<_>>>()?
                         .join(", "),
-                    body.gen().ctx(self.span)?
+                    body.gen()?
                 );
                 drop(scope);
 
                 s
             }
-            Var(var_define) => format!("{};", var_define.gen().ctx(self.span)?),
+            Var(var_define) => format!("{};", var_define.gen()?),
 
-            CCode(c_code) => c_code.gen().ctx(self.span)?,
+            CCode(c_code) => c_code.gen()?,
         })
     }
 }
@@ -202,29 +198,22 @@ impl Visit for VarDefine {
 
 impl VarDefine {
     pub fn gen(mut self) -> MyResult<String> {
-        Scope::current()
-            .add(Symbol::Var {
-                ty: self.ty.ty().ctx(self.span)?,
+        Scope::current().add(
+            Symbol::Var {
+                ty: self.ty.init_ty()?,
                 name: self.name,
-            })
-            .ctx(self.span)?;
+            },
+            self.span,
+        )?;
 
         // type check
         if let Some(value) = &mut self.value {
-            value
-                .ty()
-                .ctx(self.span)?
-                .check(&self.ty.ty().ctx(self.span)?)
-                .ctx(self.span)?;
+            value.init_ty()?.check(&self.ty.init_ty()?, self.span)?;
         }
 
-        let mut s = format!(
-            "{} {}",
-            self.ty.gen().ctx(self.span)?,
-            self.name.to_string().mangle()
-        );
+        let mut s = format!("{} {}", self.ty.gen()?, self.name.to_string().mangle());
         if let Some(value) = self.value {
-            write!(s, " = {}", value.gen().ctx(self.span)?).unwrap();
+            write!(s, " = {}", value.gen()?).unwrap();
         }
 
         Ok(s)

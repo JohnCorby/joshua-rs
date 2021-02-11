@@ -10,8 +10,7 @@ pub struct Span(usize, usize);
 impl From<pest::Span<'_>> for Span {
     fn from(s: pest::Span) -> Self {
         let start = s.start();
-        // let end = s.as_str().find('\n').map_or(s.end(), |i| start + i);
-        let end = s.end();
+        let end = s.as_str().find('\n').map_or(s.end(), |i| start + i);
         Span(start, end)
     }
 }

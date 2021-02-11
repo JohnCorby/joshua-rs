@@ -4,7 +4,6 @@ use std::backtrace::{Backtrace, BacktraceStatus};
 use std::fmt::{Debug, Display, Formatter};
 
 pub type MyResult<T> = Result<T, MyError>;
-// #[derive(Clone)]
 pub struct MyError {
     message: String,
     span: Option<Span>,
@@ -24,7 +23,7 @@ impl MyError {
             };
 
             // make error
-            eprintln!("Internal Error: {}", message.into_err());
+            eprintln!("Internal Error: {}", message.into_err(None));
         }))
     }
 }
@@ -50,48 +49,28 @@ impl Debug for MyError {
 }
 
 pub trait IntoErr {
-    fn into_err(self) -> MyError;
+    fn into_err(self, span: impl Into<Option<Span>>) -> MyError;
 }
 impl<T: ToString> IntoErr for T {
-    fn into_err(self) -> MyError {
+    fn into_err(self, span: impl Into<Option<Span>>) -> MyError {
         MyError {
             message: self.to_string(),
-            span: None,
+            span: span.into(),
             backtrace: Backtrace::capture(),
         }
     }
 }
 
-pub trait Context<T> {
-    fn ctx(self, span: Span) -> MyResult<T>;
-}
-impl<T, E: Into<MyError>> Context<T> for Result<T, E> {
-    fn ctx(self, span: Span) -> MyResult<T> {
-        self.map_err(|e| {
-            let mut e = e.into();
-            if e.span.is_none() {
-                e.span = Some(span);
-            }
-            e
-        })
-    }
-}
-impl<T> Context<T> for Option<T> {
-    fn ctx(self, span: Span) -> MyResult<T> {
-        self.ok_or_else(|| "option is None".into_err()).ctx(span)
-    }
-}
-
-pub fn err<T>(str: impl AsRef<str>) -> MyResult<T> {
-    Err(str.as_ref().into_err())
+pub fn err<T>(str: impl AsRef<str>, span: impl Into<Option<Span>>) -> MyResult<T> {
+    Err(str.as_ref().into_err(span))
 }
 #[allow(dead_code)]
-pub fn warn(str: impl AsRef<str>) {
-    eprintln!("Warning: {}", (str.as_ref().into_err()));
+pub fn warn(str: impl AsRef<str>, span: impl Into<Option<Span>>) {
+    eprintln!("Warning: {}", (str.as_ref().into_err(span)));
 }
 #[allow(dead_code)]
-pub fn warn_internal(str: impl AsRef<str>) {
-    eprintln!("Internal Warning: {}", (str.as_ref().into_err()));
+pub fn warn_internal(str: impl AsRef<str>, span: impl Into<Option<Span>>) {
+    eprintln!("Internal Warning: {}", (str.as_ref().into_err(span)));
 }
 
 pub fn unexpected_kind(node: Node) -> ! {

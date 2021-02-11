@@ -4,6 +4,7 @@
 
 use crate::cached::CachedString;
 use crate::error::{err, MyResult};
+use crate::span::Span;
 use crate::ty::TypeKind;
 use parking_lot::{Mutex, MutexGuard};
 use std::collections::{HashMap, HashSet};
@@ -138,9 +139,9 @@ impl ScopeHandle {
         unreachable!("tried to get func return type when we arent in any func")
     }
 
-    pub fn add(&mut self, symbol: Symbol) -> MyResult<()> {
+    pub fn add(&mut self, symbol: Symbol, span: impl Into<Option<Span>>) -> MyResult<()> {
         let symbols = &mut scopes()[self.index].symbols;
-        let err = err(format!("{} already defined", symbol));
+        let err = err(format!("{} already defined", symbol), span);
         // find with hash first
         if symbols.contains(&symbol) {
             return err;
@@ -153,7 +154,7 @@ impl ScopeHandle {
         Ok(())
     }
 
-    fn find(&self, symbol: Symbol) -> MyResult<Symbol> {
+    fn find(&self, symbol: Symbol, span: impl Into<Option<Span>>) -> MyResult<Symbol> {
         for scope in scopes()[..=self.index].iter().rev() {
             // find with hash first
             if let Some(symbol) = scope.symbols.get(&symbol) {
@@ -164,31 +165,45 @@ impl ScopeHandle {
                 return Ok(symbol.clone());
             }
         }
-        err(format!("could not find {}", symbol))
+        err(format!("could not find {}", symbol), span)
     }
 
-    pub fn get_var(&self, name: CachedString) -> MyResult<Symbol> {
-        self.find(Symbol::Var {
-            ty: Default::default(),
-            name,
-        })
+    pub fn get_var(&self, name: CachedString, span: impl Into<Option<Span>>) -> MyResult<Symbol> {
+        self.find(
+            Symbol::Var {
+                ty: Default::default(),
+                name,
+            },
+            span,
+        )
     }
     pub fn get_func(
         &self,
         name: CachedString,
         arg_types: impl AsRef<[TypeKind]>,
+        span: impl Into<Option<Span>>,
     ) -> MyResult<Symbol> {
-        self.find(Symbol::Func {
-            ty: Default::default(),
-            name,
-            arg_types: arg_types.as_ref().into(),
-        })
+        self.find(
+            Symbol::Func {
+                ty: Default::default(),
+                name,
+                arg_types: arg_types.as_ref().into(),
+            },
+            span,
+        )
     }
-    pub fn get_struct(&self, name: CachedString) -> MyResult<Symbol> {
-        self.find(Symbol::Struct {
-            name,
-            field_types: Default::default(),
-        })
+    pub fn get_struct(
+        &self,
+        name: CachedString,
+        span: impl Into<Option<Span>>,
+    ) -> MyResult<Symbol> {
+        self.find(
+            Symbol::Struct {
+                name,
+                field_types: Default::default(),
+            },
+            span,
+        )
     }
 }
 impl Drop for ScopeHandle {
@@ -213,11 +228,14 @@ impl Scope {
             for name in names.as_ref() {
                 for ty in types.as_ref() {
                     scope
-                        .add(Symbol::Func {
-                            ty: *ty,
-                            name: name.as_ref().into(),
-                            arg_types: std::iter::repeat(*ty).take(num_args).collect(),
-                        })
+                        .add(
+                            Symbol::Func {
+                                ty: *ty,
+                                name: name.as_ref().into(),
+                                arg_types: std::iter::repeat(*ty).take(num_args).collect(),
+                            },
+                            None,
+                        )
                         .unwrap();
                 }
             }
@@ -232,11 +250,14 @@ impl Scope {
             for name in names.as_ref() {
                 for arg_type in arg_types.as_ref() {
                     scope
-                        .add(Symbol::Func {
-                            ty: ret_type,
-                            name: name.as_ref().into(),
-                            arg_types: std::iter::repeat(*arg_type).take(num_args).collect(),
-                        })
+                        .add(
+                            Symbol::Func {
+                                ty: ret_type,
+                                name: name.as_ref().into(),
+                                arg_types: std::iter::repeat(*arg_type).take(num_args).collect(),
+                            },
+                            None,
+                        )
                         .unwrap();
                 }
             }
@@ -275,12 +296,12 @@ impl Scope {
     }
 
     #[allow(clippy::new_ret_no_self)]
-    pub fn new(in_loop: bool, func_return_type: Option<TypeKind>) -> ScopeHandle {
+    pub fn new(in_loop: bool, func_return_type: impl Into<Option<TypeKind>>) -> ScopeHandle {
         let mut scopes = scopes();
         let index = scopes.len();
         scopes.push(Self {
             in_loop,
-            func_return_type,
+            func_return_type: func_return_type.into(),
             symbols: Default::default(),
         });
         ScopeHandle { index, pop: true }

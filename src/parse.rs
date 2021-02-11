@@ -23,7 +23,7 @@ impl<'i> Node<'i> {
         let result: Result<Pairs<'i, Kind>, Error<Kind>> = inner::Parser::parse(kind, input);
         result
             .map(|pairs| Nodes::from(pairs).next().unwrap())
-            .map_err(IntoErr::into_err)
+            .map_err(|e| e.into_err(None))
     }
 
     pub fn children(self) -> Nodes<'i> {

@@ -1,6 +1,6 @@
 use crate::cached::CachedString;
 use crate::define::VarDefine;
-use crate::error::{err, unexpected_kind, Context, MyResult};
+use crate::error::{err, unexpected_kind, MyResult};
 use crate::expr::Expr;
 use crate::init_cached::InitCached;
 use crate::parse::{Kind, Node};
@@ -16,6 +16,7 @@ pub struct Statement {
     kind: StatementKind,
 }
 #[derive(Debug, Clone)]
+#[allow(clippy::large_enum_variant)]
 pub enum StatementKind {
     Return(Option<Expr>),
     Break,
@@ -104,16 +105,14 @@ impl Statement {
                 // type check
                 value
                     .as_mut()
-                    .map(|value| value.ty())
-                    .transpose()
-                    .ctx(self.span)?
+                    .map(|value| value.init_ty())
+                    .transpose()?
                     .unwrap_or_else(|| PrimitiveType::Void.ty())
-                    .check(&Scope::current().func_return_type())
-                    .ctx(self.span)?;
+                    .check(&Scope::current().func_return_type(), self.span)?;
 
                 let mut s = "return".to_string();
                 if let Some(value) = value {
-                    s.push_str(&value.gen().ctx(self.span)?);
+                    s.push_str(&value.gen()?);
                 }
                 s.push(';');
 
@@ -121,13 +120,13 @@ impl Statement {
             }
             Break => {
                 if !Scope::current().in_loop() {
-                    return err("break cant be used outside of loops").ctx(self.span);
+                    return err("break cant be used outside of loops", self.span);
                 }
                 "break;".into()
             }
             Continue => {
                 if !Scope::current().in_loop() {
-                    return err("continue cant be used outside of loops").ctx(self.span);
+                    return err("continue cant be used outside of loops", self.span);
                 }
                 "continue;".into()
             }
@@ -137,18 +136,15 @@ impl Statement {
                 otherwise,
             } => {
                 // type check
-                cond.ty()
-                    .ctx(self.span)?
-                    .check(&PrimitiveType::Bool.ty())
-                    .ctx(self.span)?;
+                cond.init_ty()?.check(&PrimitiveType::Bool.ty(), self.span)?;
 
-                let mut s = format!("if({}) ", cond.gen().ctx(self.span)?);
+                let mut s = format!("if({}) ", cond.gen()?);
                 let scope = Scope::new(false, None);
-                s.push_str(&then.gen().ctx(self.span)?);
+                s.push_str(&then.gen()?);
                 drop(scope);
                 if let Some(otherwise) = otherwise {
                     let scope = Scope::new(false, None);
-                    s.push_str(&otherwise.gen().ctx(self.span)?);
+                    s.push_str(&otherwise.gen()?);
                     drop(scope);
                 }
 
@@ -156,14 +152,11 @@ impl Statement {
             }
             Until { mut cond, block } => {
                 // type check
-                cond.ty()
-                    .ctx(self.span)?
-                    .check(&PrimitiveType::Bool.ty())
-                    .ctx(self.span)?;
+                cond.init_ty()?.check(&PrimitiveType::Bool.ty(), self.span)?;
 
-                let mut s = format!("while(!({})) ", cond.gen().ctx(self.span)?);
+                let mut s = format!("while(!({})) ", cond.gen()?);
                 let scope = Scope::new(true, None);
-                s.push_str(&block.gen().ctx(self.span)?);
+                s.push_str(&block.gen()?);
                 drop(scope);
 
                 s
@@ -176,20 +169,17 @@ impl Statement {
                 ..
             } => {
                 let scope = Scope::new(true, None);
-                let mut s = format!("for({}; ", init.gen().ctx(self.span)?);
+                let mut s = format!("for({}; ", init.gen()?);
 
                 // type check
-                cond.ty()
-                    .ctx(self.span)?
-                    .check(&PrimitiveType::Bool.ty())
-                    .ctx(self.span)?;
+                cond.init_ty()?.check(&PrimitiveType::Bool.ty(), self.span)?;
 
                 write!(
                     s,
                     "{}; {}) {}",
-                    cond.gen().ctx(self.span)?,
-                    update.gen().ctx(self.span)?.strip_suffix(';').unwrap(),
-                    block.gen().ctx(self.span)?
+                    cond.gen()?,
+                    update.gen()?.strip_suffix(';').unwrap(),
+                    block.gen()?
                 )
                 .unwrap();
                 drop(scope);
@@ -200,39 +190,27 @@ impl Statement {
                 mut rvalue,
             } => {
                 // type check
-                lvalue.check_assignable().ctx(self.span)?;
-                rvalue
-                    .ty()
-                    .ctx(self.span)?
-                    .check(&lvalue.ty().ctx(self.span)?)
-                    .ctx(self.span)?;
+                lvalue.check_assignable(self.span)?;
+                rvalue.init_ty()?.check(&lvalue.init_ty()?, self.span)?;
 
-                format!(
-                    "{} = {};",
-                    lvalue.gen().ctx(self.span)?,
-                    rvalue.gen().ctx(self.span)?
-                )
+                format!("{} = {};", lvalue.gen()?, rvalue.gen()?)
             }
-            VarDefine(var_define) => format!("{};", var_define.gen().ctx(self.span)?),
+            VarDefine(var_define) => format!("{};", var_define.gen()?),
             Expr(mut expr) => {
                 // type check
-                expr.ty().ctx(self.span)?;
-                format!("{};", expr.gen().ctx(self.span)?)
+                expr.init_ty()?;
+                format!("{};", expr.gen()?)
             }
         })
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct Block {
-    statements: Vec<Statement>,
-}
+pub struct Block(Vec<Statement>);
 
 impl Visit for Block {
     fn visit(node: Node) -> Self {
-        Self {
-            statements: node.children_checked(Kind::block).visit_rest(),
-        }
+        Self(node.children_checked(Kind::block).visit_rest())
     }
 }
 
@@ -240,7 +218,7 @@ impl Block {
     pub fn gen(self) -> MyResult<String> {
         Ok(format!(
             "{{\n{}\n}}",
-            self.statements
+            self.0
                 .into_iter()
                 .map(Statement::gen)
                 .collect::<MyResult<Vec<_>>>()?
@@ -272,7 +250,7 @@ impl Visit for FuncCall {
 }
 
 impl FuncCall {
-    pub fn ty(&mut self) -> MyResult<TypeKind> {
+    pub fn init_ty(&mut self) -> MyResult<TypeKind> {
         let span = self.span;
         let name = self.name;
         let args = &mut self.args;
@@ -283,11 +261,10 @@ impl FuncCall {
                         name,
                         &mut args
                             .iter_mut()
-                            .map(|arg| arg.ty())
-                            .collect::<MyResult<Vec<_>>>()
-                            .ctx(span)?,
-                    )
-                    .ctx(span)?
+                            .map(|arg| arg.init_ty())
+                            .collect::<MyResult<Vec<_>>>()?,
+                        span,
+                    )?
                     .ty())
             })
             .map(|r| *r)
@@ -300,8 +277,7 @@ impl FuncCall {
             self.args
                 .into_iter()
                 .map(Expr::gen)
-                .collect::<MyResult<Vec<_>>>()
-                .ctx(self.span)?
+                .collect::<MyResult<Vec<_>>>()?
                 .join(", "),
         );
 
@@ -346,7 +322,11 @@ impl CCode {
             .into_iter()
             .map(|part| match part {
                 CCodePart::String(string) => Ok(string),
-                CCodePart::Expr(expr) => expr.gen(),
+                CCodePart::Expr(mut expr) => {
+                    // type check
+                    expr.init_ty()?;
+                    expr.gen()
+                }
             })
             .collect()
     }
