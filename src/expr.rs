@@ -2,7 +2,7 @@
 
 use crate::cached::CachedString;
 use crate::error::{err, unexpected_kind, Context, MyResult};
-use crate::late_init::LateInit;
+use crate::init_cached::InitCached;
 use crate::parse::{Kind, Node};
 use crate::scope::{Scope, Symbol};
 use crate::span::Span;
@@ -14,7 +14,7 @@ use crate::util::{Mangle, Visit};
 pub struct Expr {
     span: Span,
     kind: ExprKind,
-    ty: LateInit<TypeKind>,
+    ty: InitCached<TypeKind>,
 }
 #[derive(Debug, Clone)]
 pub enum ExprKind {
@@ -52,7 +52,7 @@ pub enum ExprKind {
 impl Visit for Expr {
     fn visit(node: Node) -> Self {
         let span = node.span();
-        let ty = LateInit::new("expr type");
+        let ty = InitCached::new("expr type");
         use ExprKind::*;
         let kind = match node.kind() {
             Kind::expr => node.children().next().unwrap().visit::<Expr>().kind,
@@ -170,7 +170,10 @@ impl Expr {
                         .ctx(span)?
                         .ty(),
                     Cast { thing, ty } => Scope::current()
-                        .get_func(format!("as {}", ty.kind).into(), [thing.ty().ctx(span)?])
+                        .get_func(
+                            format!("as {}", ty.ty().ctx(span)?).into(),
+                            [thing.ty().ctx(span)?],
+                        )
                         .ctx(span)?
                         .ty(),
 
@@ -226,7 +229,7 @@ impl Expr {
                     }
 
                     Literal(literal) => literal.ty(),
-                    FuncCall(func_call) => func_call.init_type().ctx(span)?,
+                    FuncCall(func_call) => func_call.ty().ctx(span)?,
                     Var(name) => Scope::current().get_var(*name).ctx(span)?.ty(),
 
                     CCode(c_code) => c_code.ty(),

@@ -2,7 +2,7 @@ use crate::cached::CachedString;
 use crate::define::VarDefine;
 use crate::error::{err, unexpected_kind, Context, MyResult};
 use crate::expr::Expr;
-use crate::late_init::LateInit;
+use crate::init_cached::InitCached;
 use crate::parse::{Kind, Node};
 use crate::scope::Scope;
 use crate::span::Span;
@@ -251,10 +251,10 @@ impl Block {
 
 #[derive(Debug, Clone)]
 pub struct FuncCall {
-    pub span: Span,
+    span: Span,
     pub name: CachedString,
     pub args: Vec<Expr>,
-    ty: LateInit<TypeKind>,
+    ty: InitCached<TypeKind>,
 }
 
 impl Visit for FuncCall {
@@ -266,13 +266,13 @@ impl Visit for FuncCall {
             span,
             name: nodes.next().unwrap().as_str().into(),
             args: nodes.visit_rest(),
-            ty: LateInit::new("func call type"),
+            ty: InitCached::new("func call type"),
         }
     }
 }
 
 impl FuncCall {
-    pub fn init_type(&mut self) -> MyResult<TypeKind> {
+    pub fn ty(&mut self) -> MyResult<TypeKind> {
         let span = self.span;
         let name = self.name;
         let args = &mut self.args;

@@ -7,6 +7,7 @@ use crate::span::Span;
 use crate::statement::{Block, CCode};
 use crate::ty::Type;
 use crate::util::{Mangle, Visit};
+use std::collections::HashMap;
 use std::fmt::Write;
 
 #[derive(Debug, Clone)]
@@ -114,13 +115,15 @@ impl Define {
                 Scope::current()
                     .add(Symbol::Struct {
                         name,
-                        field_types: body
-                            .iter()
-                            .filter_map(|define| match &define.kind {
-                                Var(var_define) => Some((var_define.name, var_define.ty.kind)),
-                                _ => None,
-                            })
-                            .collect(),
+                        field_types: {
+                            let mut map = HashMap::new();
+                            for define in &body {
+                                if let Var(VarDefine { name, mut ty, .. }) = define.kind {
+                                    map.insert(name, ty.ty().ctx(self.span)?).unwrap_none();
+                                }
+                            }
+                            map
+                        },
                     })
                     .ctx(self.span)?;
 
@@ -135,18 +138,24 @@ impl Define {
                 )
             }
             Func {
-                ty,
+                mut ty,
                 name,
-                args,
+                mut args,
                 body,
             } => {
-                Scope::current().add(Symbol::Func {
-                    ty: ty.kind,
-                    name,
-                    arg_types: args.iter().map(|arg| arg.ty.kind).collect(),
-                }).ctx(self.span)?;
+                Scope::current()
+                    .add(Symbol::Func {
+                        ty: ty.ty().ctx(self.span)?,
+                        name,
+                        arg_types: args
+                            .iter_mut()
+                            .map(|arg| arg.ty.ty())
+                            .collect::<MyResult<Vec<_>>>()
+                            .ctx(self.span)?,
+                    })
+                    .ctx(self.span)?;
 
-                let scope = Scope::new(false, Some(ty.kind));
+                let scope = Scope::new(false, Some(ty.ty().ctx(self.span)?));
                 let s = format!(
                     "{} {}({}) {}",
                     ty.gen().ctx(self.span)?,
@@ -195,7 +204,7 @@ impl VarDefine {
     pub fn gen(mut self) -> MyResult<String> {
         Scope::current()
             .add(Symbol::Var {
-                ty: self.ty.kind,
+                ty: self.ty.ty().ctx(self.span)?,
                 name: self.name,
             })
             .ctx(self.span)?;
@@ -205,7 +214,7 @@ impl VarDefine {
             value
                 .ty()
                 .ctx(self.span)?
-                .check(&self.ty.kind)
+                .check(&self.ty.ty().ctx(self.span)?)
                 .ctx(self.span)?;
         }
 

@@ -1,5 +1,6 @@
 use crate::cached::CachedString;
 use crate::error::{err, unexpected_kind, Context, MyResult};
+use crate::init_cached::InitCached;
 use crate::parse::{Kind, Node};
 use crate::scope::Scope;
 use crate::span::Span;
@@ -9,9 +10,18 @@ use std::hash::{Hash, Hasher};
 
 #[derive(Debug, Copy, Clone)]
 pub struct Type {
-    pub span: Span,
-    pub kind: TypeKind,
+    span: Span,
+    kind: TypeKind,
+    ty: InitCached<TypeKind>,
 }
+#[derive(Debug, Copy, Clone)]
+pub enum TypeKind {
+    Primitive(PrimitiveType),
+    Struct(CachedString),
+    Literal(LiteralType),
+    CCode,
+}
+
 impl Visit for Type {
     fn visit(node: Node) -> Self {
         let node = node.children_checked(Kind::ty).next().unwrap();
@@ -25,11 +35,25 @@ impl Visit for Type {
         Self {
             span: node.span(),
             kind,
+            ty: InitCached::new("type type"),
         }
     }
 }
 
 impl Type {
+    pub fn ty(&mut self) -> MyResult<TypeKind> {
+        let span = self.span;
+        let kind = &mut self.kind;
+        self.ty
+            .get_or_try_init(|| {
+                if let TypeKind::Struct(name) = kind {
+                    Scope::current().get_struct(*name).ctx(span)?;
+                }
+                Ok(*kind)
+            })
+            .map(|r| *r)
+    }
+
     pub fn gen(self) -> MyResult<String> {
         use TypeKind::*;
         Ok(match self.kind {
@@ -61,13 +85,6 @@ impl Type {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
-pub enum TypeKind {
-    Primitive(PrimitiveType),
-    Struct(CachedString),
-    Literal(LiteralType),
-    CCode,
-}
 impl TypeKind {
     pub fn check(&self, expected: &TypeKind) -> MyResult<()> {
         let actual = self;

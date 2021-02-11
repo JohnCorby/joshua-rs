@@ -87,10 +87,11 @@ pub fn err<T>(str: impl AsRef<str>) -> MyResult<T> {
 }
 #[allow(dead_code)]
 pub fn warn(str: impl AsRef<str>) {
-    eprintln!("Warning: {}", (str.as_ref()));
+    eprintln!("Warning: {}", (str.as_ref().into_err()));
 }
+#[allow(dead_code)]
 pub fn warn_internal(str: impl AsRef<str>) {
-    eprintln!("Internal Warning: {}", (str.as_ref()));
+    eprintln!("Internal Warning: {}", (str.as_ref().into_err()));
 }
 
 pub fn unexpected_kind(node: Node) -> ! {

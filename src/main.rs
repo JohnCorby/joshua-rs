@@ -6,13 +6,14 @@
 #![feature(once_cell)]
 #![feature(panic_info_message)]
 #![feature(hash_set_entry)]
+#![feature(option_unwrap_none)]
 
 mod cached;
 mod compile;
 mod define;
 mod error;
 mod expr;
-mod late_init;
+mod init_cached;
 mod parse;
 mod scope;
 mod span;
