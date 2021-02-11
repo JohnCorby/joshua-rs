@@ -267,9 +267,9 @@ impl Expr {
     pub fn gen(self) -> MyResult<String> {
         use ExprKind::*;
         Ok(match self.kind {
-            Binary { left, op, right } => format!("({} {} {})", left.gen()?, op, right.gen()?),
-            Unary { op, thing } => format!("({}{})", op, thing.gen()?),
-            Cast { thing, ty } => format!("(({}) {})", ty.gen()?, thing.gen()?),
+            Binary { left, op, right } => format!("{} {} {}", left.gen()?, op, right.gen()?),
+            Unary { op, thing } => format!("{}{}", op, thing.gen()?),
+            Cast { thing, ty } => format!("({}) {}", ty.gen()?, thing.gen()?),
 
             MethodCall {
                 mut receiver,
@@ -285,7 +285,7 @@ impl Expr {
                 func_call.gen()?
             }
             Field { receiver, var } => {
-                format!("({}.{})", receiver.gen()?, var.to_string().mangle())
+                format!("{}.{}", receiver.gen()?, var.to_string().mangle())
             }
 
             Literal(literal) => literal.gen()?,
