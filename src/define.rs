@@ -1,5 +1,5 @@
 use crate::cached::CachedString;
-use crate::error::{unexpected_kind, MyResult};
+use crate::error::{unexpected_kind, Context, MyResult};
 use crate::expr::Expr;
 use crate::parse::{Kind, Node};
 use crate::scope::{Scope, Symbol};
@@ -111,22 +111,25 @@ impl Define {
         use DefineKind::*;
         Ok(match self.kind {
             Struct { name, body } => {
-                Scope::current().add(Symbol::Struct {
-                    name,
-                    field_types: body
-                        .iter()
-                        .filter_map(|define| match &define.kind {
-                            Var(var_define) => Some((var_define.name, var_define.ty.kind)),
-                            _ => None,
-                        })
-                        .collect(),
-                })?;
+                Scope::current()
+                    .add(Symbol::Struct {
+                        name,
+                        field_types: body
+                            .iter()
+                            .filter_map(|define| match &define.kind {
+                                Var(var_define) => Some((var_define.name, var_define.ty.kind)),
+                                _ => None,
+                            })
+                            .collect(),
+                    })
+                    .ctx(self.span)?;
 
                 format!(
                     "typedef struct {{\n{}\n}} {};",
                     body.into_iter()
                         .map(Define::gen)
-                        .collect::<MyResult<Vec<_>>>()?
+                        .collect::<MyResult<Vec<_>>>()
+                        .ctx(self.span)?
                         .join("\n"),
                     name
                 )
@@ -141,26 +144,27 @@ impl Define {
                     ty: ty.kind,
                     name,
                     arg_types: args.iter().map(|arg| arg.ty.kind).collect(),
-                })?;
+                }).ctx(self.span)?;
 
                 let scope = Scope::new(false, Some(ty.kind));
                 let s = format!(
                     "{} {}({}) {}",
-                    ty.gen()?,
+                    ty.gen().ctx(self.span)?,
                     name.to_string().mangle(),
                     args.into_iter()
                         .map(VarDefine::gen)
-                        .collect::<MyResult<Vec<_>>>()?
+                        .collect::<MyResult<Vec<_>>>()
+                        .ctx(self.span)?
                         .join(", "),
-                    body.gen()?
+                    body.gen().ctx(self.span)?
                 );
                 drop(scope);
 
                 s
             }
-            Var(var_define) => format!("{};", var_define.gen()?),
+            Var(var_define) => format!("{};", var_define.gen().ctx(self.span)?),
 
-            CCode(c_code) => c_code.gen()?,
+            CCode(c_code) => c_code.gen().ctx(self.span)?,
         })
     }
 }
@@ -189,19 +193,29 @@ impl Visit for VarDefine {
 
 impl VarDefine {
     pub fn gen(mut self) -> MyResult<String> {
-        Scope::current().add(Symbol::Var {
-            ty: self.ty.kind,
-            name: self.name,
-        })?;
+        Scope::current()
+            .add(Symbol::Var {
+                ty: self.ty.kind,
+                name: self.name,
+            })
+            .ctx(self.span)?;
 
         // type check
         if let Some(value) = &mut self.value {
-            value.ty()?.check(&self.ty.kind)?;
+            value
+                .ty()
+                .ctx(self.span)?
+                .check(&self.ty.kind)
+                .ctx(self.span)?;
         }
 
-        let mut s = format!("{} {}", self.ty.gen()?, self.name.to_string().mangle());
+        let mut s = format!(
+            "{} {}",
+            self.ty.gen().ctx(self.span)?,
+            self.name.to_string().mangle()
+        );
         if let Some(value) = self.value {
-            write!(s, " = {}", value.gen()?).unwrap();
+            write!(s, " = {}", value.gen().ctx(self.span)?).unwrap();
         }
 
         Ok(s)

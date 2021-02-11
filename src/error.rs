@@ -1,23 +1,15 @@
-use crate::parse::{Kind, Node};
+use crate::parse::Node;
 use crate::span::Span;
-use parking_lot::{Mutex, MutexGuard};
 use std::backtrace::{Backtrace, BacktraceStatus};
-use std::char::ParseCharError;
 use std::fmt::{Debug, Display, Formatter};
-use std::num::{ParseFloatError, ParseIntError};
-use std::option::NoneError;
-use std::str::ParseBoolError;
-
-static CURRENT_BACKTRACE: Mutex<Option<Backtrace>> = Mutex::new(None);
-fn current_backtrace() -> MutexGuard<'static, Option<Backtrace>> {
-    CURRENT_BACKTRACE
-        .try_lock()
-        .expect("CURRENT_BACKTRACE locked")
-}
 
 pub type MyResult<T> = Result<T, MyError>;
-#[derive(Clone)]
-pub struct MyError(String);
+// #[derive(Clone)]
+pub struct MyError {
+    message: String,
+    span: Option<Span>,
+    backtrace: Backtrace,
+}
 
 impl MyError {
     pub fn init() {
@@ -25,25 +17,28 @@ impl MyError {
             // get message
             let message = if let Some(message) = info.message() {
                 message.to_string()
-            } else if let Some(payload) = info.payload().downcast_ref::<&str>() {
+            } else if let Some(&payload) = info.payload().downcast_ref::<&str>() {
                 payload.to_string()
             } else {
                 "cannot get panic message".to_string()
             };
 
             // make error
-            let err = MyError::from(message);
-            eprintln!("Internal Error: {}", err);
+            eprintln!("Internal Error: {}", message.into_err());
         }))
     }
 }
 
 impl Display for MyError {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-        write!(f, "{}", Span::make_error(&self.0))?;
-        if let Some(backtrace) = &*current_backtrace() {
+        if let Some(span) = self.span {
+            write!(f, "{}", span.make_error(&self.message))?;
+        } else {
+            write!(f, "{}", self.message)?;
+        }
+        if self.backtrace.status() == BacktraceStatus::Captured {
             writeln!(f)?;
-            write!(f, "{}", backtrace)?;
+            write!(f, "{}", self.backtrace)?;
         }
         Ok(())
     }
@@ -54,65 +49,50 @@ impl Debug for MyError {
     }
 }
 
-impl From<String> for MyError {
-    fn from(s: String) -> Self {
-        let backtrace = Backtrace::capture();
-        if backtrace.status() == BacktraceStatus::Captured {
-            *current_backtrace() = Some(backtrace);
+pub trait IntoErr {
+    fn into_err(self) -> MyError;
+}
+impl<T: ToString> IntoErr for T {
+    fn into_err(self) -> MyError {
+        MyError {
+            message: self.to_string(),
+            span: None,
+            backtrace: Backtrace::capture(),
         }
-        Self(s)
     }
 }
-impl From<&str> for MyError {
-    fn from(s: &str) -> Self {
-        s.to_string().into()
+
+pub trait Context<T> {
+    fn ctx(self, span: Span) -> MyResult<T>;
+}
+impl<T, E: Into<MyError>> Context<T> for Result<T, E> {
+    fn ctx(self, span: Span) -> MyResult<T> {
+        self.map_err(|e| {
+            let mut e = e.into();
+            if e.span.is_none() {
+                e.span = Some(span);
+            }
+            e
+        })
+    }
+}
+impl<T> Context<T> for Option<T> {
+    fn ctx(self, span: Span) -> MyResult<T> {
+        self.ok_or_else(|| "option is None".into_err()).ctx(span)
     }
 }
 
 pub fn err<T>(str: impl AsRef<str>) -> MyResult<T> {
-    Err(str.as_ref().into())
+    Err(str.as_ref().into_err())
 }
 #[allow(dead_code)]
 pub fn warn(str: impl AsRef<str>) {
-    eprintln!("Warning: {}", MyError::from(str.as_ref()));
+    eprintln!("Warning: {}", (str.as_ref()));
 }
 pub fn warn_internal(str: impl AsRef<str>) {
-    eprintln!("Internal Warning: {}", MyError::from(str.as_ref()));
+    eprintln!("Internal Warning: {}", (str.as_ref()));
 }
 
 pub fn unexpected_kind(node: Node) -> ! {
     panic!("unexpected node kind {:?} (node: {})", node.kind(), node)
-}
-
-impl From<NoneError> for MyError {
-    fn from(_: NoneError) -> Self {
-        "option returned none".into()
-    }
-}
-
-impl From<ParseFloatError> for MyError {
-    fn from(e: ParseFloatError) -> Self {
-        e.to_string().into()
-    }
-}
-impl From<ParseIntError> for MyError {
-    fn from(e: ParseIntError) -> Self {
-        e.to_string().into()
-    }
-}
-impl From<ParseBoolError> for MyError {
-    fn from(e: ParseBoolError) -> Self {
-        e.to_string().into()
-    }
-}
-impl From<ParseCharError> for MyError {
-    fn from(e: ParseCharError) -> Self {
-        e.to_string().into()
-    }
-}
-
-impl From<pest::error::Error<Kind>> for MyError {
-    fn from(e: pest::error::Error<Kind>) -> Self {
-        e.to_string().into()
-    }
 }

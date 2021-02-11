@@ -1,7 +1,8 @@
-use crate::error::MyResult;
+use crate::error::{IntoErr, MyResult};
 use crate::span::Span;
 use crate::util::Visit;
 use console::style;
+use pest::error::Error;
 use pest::iterators::{Pair, Pairs};
 use pest::Parser;
 use std::fmt::{Debug, Display, Formatter};
@@ -19,7 +20,10 @@ impl<'i> From<Pair<'i, Kind>> for Node<'i> {
 impl<'i> Node<'i> {
     /// parse an input string into a node based on a kind
     pub fn parse(input: &'i str, kind: Kind) -> MyResult<Self> {
-        Ok(inner::Parser::parse(kind, input)?.next().unwrap().into())
+        let result: Result<Pairs<'i, Kind>, Error<Kind>> = inner::Parser::parse(kind, input);
+        result
+            .map(|pairs| Nodes::from(pairs).next().unwrap())
+            .map_err(IntoErr::into_err)
     }
 
     pub fn children(self) -> Nodes<'i> {
@@ -89,7 +93,7 @@ impl<'i> Iterator for Nodes<'i> {
 }
 impl<'i> DoubleEndedIterator for Nodes<'i> {
     fn next_back(&mut self) -> Option<Self::Item> {
-        self.0.next_back().map(Into::into)
+        self.0.next_back().map(Node::from)
     }
 }
 impl<'i> Nodes<'i> {

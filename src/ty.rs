@@ -1,5 +1,5 @@
 use crate::cached::CachedString;
-use crate::error::{err, unexpected_kind, MyResult};
+use crate::error::{err, unexpected_kind, Context, MyResult};
 use crate::parse::{Kind, Node};
 use crate::scope::Scope;
 use crate::span::Span;
@@ -53,7 +53,7 @@ impl Type {
                 .into()
             }
             Struct(name) => {
-                Scope::current().get_struct(name)?;
+                Scope::current().get_struct(name).ctx(self.span)?;
                 name.to_string()
             }
             kind => panic!("tried to gen {}", kind),

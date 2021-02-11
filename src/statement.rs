@@ -1,6 +1,6 @@
 use crate::cached::CachedString;
 use crate::define::VarDefine;
-use crate::error::{err, unexpected_kind, MyResult};
+use crate::error::{err, unexpected_kind, Context, MyResult};
 use crate::expr::Expr;
 use crate::late_init::LateInit;
 use crate::parse::{Kind, Node};
@@ -105,13 +105,15 @@ impl Statement {
                 value
                     .as_mut()
                     .map(|value| value.ty())
-                    .transpose()?
+                    .transpose()
+                    .ctx(self.span)?
                     .unwrap_or_else(|| PrimitiveType::Void.ty())
-                    .check(&Scope::current().func_return_type())?;
+                    .check(&Scope::current().func_return_type())
+                    .ctx(self.span)?;
 
                 let mut s = "return".to_string();
                 if let Some(value) = value {
-                    write!(s, " {}", value.gen()?).unwrap();
+                    s.push_str(&value.gen().ctx(self.span)?);
                 }
                 s.push(';');
 
@@ -119,13 +121,13 @@ impl Statement {
             }
             Break => {
                 if !Scope::current().in_loop() {
-                    return err("break cant be used outside of loops");
+                    return err("break cant be used outside of loops").ctx(self.span);
                 }
                 "break;".into()
             }
             Continue => {
                 if !Scope::current().in_loop() {
-                    return err("continue cant be used outside of loops");
+                    return err("continue cant be used outside of loops").ctx(self.span);
                 }
                 "continue;".into()
             }
@@ -135,15 +137,18 @@ impl Statement {
                 otherwise,
             } => {
                 // type check
-                cond.ty()?.check(&PrimitiveType::Bool.ty())?;
+                cond.ty()
+                    .ctx(self.span)?
+                    .check(&PrimitiveType::Bool.ty())
+                    .ctx(self.span)?;
 
-                let mut s = format!("if({}) ", cond.gen()?);
+                let mut s = format!("if({}) ", cond.gen().ctx(self.span)?);
                 let scope = Scope::new(false, None);
-                s.push_str(&then.gen()?);
+                s.push_str(&then.gen().ctx(self.span)?);
                 drop(scope);
                 if let Some(otherwise) = otherwise {
                     let scope = Scope::new(false, None);
-                    s.push_str(&otherwise.gen()?);
+                    s.push_str(&otherwise.gen().ctx(self.span)?);
                     drop(scope);
                 }
 
@@ -151,11 +156,14 @@ impl Statement {
             }
             Until { mut cond, block } => {
                 // type check
-                cond.ty()?.check(&PrimitiveType::Bool.ty())?;
+                cond.ty()
+                    .ctx(self.span)?
+                    .check(&PrimitiveType::Bool.ty())
+                    .ctx(self.span)?;
 
-                let mut s = format!("while(!({})) ", cond.gen()?);
+                let mut s = format!("while(!({})) ", cond.gen().ctx(self.span)?);
                 let scope = Scope::new(true, None);
-                s.push_str(&block.gen()?);
+                s.push_str(&block.gen().ctx(self.span)?);
                 drop(scope);
 
                 s
@@ -168,17 +176,20 @@ impl Statement {
                 ..
             } => {
                 let scope = Scope::new(true, None);
-                let mut s = format!("for({}; ", init.gen()?);
+                let mut s = format!("for({}; ", init.gen().ctx(self.span)?);
 
                 // type check
-                cond.ty()?.check(&PrimitiveType::Bool.ty())?;
+                cond.ty()
+                    .ctx(self.span)?
+                    .check(&PrimitiveType::Bool.ty())
+                    .ctx(self.span)?;
 
                 write!(
                     s,
                     "{}; {}) {}",
-                    cond.gen()?,
-                    update.gen()?.strip_suffix(';')?,
-                    block.gen()?
+                    cond.gen().ctx(self.span)?,
+                    update.gen().ctx(self.span)?.strip_suffix(';').unwrap(),
+                    block.gen().ctx(self.span)?
                 )
                 .unwrap();
                 drop(scope);
@@ -189,13 +200,25 @@ impl Statement {
                 mut rvalue,
             } => {
                 // type check
-                lvalue.check_assignable()?;
-                rvalue.ty()?.check(&lvalue.ty()?)?;
+                lvalue.check_assignable().ctx(self.span)?;
+                rvalue
+                    .ty()
+                    .ctx(self.span)?
+                    .check(&lvalue.ty().ctx(self.span)?)
+                    .ctx(self.span)?;
 
-                format!("{} = {};", lvalue.gen()?, rvalue.gen()?)
+                format!(
+                    "{} = {};",
+                    lvalue.gen().ctx(self.span)?,
+                    rvalue.gen().ctx(self.span)?
+                )
             }
-            VarDefine(var_define) => format!("{};", var_define.gen()?),
-            Expr(expr) => format!("{};", expr.gen()?),
+            VarDefine(var_define) => format!("{};", var_define.gen().ctx(self.span)?),
+            Expr(mut expr) => {
+                // type check
+                expr.ty().ctx(self.span)?;
+                format!("{};", expr.gen().ctx(self.span)?)
+            }
         })
     }
 }
@@ -250,6 +273,7 @@ impl Visit for FuncCall {
 
 impl FuncCall {
     pub fn init_type(&mut self) -> MyResult<TypeKind> {
+        let span = self.span;
         let name = self.name;
         let args = &mut self.args;
         self.ty
@@ -260,8 +284,10 @@ impl FuncCall {
                         &mut args
                             .iter_mut()
                             .map(|arg| arg.ty())
-                            .collect::<MyResult<Vec<_>>>()?,
-                    )?
+                            .collect::<MyResult<Vec<_>>>()
+                            .ctx(span)?,
+                    )
+                    .ctx(span)?
                     .ty())
             })
             .map(|r| *r)
@@ -274,7 +300,8 @@ impl FuncCall {
             self.args
                 .into_iter()
                 .map(Expr::gen)
-                .collect::<MyResult<Vec<_>>>()?
+                .collect::<MyResult<Vec<_>>>()
+                .ctx(self.span)?
                 .join(", "),
         );
 
