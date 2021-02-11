@@ -108,18 +108,21 @@ impl Define {
     pub fn gen(self) -> MyResult<String> {
         use DefineKind::*;
         Ok(match self.kind {
-            Struct { name, body } => {
+            Struct { name, mut body } => {
                 Scope::current().add(
                     Symbol::Struct {
                         name,
                         field_types: {
-                            let mut map = HashMap::new();
-                            for define in &body {
-                                if let Var(VarDefine { name, mut ty, .. }) = define.kind {
-                                    map.insert(name, ty.init_ty()?).unwrap_none();
+                            let mut field_types = HashMap::new();
+                            for define in &mut body {
+                                if let Var(VarDefine {
+                                    name, ref mut ty, ..
+                                }) = define.kind
+                                {
+                                    field_types.insert(name, ty.init_ty()?).unwrap_none();
                                 }
                             }
-                            map
+                            field_types
                         },
                     },
                     self.span,

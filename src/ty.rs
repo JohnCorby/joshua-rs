@@ -8,18 +8,11 @@ use crate::util::Visit;
 use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone)]
 pub struct Type {
     span: Span,
     kind: TypeKind,
     ty: InitCached<TypeKind>,
-}
-#[derive(Debug, Copy, Clone)]
-pub enum TypeKind {
-    Primitive(PrimitiveType),
-    Struct(CachedString),
-    Literal(LiteralType),
-    CCode,
 }
 
 impl Visit for Type {
@@ -35,7 +28,7 @@ impl Visit for Type {
         Self {
             span: node.span(),
             kind,
-            ty: InitCached::new("type type"),
+            ty: Default::default(),
         }
     }
 }
@@ -85,8 +78,15 @@ impl Type {
     }
 }
 
+#[derive(Debug, Copy, Clone)]
+pub enum TypeKind {
+    Primitive(PrimitiveType),
+    Struct(CachedString),
+    Literal(LiteralType),
+    CCode,
+}
 impl TypeKind {
-    pub fn check(&self, expected: &TypeKind, span: impl Into<Option<Span>>) -> MyResult<()> {
+    pub fn check(&self, expected: &Self, span: impl Into<Option<Span>>) -> MyResult<()> {
         let actual = self;
         if expected == actual {
             Ok(())

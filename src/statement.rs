@@ -136,7 +136,8 @@ impl Statement {
                 otherwise,
             } => {
                 // type check
-                cond.init_ty()?.check(&PrimitiveType::Bool.ty(), self.span)?;
+                cond.init_ty()?
+                    .check(&PrimitiveType::Bool.ty(), self.span)?;
 
                 let mut s = format!("if({}) ", cond.gen()?);
                 let scope = Scope::new(false, None);
@@ -152,7 +153,8 @@ impl Statement {
             }
             Until { mut cond, block } => {
                 // type check
-                cond.init_ty()?.check(&PrimitiveType::Bool.ty(), self.span)?;
+                cond.init_ty()?
+                    .check(&PrimitiveType::Bool.ty(), self.span)?;
 
                 let mut s = format!("while(!({})) ", cond.gen()?);
                 let scope = Scope::new(true, None);
@@ -172,7 +174,8 @@ impl Statement {
                 let mut s = format!("for({}; ", init.gen()?);
 
                 // type check
-                cond.init_ty()?.check(&PrimitiveType::Bool.ty(), self.span)?;
+                cond.init_ty()?
+                    .check(&PrimitiveType::Bool.ty(), self.span)?;
 
                 write!(
                     s,
@@ -244,7 +247,7 @@ impl Visit for FuncCall {
             span,
             name: nodes.next().unwrap().as_str().into(),
             args: nodes.visit_rest(),
-            ty: InitCached::new("func call type"),
+            ty: Default::default(),
         }
     }
 }

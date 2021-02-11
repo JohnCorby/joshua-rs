@@ -52,7 +52,6 @@ pub enum ExprKind {
 impl Visit for Expr {
     fn visit(node: Node) -> Self {
         let span = node.span();
-        let ty = InitCached::new("expr type");
         use ExprKind::*;
         let kind = match node.kind() {
             Kind::expr => node.children().next().unwrap().visit::<Expr>().kind,
@@ -64,7 +63,11 @@ impl Visit for Expr {
                 let mut span = left.span;
                 let mut kind = left.kind;
                 while let Some(op) = nodes.next() {
-                    left = Expr { span, kind, ty };
+                    left = Expr {
+                        span,
+                        kind,
+                        ty: Default::default(),
+                    };
                     span = left.span;
                     kind = Binary {
                         left: left.into(),
@@ -83,7 +86,11 @@ impl Visit for Expr {
                 let mut span = thing.span;
                 let mut kind = thing.kind;
                 for op in rev_nodes {
-                    thing = Expr { span, kind, ty };
+                    thing = Expr {
+                        span,
+                        kind,
+                        ty: Default::default(),
+                    };
                     span = thing.span;
                     kind = Unary {
                         op: op.as_str().into(),
@@ -101,7 +108,11 @@ impl Visit for Expr {
                 let mut span = thing.span;
                 let mut kind = thing.kind;
                 for ty_node in nodes {
-                    thing = Expr { span, kind, ty };
+                    thing = Expr {
+                        span,
+                        kind,
+                        ty: Default::default(),
+                    };
                     span = thing.span;
                     kind = Cast {
                         thing: thing.into(),
@@ -120,7 +131,11 @@ impl Visit for Expr {
                 let mut kind = left.kind;
                 let mut span = left.span;
                 for right in nodes {
-                    left = Expr { span, kind, ty };
+                    left = Expr {
+                        span,
+                        kind,
+                        ty: Default::default(),
+                    };
                     span = left.span;
                     kind = match right.kind() {
                         Kind::func_call => MethodCall {
@@ -149,7 +164,11 @@ impl Visit for Expr {
             _ => unexpected_kind(node),
         };
 
-        Self { span, kind, ty }
+        Self {
+            span,
+            kind,
+            ty: Default::default(),
+        }
     }
 }
 
