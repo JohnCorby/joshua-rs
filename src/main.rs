@@ -40,6 +40,7 @@ use std::lazy::SyncOnceCell;
 use std::path::Path;
 
 pub static PROGRAM: SyncOnceCell<String> = SyncOnceCell::new();
+#[quit::main]
 fn main() -> MyResult<()> {
     MyError::init();
 

@@ -1,6 +1,5 @@
 //! take c code string, write it to a c file, and compile that file
 
-use errno::Errno;
 use std::path::Path;
 use std::process::Command;
 
@@ -21,10 +20,12 @@ pub fn compile_program(c_code: impl AsRef<str>, path: impl AsRef<Path>) {
         .unwrap();
     std::fs::remove_file(c_path).unwrap();
     if !status.success() {
-        panic!("{} ({})", status, Errno(status.code().unwrap()));
+        quit::with_code(status.code().unwrap());
     }
 
     println!("running");
     let status = Command::new(out_path).status().unwrap();
-    println!("{} ({})", status, Errno(status.code().unwrap()));
+    if !status.success() {
+        quit::with_code(status.code().unwrap());
+    }
 }

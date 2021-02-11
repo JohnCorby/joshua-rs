@@ -74,8 +74,11 @@ i32 main() {
     f32 test2 = (1 as f32) + (2 as f32)
 
     <{puts("you are a poopy head")}>
-
-
+//    <{
+//        char* ptr = (char*) 0;
+//        puts(*ptr);
+//    }>
+//    main()
 
     return 1337 as i32
 }

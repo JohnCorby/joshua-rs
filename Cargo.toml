@@ -15,4 +15,4 @@ console = "*"
 owning_ref = "*"
 strum = { version = "*", features = ["derive"] }
 string-interner = "*"
-errno = "*"
+quit = "*"
