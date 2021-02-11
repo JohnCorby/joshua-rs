@@ -156,10 +156,15 @@ impl Define {
                 )?;
 
                 let scope = Scope::new(false, ty.init_ty()?);
+                // don't mangle func main (entry point)
+                let mut name = name.to_string();
+                if name != "main" {
+                    name = name.mangle();
+                }
                 let s = format!(
                     "{} {}({}) {}",
                     ty.gen()?,
-                    name.to_string().mangle(),
+                    name,
                     args.into_iter()
                         .map(VarDefine::gen)
                         .collect::<MyResult<Vec<_>>>()?
