@@ -20,6 +20,8 @@ fn scopes() -> MutexGuard<'static, Vec<Scope>> {
 pub struct Scope {
     in_loop: bool,
     func_return_type: Option<TypeKind>,
+    return_was_called: bool,
+
     symbols: HashSet<Symbol>,
 }
 
@@ -137,6 +139,13 @@ impl ScopeHandle {
             }
         }
         unreachable!("tried to get func return type when we arent in any func")
+    }
+    
+    pub fn return_was_called(&self) {
+        scopes()[self.index].return_was_called = true
+    }
+    pub fn was_return_called(&self) -> bool {
+        scopes()[self.index].return_was_called
     }
 
     pub fn add(&mut self, symbol: Symbol, span: impl Into<Option<Span>>) -> MyResult<()> {
@@ -302,6 +311,8 @@ impl Scope {
         scopes.push(Self {
             in_loop,
             func_return_type: func_return_type.into(),
+            return_was_called: false,
+
             symbols: Default::default(),
         });
         ScopeHandle { index, pop: true }

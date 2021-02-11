@@ -102,6 +102,8 @@ impl Statement {
         use StatementKind::*;
         Ok(match self.kind {
             Return(mut value) => {
+                Scope::current().return_was_called();
+
                 // type check
                 value
                     .as_mut()
@@ -112,7 +114,7 @@ impl Statement {
 
                 let mut s = "return".to_string();
                 if let Some(value) = value {
-                    s.push_str(&value.gen()?);
+                    write!(s, " {}", value.gen()?).unwrap()
                 }
                 s.push(';');
 

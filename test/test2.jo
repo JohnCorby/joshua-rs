@@ -12,19 +12,18 @@ struct im {
 }
 
 void hello(i32 what) {
-    // fixme no return statement should be treated as void return, which should error
 }
 
 im gimme_im() {
-    <{
-        im im = { 69 };
-        return im;
-    }>
+    im im
+    im.pain.hello = 23 as f32
+    return im
 }
 
 /// pretend this is a method of baba_booey
 f32 baba_booey::kill_yourself(baba_booey this, i32 a, f32 b, bool c, char d) {
     <{puts("woah! this is the method kill_yourself of baba_booey")}>
+    return 11565 as f32
 }
 
 i32 ok = 2 as i32
@@ -46,7 +45,7 @@ i32 main() {
         f64 t9
         bool t10
         char t11
-//        void t12 = 1 as void
+//        void t12
     }
 
     f32 i = 1 as f32
@@ -61,7 +60,7 @@ i32 main() {
     ok.hello = 1 as f32
     <{printf("ok.hello is %f\n", ${ok.hello})}>
     f32 yo = gimme_im().pain.kill_yourself(1 as i32, 2.0 as f32, true, 'd')
-//     <{printf("yo is %f\n", ${yo})}>
+     <{printf("yo is %f\n", ${yo})}>
 
     hello(4 as i32)
 
@@ -69,10 +68,7 @@ i32 main() {
     f32 test2 = (1 as f32) + (2 as f32)
 
     <{puts("you are a poopy head")}>
-//    <{
-//        char *oh_no = 0;
-//        int uh = (int) *oh_no;
-//    }>
+
 
 
     return 1337 as i32
