@@ -143,28 +143,40 @@ impl Define {
                 mut args,
                 body,
             } => {
+                let arg_types = args
+                    .iter_mut()
+                    .map(|arg| arg.ty.init_ty())
+                    .collect::<MyResult<Vec<_>>>()?;
+
+                // don't mangle func main (entry point)
+                let mut name_gen = name.to_string();
+                if name_gen != "main" {
+                    name_gen = format!(
+                        "{}({})",
+                        name_gen,
+                        arg_types
+                            .iter()
+                            .map(TypeKind::to_string)
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    )
+                    .mangle();
+                }
+
                 Scope::current().add(
                     Symbol::Func {
                         ty: ty.init_ty()?,
                         name,
-                        arg_types: args
-                            .iter_mut()
-                            .map(|arg| arg.ty.init_ty())
-                            .collect::<MyResult<Vec<_>>>()?,
+                        arg_types,
                     },
                     self.span,
                 )?;
 
                 let scope = Scope::new(false, ty.init_ty()?);
-                // don't mangle func main (entry point)
-                let mut name = name.to_string();
-                if name != "main" {
-                    name = name.mangle();
-                }
                 let s = format!(
                     "{} {}({}) {}",
                     ty.gen()?,
-                    name,
+                    name_gen,
                     args.into_iter()
                         .map(VarDefine::gen)
                         .collect::<MyResult<Vec<_>>>()?

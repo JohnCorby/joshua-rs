@@ -275,18 +275,37 @@ impl FuncCall {
             .map(|r| *r)
     }
 
-    pub fn gen(self) -> MyResult<String> {
-        let s = format!(
+    pub fn gen(mut self) -> MyResult<String> {
+        let arg_types = self
+            .args
+            .iter_mut()
+            .map(|arg| arg.init_ty())
+            .collect::<MyResult<Vec<_>>>()?;
+
+        // don't mangle func main (entry point)
+        let mut name_gen = self.name.to_string();
+        if name_gen != "main" {
+            name_gen = format!(
+                "{}({})",
+                name_gen,
+                arg_types
+                    .iter()
+                    .map(TypeKind::to_string)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )
+            .mangle();
+        }
+
+        Ok(format!(
             "{}({})",
-            self.name.to_string().mangle(),
+            name_gen,
             self.args
                 .into_iter()
                 .map(Expr::gen)
                 .collect::<MyResult<Vec<_>>>()?
                 .join(", "),
-        );
-
-        Ok(s)
+        ))
     }
 }
 

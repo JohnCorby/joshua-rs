@@ -25,6 +25,10 @@ f32 baba_booey::kill_yourself(baba_booey this, i32 a, f32 b, bool c, char d) {
     <{puts("woah! this is the method kill_yourself of baba_booey")}>
     return 11565 as f32
 }
+f32 baba_booey::kill_yourself(baba_booey this, i32 a, f32 b) {
+    <{puts("woah! this is the method kill_yourself but the other one of baba_booey")}>
+    return 4915.95010 as f32
+}
 
 i32 ok = 2 as i32
 
@@ -60,7 +64,9 @@ i32 main() {
     ok.hello = 1 as f32
     <{printf("ok.hello is %f\n", ${ok.hello})}>
     f32 yo = gimme_im().pain.kill_yourself(1 as i32, 2.0 as f32, true, 'd')
-     <{printf("yo is %f\n", ${yo})}>
+    <{printf("yo is %f\n", ${yo})}>
+    f32 yo2 = gimme_im().pain.kill_yourself(1 as i32, 2.0 as f32)
+    <{printf("yo2 is %f\n", ${yo2})}>
 
     hello(4 as i32)
 
