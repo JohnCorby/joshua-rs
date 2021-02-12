@@ -60,67 +60,43 @@ impl Visit for Expr {
                 let mut nodes = node.children();
 
                 let mut left = nodes.next().unwrap().visit::<Expr>();
-                let mut span = left.span;
-                let mut kind = left.kind;
                 while let Some(op) = nodes.next() {
-                    left = Expr {
-                        span,
-                        kind,
-                        ty: Default::default(),
-                    };
-                    span = left.span;
-                    kind = Binary {
-                        left: left.into(),
+                    left.kind = Binary {
+                        left: left.clone().into(),
                         op: op.as_str().into(),
                         right: nodes.next().unwrap().visit::<Expr>().into(),
-                    };
+                    }
                 }
 
-                kind
+                left.kind
             }
             Kind::unary_expr => {
                 // right assoc
                 let mut rev_nodes = node.children().rev();
 
                 let mut thing = rev_nodes.next().unwrap().visit::<Expr>();
-                let mut span = thing.span;
-                let mut kind = thing.kind;
                 for op in rev_nodes {
-                    thing = Expr {
-                        span,
-                        kind,
-                        ty: Default::default(),
-                    };
-                    span = thing.span;
-                    kind = Unary {
+                    thing.kind = Unary {
                         op: op.as_str().into(),
-                        thing: thing.into(),
-                    };
+                        thing: thing.clone().into(),
+                    }
                 }
 
-                kind
+                thing.kind
             }
             Kind::cast_expr => {
                 // left assoc
                 let mut nodes = node.children();
 
                 let mut thing = nodes.next().unwrap().visit::<Expr>();
-                let mut span = thing.span;
-                let mut kind = thing.kind;
                 for ty_node in nodes {
-                    thing = Expr {
-                        span,
-                        kind,
-                        ty: Default::default(),
-                    };
-                    span = thing.span;
-                    kind = Cast {
-                        thing: thing.into(),
+                    thing.kind = Cast {
+                        thing: thing.clone().into(),
                         ty: ty_node.visit(),
                     }
                 }
 
-                kind
+                thing.kind
             }
 
             Kind::dot_expr => {
@@ -128,22 +104,14 @@ impl Visit for Expr {
                 let mut nodes = node.children();
 
                 let mut left = nodes.next().unwrap().visit::<Expr>();
-                let mut kind = left.kind;
-                let mut span = left.span;
                 for right in nodes {
-                    left = Expr {
-                        span,
-                        kind,
-                        ty: Default::default(),
-                    };
-                    span = left.span;
-                    kind = match right.kind() {
+                    left.kind = match right.kind() {
                         Kind::func_call => MethodCall {
-                            receiver: left.into(),
+                            receiver: left.clone().into(),
                             func_call: right.visit(),
                         },
                         Kind::ident => Field {
-                            receiver: left.into(),
+                            receiver: left.clone().into(),
                             var: right.as_str().into(),
                         },
 
@@ -151,7 +119,7 @@ impl Visit for Expr {
                     }
                 }
 
-                kind
+                left.kind
             }
 
             // primary
