@@ -5,7 +5,7 @@
 use crate::cached::CachedString;
 use crate::error::{err, MyResult};
 use crate::span::Span;
-use crate::ty::TypeKind;
+use crate::ty::{PrimitiveType, TypeKind};
 use parking_lot::{Mutex, MutexGuard};
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Display, Formatter};
@@ -20,7 +20,7 @@ fn scopes() -> MutexGuard<'static, Vec<Scope>> {
 pub struct Scope {
     in_loop: bool,
     func_return_type: Option<TypeKind>,
-    return_was_called: bool,
+    return_called: bool,
 
     symbols: HashSet<Symbol>,
 }
@@ -140,12 +140,27 @@ impl ScopeHandle {
         }
         unreachable!("tried to get func return type when we arent in any func")
     }
-    
-    pub fn return_was_called(&self) {
-        scopes()[self.index].return_was_called = true
+
+    /// fixme: this doesnt account for branches and stuff (e.g. `if(false) return` works)
+    pub fn return_called(&self) {
+        for scope in scopes()[..=self.index].iter_mut().rev() {
+            // find the scope that is a function
+            if scope.func_return_type.is_some() {
+                scope.return_called = true;
+                return;
+            }
+        }
     }
-    pub fn was_return_called(&self) -> bool {
-        scopes()[self.index].return_was_called
+    /// note: only checks one current scope and outer ones
+    pub fn check_return_called(&self, span: impl Into<Option<Span>>) -> MyResult<()> {
+        let return_called = scopes()[self.index].return_called;
+        let is_void = self.func_return_type() == TypeKind::Primitive(PrimitiveType::Void);
+
+        if !return_called && !is_void {
+            err("return was never called for non-void func", span)
+        } else {
+            Ok(())
+        }
     }
 
     pub fn add(&mut self, symbol: Symbol, span: impl Into<Option<Span>>) -> MyResult<()> {
@@ -311,7 +326,7 @@ impl Scope {
         scopes.push(Self {
             in_loop,
             func_return_type: func_return_type.into(),
-            return_was_called: false,
+            return_called: false,
 
             symbols: Default::default(),
         });

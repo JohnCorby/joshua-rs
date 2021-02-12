@@ -102,7 +102,7 @@ impl Statement {
         use StatementKind::*;
         Ok(match self.kind {
             Return(mut value) => {
-                Scope::current().return_was_called();
+                Scope::current().return_called();
 
                 // type check
                 value

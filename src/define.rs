@@ -1,11 +1,11 @@
 use crate::cached::CachedString;
-use crate::error::{err, unexpected_kind, MyResult};
+use crate::error::{unexpected_kind, MyResult};
 use crate::expr::Expr;
 use crate::parse::{Kind, Node};
 use crate::scope::{Scope, Symbol};
 use crate::span::Span;
 use crate::statement::{Block, CCode};
-use crate::ty::{PrimitiveType, Type, TypeKind};
+use crate::ty::{Type, TypeKind};
 use crate::util::{Mangle, Visit};
 use std::collections::HashMap;
 use std::fmt::Write;
@@ -183,11 +183,7 @@ impl Define {
                         .join(", "),
                     body.gen()?
                 );
-                if !scope.was_return_called()
-                    && scope.func_return_type() != TypeKind::Primitive(PrimitiveType::Void)
-                {
-                    return err("return was never called for non-void func", self.span);
-                }
+                scope.check_return_called(self.span)?;
                 drop(scope);
 
                 s
