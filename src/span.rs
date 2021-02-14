@@ -4,7 +4,7 @@ use pest::error::Error;
 use pest::error::ErrorVariant::CustomError;
 use std::fmt::{Debug, Display, Formatter};
 
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct Span(usize, usize);
 
 impl From<pest::Span<'_>> for Span {
@@ -20,15 +20,15 @@ impl Display for Span {
         Display::fmt(&PROGRAM.get().unwrap()[self.0..self.1], f)
     }
 }
-impl Debug for Span {
-    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-        f.debug_struct("Span")
-            .field("str", &self.to_string())
-            .field("start", &self.0)
-            .field("end", &self.1)
-            .finish()
-    }
-}
+// impl Debug for Span {
+//     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+//         f.debug_struct("Span")
+//             .field("str", &self.to_string())
+//             .field("start", &self.0)
+//             .field("end", &self.1)
+//             .finish()
+//     }
+// }
 
 impl Span {
     pub fn make_error(&self, message: impl AsRef<str>) -> String {

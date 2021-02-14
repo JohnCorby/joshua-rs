@@ -27,7 +27,7 @@ impl Visit for Program {
 
 impl Program {
     pub fn gen(self, c_code: &mut String) -> Res<()> {
-        let scope = Scope::init();
+        let scope = Scope::init(c_code);
         for define in self.0 {
             define.gen(c_code)?;
             c_code.push('\n')

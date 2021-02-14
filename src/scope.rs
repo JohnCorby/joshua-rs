@@ -3,7 +3,9 @@
 //! symbols allow us to check for existence and type of stuff we define
 
 use crate::cached::CachedString;
+use crate::define::Define;
 use crate::error::{err, Res};
+use crate::parse::{Kind, Node};
 use crate::span::Span;
 use crate::ty::{PrimitiveType, TypeKind};
 use parking_lot::{Mutex, MutexGuard};
@@ -234,82 +236,79 @@ impl Drop for ScopeHandle {
     }
 }
 impl Scope {
-    pub fn init() -> ScopeHandle {
-        let mut scope = Self::new(false, None);
+    pub fn init(c_code: &mut String) -> ScopeHandle {
+        let scope = Self::new(false, None);
 
-        use crate::ty::LiteralType::*;
+        fn make_func(c_code: &mut String, code: impl AsRef<str>) {
+            Node::parse(code.as_ref(), Kind::func_define)
+                .unwrap()
+                .visit::<Define>()
+                .gen(c_code)
+                .unwrap();
+            c_code.push('\n');
+        }
+
+        fn op_funcs<Str: AsRef<str>>(
+            c_code: &mut String,
+            ops: impl AsRef<[Str]>,
+            num_args: usize,
+            arg_tys: impl AsRef<[PrimitiveType]>,
+            ret_tys: impl Into<Option<PrimitiveType>> + Copy,
+        ) {
+            for op in ops.as_ref() {
+                let op = op.as_ref();
+                for &arg_ty in arg_tys.as_ref() {
+                    let ret_ty = ret_tys.into().unwrap_or(arg_ty);
+                    make_func(
+                        c_code,
+                        match num_args {
+                            1 => format!(
+                                "{} `{}`({} a) return <{{ {} ${{ a }} }}>",
+                                ret_ty, op, arg_ty, op
+                            ),
+                            2 => format!(
+                                "{} `{}`({} a, {} b) return <{{ ${{ a }} {} ${{ b }} }}>",
+                                ret_ty, op, arg_ty, arg_ty, op
+                            ),
+                            _ => unreachable!(),
+                        },
+                    );
+                }
+            }
+        }
         use crate::ty::PrimitiveType::*;
-        fn funcs<Str: AsRef<str>>(
-            scope: &mut ScopeHandle,
-            names: impl AsRef<[Str]>,
-            num_args: usize,
-            types: impl AsRef<[TypeKind]>,
-        ) {
-            for name in names.as_ref() {
-                for ty in types.as_ref() {
-                    scope
-                        .add(
-                            Symbol::Func {
-                                ty: *ty,
-                                name: name.as_ref().into(),
-                                arg_types: std::iter::repeat(*ty).take(num_args).collect(),
-                            },
-                            None,
-                        )
-                        .unwrap();
-                }
-            }
-        }
-        fn funcs_ret<Str: AsRef<str>>(
-            scope: &mut ScopeHandle,
-            names: impl AsRef<[Str]>,
-            num_args: usize,
-            arg_types: impl AsRef<[TypeKind]>,
-            ret_type: TypeKind,
-        ) {
-            for name in names.as_ref() {
-                for arg_type in arg_types.as_ref() {
-                    scope
-                        .add(
-                            Symbol::Func {
-                                ty: ret_type,
-                                name: name.as_ref().into(),
-                                arg_types: std::iter::repeat(*arg_type).take(num_args).collect(),
-                            },
-                            None,
-                        )
-                        .unwrap();
-                }
-            }
-        }
-        let num_types = [
-            I8.ty(),
-            U8.ty(),
-            I16.ty(),
-            U16.ty(),
-            I32.ty(),
-            U32.ty(),
-            I64.ty(),
-            U64.ty(),
-            F32.ty(),
-            F64.ty(),
-        ];
+        let num_prims = [I8, U8, I16, U16, I32, U32, I64, U64, F32, F64];
 
-        funcs(&mut scope, ["+", "-", "*", "/", "%"], 2, num_types);
-        funcs(&mut scope, ["-"], 1, num_types);
-        funcs_ret(&mut scope, ["<", "<=", ">", ">="], 2, num_types, Bool.ty());
-        funcs_ret(&mut scope, ["==", "!="], 2, [Bool.ty()], Bool.ty());
-        funcs_ret(&mut scope, ["!"], 1, [Bool.ty()], Bool.ty());
+        // binary
+        op_funcs(c_code, ["+", "-", "*", "/"], 2, num_prims, None);
+        op_funcs(
+            c_code,
+            ["%"],
+            2,
+            [I8, U8, I16, U16, I32, U32, I64, U64],
+            None,
+        );
+        op_funcs(c_code, ["<", "<=", ">", ">="], 2, num_prims, Bool);
+        op_funcs(c_code, ["==", "!="], 2, [Bool], Bool);
 
-        for ty in &num_types {
-            funcs_ret(&mut scope, [format!("as {}", ty.name())], 1, num_types, *ty);
-            funcs_ret(
-                &mut scope,
-                [format!("as {}", ty.name())],
-                1,
-                [Int.ty(), Float.ty()],
-                *ty,
-            );
+        // unary
+        op_funcs(c_code, ["-"], 1, num_prims, None);
+        op_funcs(c_code, ["!"], 1, [Bool], Bool);
+
+        // cast
+        for &ret_ty in &num_prims {
+            for &arg_ty in &num_prims {
+                make_func(
+                    c_code,
+                    format!(
+                        "{} `as {}`({} a) return <{{ ({}) ${{ a }} }}>",
+                        ret_ty,
+                        ret_ty,
+                        arg_ty,
+                        ret_ty.c_type()
+                    ),
+                );
+            }
         }
 
         scope

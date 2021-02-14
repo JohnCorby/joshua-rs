@@ -1,5 +1,6 @@
 use crate::cached::CachedString;
 use crate::error::{err, unexpected_kind, Res};
+use crate::expr::VisitIdent;
 use crate::parse::{Kind, Node};
 use crate::scope::Scope;
 use crate::span::Span;
@@ -20,7 +21,7 @@ impl Visit for Type {
         let node = node.children_checked(Kind::ty).next().unwrap();
         let kind = match node.kind() {
             Kind::primitive => TypeKind::Primitive(node.as_str().parse().unwrap()),
-            Kind::ident => TypeKind::Struct(node.as_str().into()),
+            Kind::ident => TypeKind::Struct(node.visit_ident()),
 
             _ => unexpected_kind(node),
         };
@@ -48,24 +49,7 @@ impl Type {
     pub fn gen(self, c_code: &mut String) -> Res<()> {
         use TypeKind::*;
         match self.kind {
-            Primitive(ty) => {
-                use PrimitiveType::*;
-                c_code.push_str(match ty {
-                    I8 => "signed char",
-                    U8 => "unsigned char",
-                    I16 => "signed short",
-                    U16 => "unsigned short",
-                    I32 => "signed int",
-                    U32 => "unsigned int",
-                    I64 => "signed long long",
-                    U64 => "unsigned long long",
-                    F32 => "float",
-                    F64 => "double",
-                    Bool => "unsigned char",
-                    Char => "unsigned char",
-                    Void => "void",
-                })
-            }
+            Primitive(ty) => c_code.push_str(ty.c_type()),
             Struct(name) => {
                 Scope::current().get_struct(name, self.span)?;
                 c_code.push_str(&name.to_string())
@@ -172,6 +156,25 @@ pub enum PrimitiveType {
 impl PrimitiveType {
     pub fn ty(&self) -> TypeKind {
         TypeKind::Primitive(*self)
+    }
+
+    pub fn c_type(&self) -> &str {
+        use PrimitiveType::*;
+        match self {
+            I8 => "signed char",
+            U8 => "unsigned char",
+            I16 => "signed short",
+            U16 => "unsigned short",
+            I32 => "signed int",
+            U32 => "unsigned int",
+            I64 => "signed long long",
+            U64 => "unsigned long long",
+            F32 => "float",
+            F64 => "double",
+            Bool => "unsigned char",
+            Char => "unsigned char",
+            Void => "void",
+        }
     }
 }
 

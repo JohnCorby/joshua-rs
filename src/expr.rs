@@ -125,7 +125,7 @@ impl Visit for Expr {
             // primary
             Kind::literal => Literal(node.children().next().unwrap().visit()),
             Kind::func_call => FuncCall(node.visit()),
-            Kind::ident => Var(node.as_str().into()),
+            Kind::ident => Var(node.visit_ident()),
 
             Kind::c_code => CCode(node.visit()),
 
@@ -152,13 +152,20 @@ impl Expr {
                     Unary { op, thing } => Scope::current()
                         .get_func(*op, [thing.init_ty()?], self.span)?
                         .ty(),
-                    Cast { thing, ty } => Scope::current()
-                        .get_func(
-                            format!("as {}", ty.init_ty()?.name()).into(),
-                            [thing.init_ty()?],
-                            self.span,
-                        )?
-                        .ty(),
+                    Cast { thing, ty } => {
+                        // fixme literals are hacky as shit
+                        if let TypeKind::Literal(_) = thing.init_ty()? {
+                            ty.init_ty()?
+                        } else {
+                            Scope::current()
+                                .get_func(
+                                    format!("as {}", ty.init_ty()?.name()).into(),
+                                    [thing.init_ty()?],
+                                    self.span,
+                                )?
+                                .ty()
+                        }
+                    }
 
                     MethodCall {
                         receiver,
@@ -231,23 +238,48 @@ impl Expr {
         use ExprKind::*;
         match self.kind {
             Binary { left, op, right } => {
-                c_code.push('(');
-                left.gen(c_code)?;
-                c_code.push(' ');
-                c_code.push_str(&op.to_string());
-                c_code.push(' ');
-                right.gen(c_code)?;
-                c_code.push(')');
+                // c_code.push('(');
+                // left.gen(c_code)?;
+                // c_code.push(' ');
+                // c_code.push_str(&op.to_string());
+                // c_code.push(' ');
+                // right.gen(c_code)?;
+                // c_code.push(')');
+                self::FuncCall {
+                    span: self.span,
+                    name: op,
+                    args: vec![*left, *right],
+                    ty: self.ty,
+                }
+                .gen(c_code)?;
             }
             Unary { op, thing } => {
-                c_code.push_str(&op.to_string());
-                thing.gen(c_code)?;
+                // c_code.push_str(&op.to_string());
+                // thing.gen(c_code)?;
+                self::FuncCall {
+                    span: self.span,
+                    name: op,
+                    args: vec![*thing],
+                    ty: self.ty,
+                }
+                .gen(c_code)?;
             }
             Cast { thing, ty } => {
-                c_code.push('(');
-                ty.gen(c_code)?;
-                c_code.push_str(") ");
-                thing.gen(c_code)?;
+                // fixme literals are hacky as shit
+                if let TypeKind::Literal(_) = thing.init_ty()? {
+                    c_code.push('(');
+                    ty.gen(c_code)?;
+                    c_code.push_str(") ");
+                    thing.gen(c_code)?;
+                } else {
+                    self::FuncCall {
+                        span: self.span,
+                        name: format!("as {}", ty.init_ty()?.name()).into(),
+                        args: vec![*thing],
+                        ty: self.ty,
+                    }
+                    .gen(c_code)?;
+                }
             }
 
             MethodCall {
@@ -399,10 +431,10 @@ impl Literal {
 }
 
 pub trait VisitIdent {
-    fn visit_ident(self) -> CachedString;
+    fn visit_ident(&self) -> CachedString;
 }
 impl VisitIdent for Node<'_> {
-    fn visit_ident(self) -> CachedString {
+    fn visit_ident(&self) -> CachedString {
         let str = self.as_str();
         str.strip_prefix('`')
             .unwrap_or(str)
