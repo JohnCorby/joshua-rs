@@ -1,18 +1,18 @@
 use crate::cached::CachedString;
 use crate::error::{err, unexpected_kind, Res};
-use crate::init_cached::InitCached;
 use crate::parse::{Kind, Node};
 use crate::scope::Scope;
 use crate::span::Span;
 use crate::util::Visit;
 use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
+use std::lazy::OnceCell;
 
 #[derive(Debug, Clone)]
 pub struct Type {
     span: Span,
     kind: TypeKind,
-    ty: InitCached<TypeKind>,
+    ty: OnceCell<TypeKind>,
 }
 
 impl Visit for Type {
@@ -34,15 +34,13 @@ impl Visit for Type {
 }
 
 impl Type {
-    pub fn init_ty(&mut self) -> Res<TypeKind> {
-        let span = self.span;
-        let kind = &mut self.kind;
+    pub fn init_ty(&self) -> Res<TypeKind> {
         self.ty
             .get_or_try_init(|| {
-                if let TypeKind::Struct(name) = kind {
-                    Scope::current().get_struct(*name, span)?;
+                if let TypeKind::Struct(name) = self.kind {
+                    Scope::current().get_struct(name, self.span)?;
                 }
-                Ok(*kind)
+                Ok(self.kind)
             })
             .copied()
     }
@@ -97,14 +95,14 @@ impl TypeKind {
             )
         }
     }
-    
+
     pub fn name(&self) -> String {
         use TypeKind::*;
         match self {
             Primitive(ty) => ty.to_string(),
             Struct(name) => name.to_string(),
             Literal(ty) => ty.to_string(),
-            _ => unreachable!("{} doesnt have a name", self)
+            _ => unreachable!("{} doesnt have a name", self),
         }
     }
 }

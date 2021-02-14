@@ -25,7 +25,6 @@ mod compile;
 mod define;
 mod error;
 mod expr;
-mod init_cached;
 mod parse;
 mod scope;
 mod span;

@@ -131,7 +131,7 @@ impl Statement {
                 "continue;".into()
             }
             If {
-                mut cond,
+                cond,
                 then,
                 otherwise,
             } => {
@@ -151,7 +151,7 @@ impl Statement {
 
                 s
             }
-            Until { mut cond, block } => {
+            Until { cond, block } => {
                 // type check
                 cond.init_ty()?
                     .check(&PrimitiveType::Bool.ty(), self.span)?;
@@ -165,10 +165,9 @@ impl Statement {
             }
             For {
                 init,
-                mut cond,
+                cond,
                 update,
                 block,
-                ..
             } => {
                 let scope = Scope::new(true, None);
                 let mut s = format!("for({}; ", init.gen()?);
@@ -188,10 +187,7 @@ impl Statement {
                 drop(scope);
                 s
             }
-            ExprAssign {
-                mut lvalue,
-                mut rvalue,
-            } => {
+            ExprAssign { lvalue, rvalue } => {
                 // type check
                 lvalue.check_assignable(self.span)?;
                 rvalue.init_ty()?.check(&lvalue.init_ty()?, self.span)?;
@@ -199,7 +195,7 @@ impl Statement {
                 format!("{} = {};", lvalue.gen()?, rvalue.gen()?)
             }
             VarDefine(var_define) => format!("{};", var_define.gen()?),
-            Expr(mut expr) => {
+            Expr(expr) => {
                 // type check
                 expr.init_ty()?;
                 format!("{};", expr.gen()?)
@@ -267,7 +263,7 @@ impl CCode {
             .into_iter()
             .map(|part| match part {
                 CCodePart::String(string) => Ok(string),
-                CCodePart::Expr(mut expr) => {
+                CCodePart::Expr(expr) => {
                     // type check
                     expr.init_ty()?;
                     expr.gen()

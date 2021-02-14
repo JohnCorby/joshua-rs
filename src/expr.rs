@@ -2,19 +2,19 @@
 
 use crate::cached::CachedString;
 use crate::error::{err, unexpected_kind, Res};
-use crate::init_cached::InitCached;
 use crate::parse::{Kind, Node};
 use crate::scope::{Scope, Symbol};
 use crate::span::Span;
 use crate::statement::CCode;
 use crate::ty::{LiteralType, PrimitiveType, Type, TypeKind};
 use crate::util::{Mangle, Visit};
+use std::lazy::OnceCell;
 
 #[derive(Debug, Clone)]
 pub struct Expr {
     span: Span,
     kind: ExprKind,
-    ty: InitCached<TypeKind>,
+    ty: OnceCell<TypeKind>,
 }
 #[derive(Debug, Clone)]
 pub enum ExprKind {
@@ -141,24 +141,22 @@ impl Visit for Expr {
 }
 
 impl Expr {
-    pub fn init_ty(&mut self) -> Res<TypeKind> {
-        let span = self.span;
-        let kind = &mut self.kind;
+    pub fn init_ty(&self) -> Res<TypeKind> {
         self.ty
             .get_or_try_init(|| {
                 use ExprKind::*;
-                Ok(match kind {
+                Ok(match &self.kind {
                     Binary { left, op, right } => Scope::current()
-                        .get_func(*op, [left.init_ty()?, right.init_ty()?], span)?
+                        .get_func(*op, [left.init_ty()?, right.init_ty()?], self.span)?
                         .ty(),
                     Unary { op, thing } => Scope::current()
-                        .get_func(*op, [thing.init_ty()?], span)?
+                        .get_func(*op, [thing.init_ty()?], self.span)?
                         .ty(),
                     Cast { thing, ty } => Scope::current()
                         .get_func(
                             format!("as {}", ty.init_ty()?.name()).into(),
                             [thing.init_ty()?],
-                            span,
+                            self.span,
                         )?
                         .ty(),
 
@@ -168,43 +166,49 @@ impl Expr {
                     } => {
                         let mut arg_types = func_call
                             .args
-                            .iter_mut()
+                            .iter()
                             .map(|arg| arg.init_ty())
                             .collect::<Res<Vec<_>>>()?;
                         arg_types.insert(0, receiver.init_ty()?);
 
                         Scope::current()
-                            .get_func(func_call.name, arg_types, span)?
+                            .get_func(func_call.name, arg_types, self.span)?
                             .ty()
                     }
                     Field { receiver, var } => {
                         let struct_name = match receiver.init_ty()? {
                             TypeKind::Struct(struct_name) => struct_name,
                             ty => {
-                                return err(format!("expected struct type, but got {}", ty), span)
+                                return err(
+                                    format!("expected struct type, but got {}", ty),
+                                    self.span,
+                                )
                             }
                         };
-                        let symbol = Scope::current().get_struct(struct_name, span)?;
+                        let symbol = Scope::current().get_struct(struct_name, self.span)?;
                         let field_types = match &symbol {
                             Symbol::Struct { field_types, .. } => field_types,
                             _ => {
                                 return err(
                                     format!("expected struct symbol, but got {}", symbol),
-                                    span,
+                                    self.span,
                                 )
                             }
                         };
                         match field_types.get(&var) {
                             Some(&field_type) => field_type,
                             None => {
-                                return err(format!("no field named {} in {}", var, symbol), span)
+                                return err(
+                                    format!("no field named {} in {}", var, symbol),
+                                    self.span,
+                                )
                             }
                         }
                     }
 
                     Literal(literal) => literal.ty(),
                     FuncCall(func_call) => func_call.init_ty()?,
-                    Var(name) => Scope::current().get_var(*name, span)?.ty(),
+                    Var(name) => Scope::current().get_var(*name, self.span)?.ty(),
 
                     CCode(c_code) => c_code.ty(),
                 })
@@ -317,7 +321,7 @@ pub struct FuncCall {
     span: Span,
     name: CachedString,
     args: Vec<Expr>,
-    ty: InitCached<TypeKind>,
+    ty: OnceCell<TypeKind>,
 }
 
 impl Visit for FuncCall {
@@ -335,20 +339,17 @@ impl Visit for FuncCall {
 }
 
 impl FuncCall {
-    pub fn init_ty(&mut self) -> Res<TypeKind> {
-        let span = self.span;
-        let name = self.name;
-        let args = &mut self.args;
+    pub fn init_ty(&self) -> Res<TypeKind> {
         self.ty
             .get_or_try_init(|| {
                 Ok(Scope::current()
                     .get_func(
-                        name,
-                        &mut args
-                            .iter_mut()
+                        self.name,
+                        self.args
+                            .iter()
                             .map(|arg| arg.init_ty())
                             .collect::<Res<Vec<_>>>()?,
-                        span,
+                        self.span,
                     )?
                     .ty())
             })
