@@ -1,4 +1,4 @@
-use crate::error::{IntoErr, MyResult};
+use crate::error::{IntoErr, Res};
 use crate::span::Span;
 use crate::util::Visit;
 use console::style;
@@ -19,7 +19,7 @@ impl<'i> From<Pair<'i, Kind>> for Node<'i> {
 }
 impl<'i> Node<'i> {
     /// parse an input string into a node based on a kind
-    pub fn parse(input: &'i str, kind: Kind) -> MyResult<Self> {
+    pub fn parse(input: &'i str, kind: Kind) -> Res<Self> {
         let result: Result<Pairs<'i, Kind>, Error<Kind>> = inner::Parser::parse(kind, input);
         result
             .map(|pairs| Nodes::from(pairs).next().unwrap())

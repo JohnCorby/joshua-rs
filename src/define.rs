@@ -1,5 +1,5 @@
 use crate::cached::CachedString;
-use crate::error::{unexpected_kind, MyResult};
+use crate::error::{unexpected_kind, Res};
 use crate::expr::{Expr, VisitIdent};
 use crate::parse::{Kind, Node};
 use crate::scope::{Scope, Symbol};
@@ -27,13 +27,13 @@ impl Visit for Program {
 }
 
 impl Program {
-    pub fn gen(self) -> MyResult<String> {
+    pub fn gen(self) -> Res<String> {
         let scope = Scope::init();
         let s = self
             .0
             .into_iter()
             .map(Define::gen)
-            .collect::<MyResult<Vec<_>>>()?
+            .collect::<Res<Vec<_>>>()?
             .join("\n");
         drop(scope);
         Ok(s)
@@ -105,7 +105,7 @@ impl Visit for Define {
 }
 
 impl Define {
-    pub fn gen(self) -> MyResult<String> {
+    pub fn gen(self) -> Res<String> {
         use DefineKind::*;
         Ok(match self.kind {
             Struct { name, mut body } => {
@@ -132,7 +132,7 @@ impl Define {
                     "typedef struct {{\n{}\n}} {};",
                     body.into_iter()
                         .map(Define::gen)
-                        .collect::<MyResult<Vec<_>>>()?
+                        .collect::<Res<Vec<_>>>()?
                         .join("\n"),
                     name
                 )
@@ -146,7 +146,7 @@ impl Define {
                 let arg_types = args
                     .iter_mut()
                     .map(|arg| arg.ty.init_ty())
-                    .collect::<MyResult<Vec<_>>>()?;
+                    .collect::<Res<Vec<_>>>()?;
 
                 // don't mangle func main (entry point)
                 let mut name_gen = name.to_string();
@@ -156,7 +156,7 @@ impl Define {
                         name_gen,
                         arg_types
                             .iter()
-                            .map(TypeKind::to_string)
+                            .map(TypeKind::name)
                             .collect::<Vec<_>>()
                             .join(", ")
                     )
@@ -179,7 +179,7 @@ impl Define {
                     name_gen,
                     args.into_iter()
                         .map(VarDefine::gen)
-                        .collect::<MyResult<Vec<_>>>()?
+                        .collect::<Res<Vec<_>>>()?
                         .join(", "),
                     body.gen()?
                 );
@@ -218,7 +218,7 @@ impl Visit for VarDefine {
 }
 
 impl VarDefine {
-    pub fn gen(mut self) -> MyResult<String> {
+    pub fn gen(mut self) -> Res<String> {
         Scope::current().add(
             Symbol::Var {
                 ty: self.ty.init_ty()?,

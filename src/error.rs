@@ -3,14 +3,14 @@ use crate::span::Span;
 use std::backtrace::{Backtrace, BacktraceStatus};
 use std::fmt::{Debug, Display, Formatter};
 
-pub type MyResult<T> = Result<T, MyError>;
-pub struct MyError {
+pub type Res<T> = Result<T, Err>;
+pub struct Err {
     message: String,
     span: Option<Span>,
     backtrace: Backtrace,
 }
 
-impl MyError {
+impl Err {
     pub fn init() {
         std::panic::set_hook(Box::new(|info| {
             // get message
@@ -28,7 +28,7 @@ impl MyError {
     }
 }
 
-impl Display for MyError {
+impl Display for Err {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         if let Some(span) = self.span {
             write!(f, "{}", span.make_error(&self.message))?;
@@ -42,18 +42,18 @@ impl Display for MyError {
         Ok(())
     }
 }
-impl Debug for MyError {
+impl Debug for Err {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         Display::fmt(self, f)
     }
 }
 
 pub trait IntoErr {
-    fn into_err(self, span: impl Into<Option<Span>>) -> MyError;
+    fn into_err(self, span: impl Into<Option<Span>>) -> Err;
 }
 impl<T: ToString> IntoErr for T {
-    fn into_err(self, span: impl Into<Option<Span>>) -> MyError {
-        MyError {
+    fn into_err(self, span: impl Into<Option<Span>>) -> Err {
+        Err {
             message: self.to_string(),
             span: span.into(),
             backtrace: Backtrace::capture(),
@@ -61,7 +61,7 @@ impl<T: ToString> IntoErr for T {
     }
 }
 
-pub fn err<T>(str: impl AsRef<str>, span: impl Into<Option<Span>>) -> MyResult<T> {
+pub fn err<T>(str: impl AsRef<str>, span: impl Into<Option<Span>>) -> Res<T> {
     Err(str.as_ref().into_err(span))
 }
 #[allow(dead_code)]

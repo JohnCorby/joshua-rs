@@ -1,7 +1,7 @@
 //! handle the painful process that is parsing expressions
 
 use crate::cached::CachedString;
-use crate::error::{err, unexpected_kind, MyResult};
+use crate::error::{err, unexpected_kind, Res};
 use crate::init_cached::InitCached;
 use crate::parse::{Kind, Node};
 use crate::scope::{Scope, Symbol};
@@ -141,7 +141,7 @@ impl Visit for Expr {
 }
 
 impl Expr {
-    pub fn init_ty(&mut self) -> MyResult<TypeKind> {
+    pub fn init_ty(&mut self) -> Res<TypeKind> {
         let span = self.span;
         let kind = &mut self.kind;
         self.ty
@@ -156,7 +156,7 @@ impl Expr {
                         .ty(),
                     Cast { thing, ty } => Scope::current()
                         .get_func(
-                            format!("as {}", ty.init_ty()?).into(),
+                            format!("as {}", ty.init_ty()?.name()).into(),
                             [thing.init_ty()?],
                             span,
                         )?
@@ -166,25 +166,16 @@ impl Expr {
                         receiver,
                         func_call,
                     } => {
-                        let receiver_ty = receiver.init_ty()?;
-                        let struct_name = match receiver_ty {
-                            TypeKind::Struct(struct_name) => struct_name,
-                            _ => {
-                                return err(
-                                    format!("expected struct type, but got {}", receiver_ty),
-                                    span,
-                                )
-                            }
-                        };
-                        let name = format!("{}::{}", struct_name, func_call.name).into();
                         let mut arg_types = func_call
                             .args
                             .iter_mut()
                             .map(|arg| arg.init_ty())
-                            .collect::<MyResult<Vec<_>>>()?;
-                        arg_types.insert(0, receiver_ty);
+                            .collect::<Res<Vec<_>>>()?;
+                        arg_types.insert(0, receiver.init_ty()?);
 
-                        Scope::current().get_func(name, arg_types, span)?.ty()
+                        Scope::current()
+                            .get_func(func_call.name, arg_types, span)?
+                            .ty()
                     }
                     Field { receiver, var } => {
                         let struct_name = match receiver.init_ty()? {
@@ -221,7 +212,7 @@ impl Expr {
             .copied()
     }
 
-    pub fn check_assignable(&self, span: impl Into<Option<Span>>) -> MyResult<()> {
+    pub fn check_assignable(&self, span: impl Into<Option<Span>>) -> Res<()> {
         use ExprKind::*;
         let is_assignable = matches!(self.kind, Field { .. } | Var(_));
 
@@ -232,7 +223,7 @@ impl Expr {
         }
     }
 
-    pub fn gen(self) -> MyResult<String> {
+    pub fn gen(self) -> Res<String> {
         use ExprKind::*;
         Ok(match self.kind {
             Binary { left, op, right } => format!("({} {} {})", left.gen()?, op, right.gen()?),
@@ -240,16 +231,10 @@ impl Expr {
             Cast { thing, ty } => format!("(({}) {})", ty.gen()?, thing.gen()?),
 
             MethodCall {
-                mut receiver,
+                receiver,
                 mut func_call,
             } => {
-                let struct_name = match receiver.init_ty()? {
-                    TypeKind::Struct(struct_name) => struct_name,
-                    ty => return err(format!("expected struct type, but got {}", ty), self.span),
-                };
-                func_call.name = format!("{}::{}", struct_name, func_call.name).into();
                 func_call.args.insert(0, *receiver);
-
                 func_call.gen()?
             }
             Field { receiver, var } => {
@@ -350,7 +335,7 @@ impl Visit for FuncCall {
 }
 
 impl FuncCall {
-    pub fn init_ty(&mut self) -> MyResult<TypeKind> {
+    pub fn init_ty(&mut self) -> Res<TypeKind> {
         let span = self.span;
         let name = self.name;
         let args = &mut self.args;
@@ -362,7 +347,7 @@ impl FuncCall {
                         &mut args
                             .iter_mut()
                             .map(|arg| arg.init_ty())
-                            .collect::<MyResult<Vec<_>>>()?,
+                            .collect::<Res<Vec<_>>>()?,
                         span,
                     )?
                     .ty())
@@ -370,12 +355,12 @@ impl FuncCall {
             .copied()
     }
 
-    pub fn gen(mut self) -> MyResult<String> {
+    pub fn gen(mut self) -> Res<String> {
         let arg_types = self
             .args
             .iter_mut()
             .map(|arg| arg.init_ty())
-            .collect::<MyResult<Vec<_>>>()?;
+            .collect::<Res<Vec<_>>>()?;
 
         // don't mangle func main (entry point)
         let mut name_gen = self.name.to_string();
@@ -385,7 +370,7 @@ impl FuncCall {
                 name_gen,
                 arg_types
                     .iter()
-                    .map(TypeKind::to_string)
+                    .map(TypeKind::name)
                     .collect::<Vec<_>>()
                     .join(", ")
             )
@@ -398,7 +383,7 @@ impl FuncCall {
             self.args
                 .into_iter()
                 .map(Expr::gen)
-                .collect::<MyResult<Vec<_>>>()?
+                .collect::<Res<Vec<_>>>()?
                 .join(", "),
         ))
     }

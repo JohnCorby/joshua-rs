@@ -3,7 +3,7 @@
 //! symbols allow us to check for existence and type of stuff we define
 
 use crate::cached::CachedString;
-use crate::error::{err, MyResult};
+use crate::error::{err, Res};
 use crate::span::Span;
 use crate::ty::{PrimitiveType, TypeKind};
 use parking_lot::{Mutex, MutexGuard};
@@ -152,7 +152,7 @@ impl ScopeHandle {
         }
     }
     /// note: only checks one current scope and outer ones
-    pub fn check_return_called(&self, span: impl Into<Option<Span>>) -> MyResult<()> {
+    pub fn check_return_called(&self, span: impl Into<Option<Span>>) -> Res<()> {
         let return_called = scopes()[self.index].return_called;
         let is_void = self.func_return_type() == TypeKind::Primitive(PrimitiveType::Void);
 
@@ -163,7 +163,7 @@ impl ScopeHandle {
         }
     }
 
-    pub fn add(&mut self, symbol: Symbol, span: impl Into<Option<Span>>) -> MyResult<()> {
+    pub fn add(&mut self, symbol: Symbol, span: impl Into<Option<Span>>) -> Res<()> {
         let symbols = &mut scopes()[self.index].symbols;
         let err = err(format!("{} already defined", symbol), span);
         // find with hash first
@@ -178,7 +178,7 @@ impl ScopeHandle {
         Ok(())
     }
 
-    fn find(&self, symbol: Symbol, span: impl Into<Option<Span>>) -> MyResult<Symbol> {
+    fn find(&self, symbol: Symbol, span: impl Into<Option<Span>>) -> Res<Symbol> {
         for scope in scopes()[..=self.index].iter().rev() {
             // find with hash first
             if let Some(symbol) = scope.symbols.get(&symbol) {
@@ -192,7 +192,7 @@ impl ScopeHandle {
         err(format!("could not find {}", symbol), span)
     }
 
-    pub fn get_var(&self, name: CachedString, span: impl Into<Option<Span>>) -> MyResult<Symbol> {
+    pub fn get_var(&self, name: CachedString, span: impl Into<Option<Span>>) -> Res<Symbol> {
         self.find(
             Symbol::Var {
                 ty: Default::default(),
@@ -206,7 +206,7 @@ impl ScopeHandle {
         name: CachedString,
         arg_types: impl AsRef<[TypeKind]>,
         span: impl Into<Option<Span>>,
-    ) -> MyResult<Symbol> {
+    ) -> Res<Symbol> {
         self.find(
             Symbol::Func {
                 ty: Default::default(),
@@ -216,11 +216,7 @@ impl ScopeHandle {
             span,
         )
     }
-    pub fn get_struct(
-        &self,
-        name: CachedString,
-        span: impl Into<Option<Span>>,
-    ) -> MyResult<Symbol> {
+    pub fn get_struct(&self, name: CachedString, span: impl Into<Option<Span>>) -> Res<Symbol> {
         self.find(
             Symbol::Struct {
                 name,
@@ -306,10 +302,10 @@ impl Scope {
         funcs_ret(&mut scope, ["!"], 1, [Bool.ty()], Bool.ty());
 
         for ty in &num_types {
-            funcs_ret(&mut scope, [format!("as {}", ty)], 1, num_types, *ty);
+            funcs_ret(&mut scope, [format!("as {}", ty.name())], 1, num_types, *ty);
             funcs_ret(
                 &mut scope,
-                [format!("as {}", ty)],
+                [format!("as {}", ty.name())],
                 1,
                 [Int.ty(), Float.ty()],
                 *ty,

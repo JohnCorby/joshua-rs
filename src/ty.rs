@@ -1,5 +1,5 @@
 use crate::cached::CachedString;
-use crate::error::{err, unexpected_kind, MyResult};
+use crate::error::{err, unexpected_kind, Res};
 use crate::init_cached::InitCached;
 use crate::parse::{Kind, Node};
 use crate::scope::Scope;
@@ -34,7 +34,7 @@ impl Visit for Type {
 }
 
 impl Type {
-    pub fn init_ty(&mut self) -> MyResult<TypeKind> {
+    pub fn init_ty(&mut self) -> Res<TypeKind> {
         let span = self.span;
         let kind = &mut self.kind;
         self.ty
@@ -47,7 +47,7 @@ impl Type {
             .copied()
     }
 
-    pub fn gen(self) -> MyResult<String> {
+    pub fn gen(self) -> Res<String> {
         use TypeKind::*;
         Ok(match self.kind {
             Primitive(ty) => {
@@ -86,7 +86,7 @@ pub enum TypeKind {
     CCode,
 }
 impl TypeKind {
-    pub fn check(&self, expected: &Self, span: impl Into<Option<Span>>) -> MyResult<()> {
+    pub fn check(&self, expected: &Self, span: impl Into<Option<Span>>) -> Res<()> {
         let actual = self;
         if expected == actual {
             Ok(())
@@ -95,6 +95,16 @@ impl TypeKind {
                 format!("expected {}, but got {}", expected, actual),
                 span.into(),
             )
+        }
+    }
+    
+    pub fn name(&self) -> String {
+        use TypeKind::*;
+        match self {
+            Primitive(ty) => ty.to_string(),
+            Struct(name) => name.to_string(),
+            Literal(ty) => ty.to_string(),
+            _ => unreachable!("{} doesnt have a name", self)
         }
     }
 }

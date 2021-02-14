@@ -1,5 +1,5 @@
 use crate::define::VarDefine;
-use crate::error::{err, unexpected_kind, MyResult};
+use crate::error::{err, unexpected_kind, Res};
 use crate::expr::Expr;
 use crate::parse::{Kind, Node};
 use crate::scope::Scope;
@@ -96,7 +96,7 @@ impl Visit for Statement {
 }
 
 impl Statement {
-    pub fn gen(self) -> MyResult<String> {
+    pub fn gen(self) -> Res<String> {
         use StatementKind::*;
         Ok(match self.kind {
             Return(mut value) => {
@@ -218,13 +218,13 @@ impl Visit for Block {
 }
 
 impl Block {
-    pub fn gen(self) -> MyResult<String> {
+    pub fn gen(self) -> Res<String> {
         Ok(format!(
             "{{\n{}\n}}",
             self.0
                 .into_iter()
                 .map(Statement::gen)
-                .collect::<MyResult<Vec<_>>>()?
+                .collect::<Res<Vec<_>>>()?
                 .join("\n")
         ))
     }
@@ -262,7 +262,7 @@ impl CCode {
         TypeKind::CCode
     }
 
-    pub fn gen(self) -> MyResult<String> {
+    pub fn gen(self) -> Res<String> {
         self.parts
             .into_iter()
             .map(|part| match part {

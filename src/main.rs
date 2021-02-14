@@ -35,15 +35,15 @@ mod util;
 
 use crate::compile::compile_program;
 use crate::define::Program;
-use crate::error::{MyError, MyResult};
+use crate::error::{Err, Res};
 use crate::parse::{Kind, Node};
 use std::lazy::SyncOnceCell;
 use std::path::Path;
 
 pub static PROGRAM: SyncOnceCell<String> = SyncOnceCell::new();
 #[quit::main]
-fn main() -> MyResult<()> {
-    MyError::init();
+fn main() -> Res<()> {
+    Err::init();
 
     let path = Path::new("test/test2.jo");
     let program = std::fs::read_to_string(path).unwrap();
