@@ -11,8 +11,13 @@ struct im {
 //    void fuck() {}
 }
 
-void hello(i32 what) {
+void `raw ident`(i32 what) {
 }
+void `raw`() {}
+//void raw() {}
+//i32 `+`(i32 a, i32 b) {
+//    return a + b
+//}
 
 im gimme_im() {
     im im
@@ -68,7 +73,9 @@ i32 main() {
     f32 yo2 = gimme_im().pain.kill_yourself(1 as i32, 2.0 as f32)
     <{printf("yo2 is %f\n", ${yo2})}>
 
-    hello(4 as i32)
+    `raw ident`(4 as i32)
+    i32 `lets go` = ok + ok
+//    i32 two = `+`(1 as i32, 1 as i32)
 
 //    u32 test = ((1 as u16) + (2 as u16)) as u32 + <{&${ok}}>
     f32 test2 = (1 as f32) + (2 as f32)

@@ -1,6 +1,6 @@
 use crate::cached::CachedString;
 use crate::error::{unexpected_kind, MyResult};
-use crate::expr::Expr;
+use crate::expr::{Expr, VisitIdent};
 use crate::parse::{Kind, Node};
 use crate::scope::{Scope, Symbol};
 use crate::span::Span;
@@ -71,7 +71,7 @@ impl Visit for Define {
                 let mut nodes = node.children();
 
                 Struct {
-                    name: nodes.next().unwrap().as_str().into(),
+                    name: nodes.next().unwrap().visit_ident(),
                     body: nodes.visit_rest(),
                 }
             }
@@ -79,7 +79,7 @@ impl Visit for Define {
                 let mut nodes = node.children().peekable();
 
                 let ty = nodes.next().unwrap().visit();
-                let name = nodes.next().unwrap().as_str().into();
+                let name = nodes.next().unwrap().visit_ident();
                 let mut args = vec![];
                 while nodes.peek().is_some() && nodes.peek().unwrap().kind() == Kind::var_define {
                     args.push(nodes.next().unwrap().visit())
@@ -211,7 +211,7 @@ impl Visit for VarDefine {
         Self {
             span,
             ty: nodes.next().unwrap().visit(),
-            name: nodes.next().unwrap().as_str().into(),
+            name: nodes.next().unwrap().visit_ident(),
             value: nodes.next().map(Node::visit),
         }
     }

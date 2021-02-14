@@ -44,7 +44,7 @@ impl Type {
                 }
                 Ok(*kind)
             })
-            .map(|r| *r)
+            .copied()
     }
 
     pub fn gen(self) -> MyResult<String> {

@@ -18,6 +18,7 @@
 #![feature(panic_info_message)]
 #![feature(hash_set_entry)]
 #![feature(option_unwrap_none)]
+#![feature(result_copied)]
 
 mod cached;
 mod compile;

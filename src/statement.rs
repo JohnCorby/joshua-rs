@@ -1,13 +1,11 @@
-use crate::cached::CachedString;
 use crate::define::VarDefine;
 use crate::error::{err, unexpected_kind, MyResult};
 use crate::expr::Expr;
-use crate::init_cached::InitCached;
 use crate::parse::{Kind, Node};
 use crate::scope::Scope;
 use crate::span::Span;
 use crate::ty::{PrimitiveType, TypeKind};
-use crate::util::{Mangle, Visit};
+use crate::util::Visit;
 use std::fmt::Write;
 
 #[derive(Debug, Clone)]
@@ -228,83 +226,6 @@ impl Block {
                 .map(Statement::gen)
                 .collect::<MyResult<Vec<_>>>()?
                 .join("\n")
-        ))
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct FuncCall {
-    span: Span,
-    pub name: CachedString,
-    pub args: Vec<Expr>,
-    ty: InitCached<TypeKind>,
-}
-
-impl Visit for FuncCall {
-    fn visit(node: Node) -> Self {
-        let span = node.span();
-        let mut nodes = node.children_checked(Kind::func_call);
-
-        Self {
-            span,
-            name: nodes.next().unwrap().as_str().into(),
-            args: nodes.visit_rest(),
-            ty: Default::default(),
-        }
-    }
-}
-
-impl FuncCall {
-    pub fn init_ty(&mut self) -> MyResult<TypeKind> {
-        let span = self.span;
-        let name = self.name;
-        let args = &mut self.args;
-        self.ty
-            .get_or_try_init(|| {
-                Ok(Scope::current()
-                    .get_func(
-                        name,
-                        &mut args
-                            .iter_mut()
-                            .map(|arg| arg.init_ty())
-                            .collect::<MyResult<Vec<_>>>()?,
-                        span,
-                    )?
-                    .ty())
-            })
-            .map(|r| *r)
-    }
-
-    pub fn gen(mut self) -> MyResult<String> {
-        let arg_types = self
-            .args
-            .iter_mut()
-            .map(|arg| arg.init_ty())
-            .collect::<MyResult<Vec<_>>>()?;
-
-        // don't mangle func main (entry point)
-        let mut name_gen = self.name.to_string();
-        if name_gen != "main" {
-            name_gen = format!(
-                "{}({})",
-                name_gen,
-                arg_types
-                    .iter()
-                    .map(TypeKind::to_string)
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            )
-            .mangle();
-        }
-
-        Ok(format!(
-            "{}({})",
-            name_gen,
-            self.args
-                .into_iter()
-                .map(Expr::gen)
-                .collect::<MyResult<Vec<_>>>()?
-                .join(", "),
         ))
     }
 }

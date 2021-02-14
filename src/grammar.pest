@@ -115,7 +115,10 @@ char = {
 }
 
 
-ident = @{ (LETTER | "_") ~ (LETTER | ASCII_DIGIT | "_" | "::")* }
+ident = @{
+    (LETTER | "_") ~ (LETTER | ASCII_DIGIT | "_" | "::")*
+    | "`" ~ (!"`" ~ ANY)+ ~ "`"
+}
 
 
 
