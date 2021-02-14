@@ -52,7 +52,8 @@ fn main() -> Res<()> {
     println!("{}", node);
     let program = node.visit::<Program>();
     println!("{:?}", program);
-    let c_code = program.gen()?;
+    let mut c_code = String::new();
+    program.gen(&mut c_code)?;
     println!("{}", c_code);
     compile_program(c_code, path);
 

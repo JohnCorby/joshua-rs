@@ -45,12 +45,12 @@ impl Type {
             .copied()
     }
 
-    pub fn gen(self) -> Res<String> {
+    pub fn gen(self, c_code: &mut String) -> Res<()> {
         use TypeKind::*;
-        Ok(match self.kind {
+        match self.kind {
             Primitive(ty) => {
                 use PrimitiveType::*;
-                match ty {
+                c_code.push_str(match ty {
                     I8 => "signed char",
                     U8 => "unsigned char",
                     I16 => "signed short",
@@ -64,15 +64,15 @@ impl Type {
                     Bool => "unsigned char",
                     Char => "unsigned char",
                     Void => "void",
-                }
-                .into()
+                })
             }
             Struct(name) => {
                 Scope::current().get_struct(name, self.span)?;
-                name.to_string()
+                c_code.push_str(&name.to_string())
             }
             kind => panic!("tried to gen {}", kind),
-        })
+        }
+        Ok(())
     }
 }
 

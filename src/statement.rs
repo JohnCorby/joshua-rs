@@ -6,7 +6,6 @@ use crate::scope::Scope;
 use crate::span::Span;
 use crate::ty::{PrimitiveType, TypeKind};
 use crate::util::Visit;
-use std::fmt::Write;
 
 #[derive(Debug, Clone)]
 pub struct Statement {
@@ -96,9 +95,9 @@ impl Visit for Statement {
 }
 
 impl Statement {
-    pub fn gen(self) -> Res<String> {
+    pub fn gen(self, c_code: &mut String) -> Res<()> {
         use StatementKind::*;
-        Ok(match self.kind {
+        match self.kind {
             Return(mut value) => {
                 Scope::current().return_called();
 
@@ -110,25 +109,24 @@ impl Statement {
                     .unwrap_or_else(|| PrimitiveType::Void.ty())
                     .check(&Scope::current().func_return_type(), self.span)?;
 
-                let mut s = "return".to_string();
+                c_code.push_str("return");
                 if let Some(value) = value {
-                    write!(s, " {}", value.gen()?).unwrap()
+                    c_code.push(' ');
+                    value.gen(c_code)?
                 }
-                s.push(';');
-
-                s
+                c_code.push(';');
             }
             Break => {
                 if !Scope::current().in_loop() {
                     return err("break cant be used outside of loops", self.span);
                 }
-                "break;".into()
+                c_code.push_str("break;")
             }
             Continue => {
                 if !Scope::current().in_loop() {
                     return err("continue cant be used outside of loops", self.span);
                 }
-                "continue;".into()
+                c_code.push_str("continue;")
             }
             If {
                 cond,
@@ -139,29 +137,29 @@ impl Statement {
                 cond.init_ty()?
                     .check(&PrimitiveType::Bool.ty(), self.span)?;
 
-                let mut s = format!("if({}) ", cond.gen()?);
+                c_code.push_str("if (");
+                cond.gen(c_code)?;
+                c_code.push_str(") ");
                 let scope = Scope::new(false, None);
-                s.push_str(&then.gen()?);
+                then.gen(c_code)?;
                 drop(scope);
                 if let Some(otherwise) = otherwise {
                     let scope = Scope::new(false, None);
-                    s.push_str(&otherwise.gen()?);
+                    otherwise.gen(c_code)?;
                     drop(scope);
                 }
-
-                s
             }
             Until { cond, block } => {
                 // type check
                 cond.init_ty()?
                     .check(&PrimitiveType::Bool.ty(), self.span)?;
 
-                let mut s = format!("while(!({})) ", cond.gen()?);
+                c_code.push_str("while (!(");
+                cond.gen(c_code)?;
+                c_code.push_str(")) ");
                 let scope = Scope::new(true, None);
-                s.push_str(&block.gen()?);
+                block.gen(c_code)?;
                 drop(scope);
-
-                s
             }
             For {
                 init,
@@ -170,37 +168,44 @@ impl Statement {
                 block,
             } => {
                 let scope = Scope::new(true, None);
-                let mut s = format!("for({}; ", init.gen()?);
+                c_code.push_str("for (");
+                init.gen(c_code)?;
+                c_code.push_str("; ");
 
                 // type check
                 cond.init_ty()?
                     .check(&PrimitiveType::Bool.ty(), self.span)?;
 
-                write!(
-                    s,
-                    "{}; {}) {}",
-                    cond.gen()?,
-                    update.gen()?.strip_suffix(';').unwrap(),
-                    block.gen()?
-                )
-                .unwrap();
+                cond.gen(c_code)?;
+                c_code.push_str("; ");
+                update.gen(c_code)?;
+                c_code.pop(); // for update statement's semicolon
+                c_code.push_str(") ");
+                block.gen(c_code)?;
                 drop(scope);
-                s
             }
             ExprAssign { lvalue, rvalue } => {
                 // type check
                 lvalue.check_assignable(self.span)?;
                 rvalue.init_ty()?.check(&lvalue.init_ty()?, self.span)?;
 
-                format!("{} = {};", lvalue.gen()?, rvalue.gen()?)
+                lvalue.gen(c_code)?;
+                c_code.push_str(" = ");
+                rvalue.gen(c_code)?;
+                c_code.push(';');
             }
-            VarDefine(var_define) => format!("{};", var_define.gen()?),
+            VarDefine(var_define) => {
+                var_define.gen(c_code)?;
+                c_code.push(';');
+            }
             Expr(expr) => {
                 // type check
                 expr.init_ty()?;
-                format!("{};", expr.gen()?)
+                expr.gen(c_code)?;
+                c_code.push(';');
             }
-        })
+        }
+        Ok(())
     }
 }
 
@@ -214,15 +219,14 @@ impl Visit for Block {
 }
 
 impl Block {
-    pub fn gen(self) -> Res<String> {
-        Ok(format!(
-            "{{\n{}\n}}",
-            self.0
-                .into_iter()
-                .map(Statement::gen)
-                .collect::<Res<Vec<_>>>()?
-                .join("\n")
-        ))
+    pub fn gen(self, c_code: &mut String) -> Res<()> {
+        c_code.push_str("{\n");
+        for statement in self.0 {
+            statement.gen(c_code)?;
+            c_code.push('\n')
+        }
+        c_code.push('}');
+        Ok(())
     }
 }
 
@@ -258,17 +262,17 @@ impl CCode {
         TypeKind::CCode
     }
 
-    pub fn gen(self) -> Res<String> {
-        self.parts
-            .into_iter()
-            .map(|part| match part {
-                CCodePart::String(string) => Ok(string),
+    pub fn gen(self, c_code: &mut String) -> Res<()> {
+        for part in self.parts {
+            match part {
+                CCodePart::String(string) => c_code.push_str(&string),
                 CCodePart::Expr(expr) => {
                     // type check
                     expr.init_ty()?;
-                    expr.gen()
+                    expr.gen(c_code)?
                 }
-            })
-            .collect()
+            }
+        }
+        Ok(())
     }
 }

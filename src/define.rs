@@ -8,7 +8,6 @@ use crate::statement::{Block, CCode};
 use crate::ty::{Type, TypeKind};
 use crate::util::{Mangle, Visit};
 use std::collections::HashMap;
-use std::fmt::Write;
 
 #[derive(Debug, Clone)]
 pub struct Program(Vec<Define>);
@@ -27,16 +26,17 @@ impl Visit for Program {
 }
 
 impl Program {
-    pub fn gen(self) -> Res<String> {
+    pub fn gen(self, c_code: &mut String) -> Res<()> {
         let scope = Scope::init();
-        let s = self
-            .0
-            .into_iter()
-            .map(Define::gen)
-            .collect::<Res<Vec<_>>>()?
-            .join("\n");
+        for define in self.0 {
+            define.gen(c_code)?;
+            c_code.push('\n')
+        }
+        if c_code.ends_with('\n') {
+            c_code.pop();
+        }
         drop(scope);
-        Ok(s)
+        Ok(())
     }
 }
 
@@ -105,9 +105,9 @@ impl Visit for Define {
 }
 
 impl Define {
-    pub fn gen(self) -> Res<String> {
+    pub fn gen(self, c_code: &mut String) -> Res<()> {
         use DefineKind::*;
-        Ok(match self.kind {
+        match self.kind {
             Struct { name, body } => {
                 Scope::current().add(
                     Symbol::Struct {
@@ -125,14 +125,14 @@ impl Define {
                     self.span,
                 )?;
 
-                format!(
-                    "typedef struct {{\n{}\n}} {};",
-                    body.into_iter()
-                        .map(Define::gen)
-                        .collect::<Res<Vec<_>>>()?
-                        .join("\n"),
-                    name
-                )
+                c_code.push_str("typedef struct {\n");
+                for define in body {
+                    define.gen(c_code)?;
+                    c_code.push('\n')
+                }
+                c_code.push_str("} ");
+                c_code.push_str(&name.to_string());
+                c_code.push(';')
             }
             Func {
                 ty,
@@ -146,11 +146,11 @@ impl Define {
                     .collect::<Res<Vec<_>>>()?;
 
                 // don't mangle func main (entry point)
-                let mut name_gen = name.to_string();
-                if name_gen != "main" {
-                    name_gen = format!(
+                let mut name_mangled = name.to_string();
+                if name_mangled != "main" {
+                    name_mangled = format!(
                         "{}({})",
-                        name_gen,
+                        name_mangled,
                         arg_types
                             .iter()
                             .map(TypeKind::name)
@@ -170,25 +170,31 @@ impl Define {
                 )?;
 
                 let scope = Scope::new(false, ty.init_ty()?);
-                let s = format!(
-                    "{} {}({}) {}",
-                    ty.gen()?,
-                    name_gen,
-                    args.into_iter()
-                        .map(VarDefine::gen)
-                        .collect::<Res<Vec<_>>>()?
-                        .join(", "),
-                    body.gen()?
-                );
+                ty.gen(c_code)?;
+                c_code.push(' ');
+                c_code.push_str(&name_mangled);
+                c_code.push('(');
+                for arg in args {
+                    arg.gen(c_code)?;
+                    c_code.push_str(", ")
+                }
+                if c_code.ends_with(", ") {
+                    c_code.pop();
+                    c_code.pop();
+                }
+                c_code.push_str(") ");
+                body.gen(c_code)?;
                 scope.check_return_called(self.span)?;
                 drop(scope);
-
-                s
             }
-            Var(var_define) => format!("{};", var_define.gen()?),
+            Var(var_define) => {
+                var_define.gen(c_code)?;
+                c_code.push(';')
+            }
 
-            CCode(c_code) => c_code.gen()?,
-        })
+            CCode(_c_code) => _c_code.gen(c_code)?,
+        }
+        Ok(())
     }
 }
 
@@ -215,7 +221,7 @@ impl Visit for VarDefine {
 }
 
 impl VarDefine {
-    pub fn gen(mut self) -> Res<String> {
+    pub fn gen(self, c_code: &mut String) -> Res<()> {
         Scope::current().add(
             Symbol::Var {
                 ty: self.ty.init_ty()?,
@@ -225,15 +231,18 @@ impl VarDefine {
         )?;
 
         // type check
-        if let Some(value) = &mut self.value {
+        if let Some(value) = &self.value {
             value.init_ty()?.check(&self.ty.init_ty()?, self.span)?;
         }
 
-        let mut s = format!("{} {}", self.ty.gen()?, self.name.to_string().mangle());
+        self.ty.gen(c_code)?;
+        c_code.push(' ');
+        c_code.push_str(&self.name.to_string().mangle());
         if let Some(value) = self.value {
-            write!(s, " = {}", value.gen()?).unwrap();
+            c_code.push_str(" = ");
+            value.gen(c_code)?
         }
 
-        Ok(s)
+        Ok(())
     }
 }
