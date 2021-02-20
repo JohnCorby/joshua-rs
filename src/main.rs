@@ -1,5 +1,4 @@
 //!todo
-//! - collect globals into 1 context struct, and just pass that around functions like a boss
 //! - TESTS
 //! - "mir" thingy for c, might make replacement easier; or at least just a way to gen funcs/structs outside of where we are lol
 //!todo
@@ -47,16 +46,17 @@ fn main() {
     Err::init();
 
     let path = Path::new("test/test2.jo");
-    let program = std::fs::read_to_string(path).unwrap();
-    let mut ctx = Ctx::new(&program);
+    let program = &mut std::fs::read_to_string(path).unwrap();
+    Ctx::attach_rt(program);
+    let mut ctx = &mut Ctx::new(program);
 
     // let node = Node::parse(ctx.i, Kind::program)?;
     let node = Node::parse(ctx.i, Kind::program).unwrap();
     println!("{}", node);
-    let program = node.visit::<Program<'_>>(&mut ctx);
+    let program = node.visit::<Program<'_>>(ctx);
     println!("{:?}", program);
     // program.gen(&mut ctx)?;
     program.gen(&mut ctx).unwrap();
     println!("{}", ctx.o);
-    compile_program(ctx.o, path);
+    compile_program(&ctx.o, path);
 }

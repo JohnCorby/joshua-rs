@@ -2,11 +2,8 @@
 //! scopes contain symbols
 //! symbols allow us to check for existence and type of stuff we define
 
-use crate::context::Ctx;
-use crate::define::Define;
 use crate::error::{err, Res};
 use crate::interned_string::InternedStr;
-use crate::parse::{Kind, Node};
 use crate::span::Span;
 use crate::ty::{PrimitiveType, Type};
 use std::collections::{HashMap, HashSet};
@@ -103,94 +100,18 @@ impl Display for Symbol<'_> {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Scopes<'i>(Vec<Scope<'i>>);
-impl<'i> Ctx<'i> {
-    pub fn init_scopes(&mut self) {
-        self.scopes.push(false, None);
-
-        trait Ext<'i> {
-            fn make_func(&mut self, i: impl AsRef<str>);
-
-            fn op_funcs<Str: AsRef<str>>(
-                &mut self,
-                ops: impl AsRef<[Str]>,
-                num_args: usize,
-                arg_tys: impl AsRef<[PrimitiveType]>,
-                ret_tys: impl Into<Option<PrimitiveType>> + Copy,
-            );
-        }
-        impl<'i> Ext<'i> for Ctx<'i> {
-            #[allow(warnings)]
-            fn make_func(&mut self, i: impl AsRef<str>) {
-                // this doesnt seem to break everything,
-                // and is localized within this init function, so it should be okay for now
-                let i = unsafe { std::mem::transmute::<&str, &'i str>(i.as_ref()) };
-
-                Node::parse(i, Kind::func_define)
-                    .unwrap()
-                    .visit::<Define<'i>>(self)
-                    .gen(self)
-                    .unwrap();
-                self.o.push('\n');
-            }
-
-            fn op_funcs<Str: AsRef<str>>(
-                &mut self,
-                ops: impl AsRef<[Str]>,
-                num_args: usize,
-                arg_tys: impl AsRef<[PrimitiveType]>,
-                ret_tys: impl Into<Option<PrimitiveType>> + Copy,
-            ) {
-                for op in ops.as_ref() {
-                    let op = op.as_ref();
-                    for &arg_ty in arg_tys.as_ref() {
-                        let ret_ty = ret_tys.into().unwrap_or(arg_ty);
-                        self.make_func(match num_args {
-                            1 => format!(
-                                "{} `{}`({} a) return <{{ {} ${{ a }} }}>",
-                                ret_ty, op, arg_ty, op
-                            ),
-                            2 => format!(
-                                "{} `{}`({} a, {} b) return <{{ ${{ a }} {} ${{ b }} }}>",
-                                ret_ty, op, arg_ty, arg_ty, op
-                            ),
-                            _ => unreachable!(),
-                        });
-                    }
-                }
-            }
-        }
-
-        use crate::ty::PrimitiveType::*;
-        let num_prims = [I8, U8, I16, U16, I32, U32, I64, U64, F32, F64];
-
-        // binary
-        self.op_funcs(["+", "-", "*", "/"], 2, num_prims, None);
-        self.op_funcs(["%"], 2, [I8, U8, I16, U16, I32, U32, I64, U64], None);
-        self.op_funcs(["<", "<=", ">", ">="], 2, num_prims, Bool);
-        self.op_funcs(["==", "!="], 2, [Bool], Bool);
-
-        // unary
-        self.op_funcs(["-"], 1, num_prims, None);
-        self.op_funcs(["!"], 1, [Bool], Bool);
-
-        // cast
-        for &ret_ty in &num_prims {
-            for &arg_ty in &num_prims {
-                self.make_func(format!(
-                    "{} `as {}`({} a) return <{{ ({}) ${{ a }} }}>",
-                    ret_ty,
-                    ret_ty,
-                    arg_ty,
-                    ret_ty.c_type()
-                ));
-            }
-        }
-    }
-}
-
 impl<'i> Scopes<'i> {
+    pub fn new() -> Self {
+        Scopes(vec![Scope {
+            in_loop: false,
+            func_return_type: None,
+            return_called: false,
+            symbols: Default::default(),
+        }])
+    }
+
     pub fn push(&mut self, in_loop: bool, func_return_type: impl Into<Option<Type<'i>>>) {
         self.0.push(Scope {
             in_loop,

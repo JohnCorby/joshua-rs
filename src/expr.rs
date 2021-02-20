@@ -180,8 +180,9 @@ impl<'i> Expr<'i> {
                             .collect::<Res<'i, Vec<_>>>()?;
                         arg_types.insert(0, receiver.init_ty(ctx)?);
 
-                        let name = func_call.name.str_to_string();
-                        ctx.scopes.get_func(name, arg_types, self.span)?.ty()
+                        ctx.scopes
+                            .get_func(func_call.name.clone(), arg_types, self.span)?
+                            .ty()
                     }
                     Field { receiver, var } => {
                         let struct_name = match receiver.init_ty(ctx)? {
@@ -248,7 +249,7 @@ impl<'i> Expr<'i> {
                 // c_code.push(')');
                 self::FuncCall {
                     span: self.span,
-                    name: op,
+                    name: op.str_to_string(),
                     args: vec![*left, *right],
                     ty: self.ty,
                 }
@@ -259,7 +260,7 @@ impl<'i> Expr<'i> {
                 // thing.gen(c_code)?;
                 self::FuncCall {
                     span: self.span,
-                    name: op,
+                    name: op.str_to_string(),
                     args: vec![*thing],
                     ty: self.ty,
                 }
@@ -273,11 +274,9 @@ impl<'i> Expr<'i> {
                     ctx.o.push_str(") ");
                     thing.gen(ctx)?;
                 } else {
-                    // let name = format!("as {}", ty_node.init_ty(ctx)?.name());
                     self::FuncCall {
                         span: self.span,
-                        // name: name.intern(ctx),
-                        name: "hello".intern(ctx),
+                        name: format!("as {}", ty_node.init_ty(ctx)?.name()).intern(ctx),
                         args: vec![*thing],
                         ty: self.ty,
                     }
@@ -311,7 +310,7 @@ impl<'i> Expr<'i> {
 #[derive(Debug, Clone)]
 pub struct FuncCall<'i> {
     span: Span<'i>,
-    name: InternedStr<&'i str>,
+    name: InternedStr<String>,
     args: Vec<Expr<'i>>,
     ty: OnceCell<Type<'i>>,
 }
@@ -323,7 +322,7 @@ impl<'i> Visit<'i> for FuncCall<'i> {
 
         Self {
             span,
-            name: nodes.next().unwrap().visit_ident(ctx),
+            name: nodes.next().unwrap().visit_ident(ctx).str_to_string(),
             args: nodes.visit_rest(ctx),
             ty: Default::default(),
         }
@@ -341,7 +340,7 @@ impl<'i> FuncCall<'i> {
                     .collect::<Res<'i, Vec<_>>>()?;
                 Ok(ctx
                     .scopes
-                    .get_func(self.name.str_to_string(), arg_types, self.span)?
+                    .get_func(self.name.clone(), arg_types, self.span)?
                     .ty())
             })
             .copied()
