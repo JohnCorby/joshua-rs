@@ -1,69 +1,68 @@
-use crate::cached::CachedString;
+use crate::context::Ctx;
 use crate::error::{unexpected_kind, Res};
-use crate::expr::{Expr, VisitIdent};
+use crate::expr::Expr;
+use crate::interned_string::InternedStr;
 use crate::parse::{Kind, Node};
-use crate::scope::{Scope, Symbol};
+use crate::scope::Symbol;
 use crate::span::Span;
 use crate::statement::{Block, CCode};
-use crate::ty::{Type, TypeKind};
+use crate::ty::TypeNode;
 use crate::util::{Mangle, Visit};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
-pub struct Program(Vec<Define>);
+pub struct Program<'i>(Vec<Define<'i>>);
 
-impl Visit for Program {
-    fn visit(node: Node) -> Self {
+impl<'i> Visit<'i> for Program<'i> {
+    fn visit(node: Node<'i>, ctx: &mut Ctx<'i>) -> Self {
         Self(
             node.children_checked(Kind::program)
                 .filter_map(|node| match node.kind() {
                     Kind::EOI => None,
-                    _ => Some(node.visit()),
+                    _ => Some(node.visit(ctx)),
                 })
                 .collect(),
         )
     }
 }
 
-impl Program {
-    pub fn gen(self, c_code: &mut String) -> Res<()> {
-        let scope = Scope::init(c_code);
+impl<'i> Program<'i> {
+    pub fn gen(self, ctx: &mut Ctx<'i>) -> Res<'i, ()> {
         for define in self.0 {
-            define.gen(c_code)?;
-            c_code.push('\n')
+            define.gen(ctx)?;
+            ctx.o.push('\n')
         }
-        if c_code.ends_with('\n') {
-            c_code.pop();
+        if ctx.o.ends_with('\n') {
+            ctx.o.pop();
         }
-        drop(scope);
         Ok(())
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct Define {
-    span: Span,
-    kind: DefineKind,
+pub struct Define<'i> {
+    span: Span<'i>,
+    kind: DefineKind<'i>,
 }
 #[derive(Debug, Clone)]
-pub enum DefineKind {
+pub enum DefineKind<'i> {
     Struct {
-        name: CachedString,
-        body: Vec<Define>,
+        name: InternedStr<&'i str>,
+        body: Vec<Define<'i>>,
     },
     Func {
-        ty: Type,
-        name: CachedString,
-        args: Vec<VarDefine>,
-        body: Block,
+        ty_node: TypeNode<'i>,
+        name: InternedStr<&'i str>,
+        args: Vec<VarDefine<'i>>,
+        body: Block<'i>,
     },
-    Var(VarDefine),
+    Var(VarDefine<'i>),
 
-    CCode(CCode),
+    CCode(CCode<'i>),
 }
 
-impl Visit for Define {
-    fn visit(node: Node) -> Self {
+impl<'i> Visit<'i> for Define<'i> {
+    fn visit(node: Node<'i>, ctx: &mut Ctx<'i>) -> Self {
         let span = node.span();
         use DefineKind::*;
         let kind = match node.kind() {
@@ -71,31 +70,31 @@ impl Visit for Define {
                 let mut nodes = node.children();
 
                 Struct {
-                    name: nodes.next().unwrap().visit_ident(),
-                    body: nodes.visit_rest(),
+                    name: nodes.next().unwrap().visit_ident(ctx),
+                    body: nodes.visit_rest(ctx),
                 }
             }
             Kind::func_define => {
                 let mut nodes = node.children().peekable();
 
-                let ty = nodes.next().unwrap().visit();
-                let name = nodes.next().unwrap().visit_ident();
+                let ty_node = nodes.next().unwrap().visit(ctx);
+                let name = nodes.next().unwrap().visit_ident(ctx);
                 let mut args = vec![];
                 while nodes.peek().is_some() && nodes.peek().unwrap().kind() == Kind::var_define {
-                    args.push(nodes.next().unwrap().visit())
+                    args.push(nodes.next().unwrap().visit(ctx))
                 }
-                let body = nodes.next().unwrap().visit();
+                let body = nodes.next().unwrap().visit(ctx);
 
                 Func {
-                    ty,
+                    ty_node,
                     name,
                     args,
                     body,
                 }
             }
-            Kind::var_define => Var(node.visit()),
+            Kind::var_define => Var(node.visit(ctx)),
 
-            Kind::c_code => CCode(node.visit()),
+            Kind::c_code => CCode(node.visit(ctx)),
 
             _ => unexpected_kind(node),
         };
@@ -104,19 +103,21 @@ impl Visit for Define {
     }
 }
 
-impl Define {
-    pub fn gen(self, c_code: &mut String) -> Res<()> {
+impl<'i> Define<'i> {
+    pub fn gen(self, ctx: &mut Ctx<'i>) -> Res<'i, ()> {
         use DefineKind::*;
         match self.kind {
             Struct { name, body } => {
-                Scope::current().add(
+                ctx.scopes.add(
                     Symbol::Struct {
                         name,
                         field_types: {
                             let mut field_types = HashMap::new();
                             for define in &body {
-                                if let Var(VarDefine { name, ty, .. }) = &define.kind {
-                                    field_types.insert(*name, ty.init_ty()?).unwrap_none();
+                                if let Var(VarDefine { name, ty_node, .. }) = &define.kind {
+                                    field_types
+                                        .insert(*name, ty_node.init_ty(ctx)?)
+                                        .unwrap_none();
                                 }
                             }
                             field_types
@@ -125,25 +126,25 @@ impl Define {
                     self.span,
                 )?;
 
-                c_code.push_str("typedef struct {\n");
+                ctx.o.push_str("typedef struct {\n");
                 for define in body {
-                    define.gen(c_code)?;
-                    c_code.push('\n')
+                    define.gen(ctx)?;
+                    ctx.o.push('\n')
                 }
-                c_code.push_str("} ");
-                c_code.push_str(&name.to_string());
-                c_code.push(';')
+                ctx.o.push_str("} ");
+                ctx.o.push_str(&name);
+                ctx.o.push(';')
             }
             Func {
-                ty,
+                ty_node,
                 name,
                 args,
                 body,
             } => {
                 let arg_types = args
                     .iter()
-                    .map(|arg| arg.ty.init_ty())
-                    .collect::<Res<Vec<_>>>()?;
+                    .map(|arg| arg.ty_node.init_ty(ctx))
+                    .collect::<Res<'i, Vec<_>>>()?;
 
                 // don't mangle func main (entry point)
                 let mut name_mangled = name.to_string();
@@ -153,78 +154,78 @@ impl Define {
                         name_mangled,
                         arg_types
                             .iter()
-                            .map(TypeKind::name)
+                            .map(|ty| ty.name())
                             .collect::<Vec<_>>()
                             .join(", ")
                     )
                     .mangle();
                 }
 
-                Scope::current().add(
+                ctx.scopes.add(
                     Symbol::Func {
-                        ty: ty.init_ty()?,
+                        ty: ty_node.init_ty(ctx)?,
                         name,
                         arg_types,
                     },
                     self.span,
                 )?;
 
-                let scope = Scope::new(false, ty.init_ty()?);
-                ty.gen(c_code)?;
-                c_code.push(' ');
-                c_code.push_str(&name_mangled);
-                c_code.push('(');
+                ctx.scopes.push(false, ty_node.init_ty(ctx)?);
+                ty_node.gen(ctx)?;
+                ctx.o.push(' ');
+                ctx.o.push_str(&name_mangled);
+                ctx.o.push('(');
                 for arg in args {
-                    arg.gen(c_code)?;
-                    c_code.push_str(", ")
+                    arg.gen(ctx)?;
+                    ctx.o.push_str(", ")
                 }
-                if c_code.ends_with(", ") {
-                    c_code.pop();
-                    c_code.pop();
+                if ctx.o.ends_with(", ") {
+                    ctx.o.pop();
+                    ctx.o.pop();
                 }
-                c_code.push_str(") ");
-                body.gen(c_code)?;
-                scope.check_return_called(self.span)?;
-                drop(scope);
+                ctx.o.push_str(") ");
+                body.gen(ctx)?;
+                ctx.scopes.check_return_called(self.span)?;
+                ctx.scopes.pop();
             }
             Var(var_define) => {
-                var_define.gen(c_code)?;
-                c_code.push(';')
+                var_define.gen(ctx)?;
+                ctx.o.push(';')
             }
 
-            CCode(_c_code) => _c_code.gen(c_code)?,
+            CCode(c_code) => c_code.gen(ctx)?,
         }
         Ok(())
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct VarDefine {
-    span: Span,
-    ty: Type,
-    name: CachedString,
-    value: Option<Expr>,
+pub struct VarDefine<'i> {
+    span: Span<'i>,
+    ty_node: TypeNode<'i>,
+    name: InternedStr<&'i str>,
+    value: Option<Expr<'i>>,
 }
 
-impl Visit for VarDefine {
-    fn visit(node: Node) -> Self {
+impl<'i> Visit<'i> for VarDefine<'i> {
+    fn visit(node: Node<'i>, ctx: &mut Ctx<'i>) -> Self {
         let span = node.span();
         let mut nodes = node.children_checked(Kind::var_define);
 
         Self {
             span,
-            ty: nodes.next().unwrap().visit(),
-            name: nodes.next().unwrap().visit_ident(),
-            value: nodes.next().map(Node::visit),
+            ty_node: nodes.next().unwrap().visit(ctx),
+            name: nodes.next().unwrap().visit_ident(ctx),
+            value: nodes.next().map(|node| node.visit(ctx)),
         }
     }
 }
 
-impl VarDefine {
-    pub fn gen(self, c_code: &mut String) -> Res<()> {
-        Scope::current().add(
+impl<'i> VarDefine<'i> {
+    pub fn gen(self, ctx: &mut Ctx<'i>) -> Res<'i, ()> {
+        ctx.scopes.add(
             Symbol::Var {
-                ty: self.ty.init_ty()?,
+                ty: self.ty_node.init_ty(ctx)?,
                 name: self.name,
             },
             self.span,
@@ -232,15 +233,17 @@ impl VarDefine {
 
         // type check
         if let Some(value) = &self.value {
-            value.init_ty()?.check(&self.ty.init_ty()?, self.span)?;
+            value
+                .init_ty(ctx)?
+                .check(self.ty_node.init_ty(ctx)?, self.span)?;
         }
 
-        self.ty.gen(c_code)?;
-        c_code.push(' ');
-        c_code.push_str(&self.name.to_string().mangle());
+        self.ty_node.gen(ctx)?;
+        ctx.o.push(' ');
+        ctx.o.push_str(&self.name.mangle());
         if let Some(value) = self.value {
-            c_code.push_str(" = ");
-            value.gen(c_code)?
+            ctx.o.push_str(" = ");
+            value.gen(ctx)?
         }
 
         Ok(())

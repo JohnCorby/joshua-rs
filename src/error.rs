@@ -3,14 +3,14 @@ use crate::span::Span;
 use std::backtrace::{Backtrace, BacktraceStatus};
 use std::fmt::{Debug, Display, Formatter};
 
-pub type Res<T> = Result<T, Err>;
-pub struct Err {
+pub type Res<'i, T> = Result<T, Err<'i>>;
+pub struct Err<'i> {
     message: String,
-    span: Option<Span>,
+    span: Option<Span<'i>>,
     backtrace: Backtrace,
 }
 
-impl Err {
+impl Err<'_> {
     pub fn init() {
         std::panic::set_hook(Box::new(|info| {
             // get message
@@ -26,10 +26,17 @@ impl Err {
             eprintln!("Internal Error: {}", message.into_err(None));
         }))
     }
+
+    // /// run in closure
+    // pub fn run<F: FnOnce() -> R + UnwindSafe, R>(f: F) {
+    //     std::panic::catch_unwind(Box::new(|| {
+    //
+    //     }));
+    // }
 }
 
-impl Display for Err {
-    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+impl Display for Err<'_> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         if let Some(span) = self.span {
             write!(f, "{}", span.make_error(&self.message))?;
         } else {
@@ -42,17 +49,17 @@ impl Display for Err {
         Ok(())
     }
 }
-impl Debug for Err {
-    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+impl Debug for Err<'_> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         Display::fmt(self, f)
     }
 }
 
 pub trait IntoErr {
-    fn into_err(self, span: impl Into<Option<Span>>) -> Err;
+    fn into_err<'i>(self, span: impl Into<Option<Span<'i>>>) -> Err<'i>;
 }
 impl<T: ToString> IntoErr for T {
-    fn into_err(self, span: impl Into<Option<Span>>) -> Err {
+    fn into_err<'i>(self, span: impl Into<Option<Span<'i>>>) -> Err<'i> {
         Err {
             message: self.to_string(),
             span: span.into(),
@@ -61,18 +68,18 @@ impl<T: ToString> IntoErr for T {
     }
 }
 
-pub fn err<T>(str: impl AsRef<str>, span: impl Into<Option<Span>>) -> Res<T> {
+pub fn err<'i, T>(str: impl AsRef<str>, span: impl Into<Option<Span<'i>>>) -> Res<'i, T> {
     Err(str.as_ref().into_err(span))
 }
 #[allow(dead_code)]
-pub fn warn(str: impl AsRef<str>, span: impl Into<Option<Span>>) {
+pub fn warn<'i>(str: impl AsRef<str>, span: impl Into<Option<Span<'i>>>) {
     eprintln!("Warning: {}", (str.as_ref().into_err(span)));
 }
 #[allow(dead_code)]
-pub fn warn_internal(str: impl AsRef<str>, span: impl Into<Option<Span>>) {
+pub fn warn_internal<'i>(str: impl AsRef<str>, span: impl Into<Option<Span<'i>>>) {
     eprintln!("Internal Warning: {}", (str.as_ref().into_err(span)));
 }
 
-pub fn unexpected_kind(node: Node) -> ! {
+pub fn unexpected_kind(node: Node<'_>) -> ! {
     panic!("unexpected node kind {:?} (node: {})", node.kind(), node)
 }

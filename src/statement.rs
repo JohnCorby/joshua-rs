@@ -1,91 +1,91 @@
+use crate::context::Ctx;
 use crate::define::VarDefine;
 use crate::error::{err, unexpected_kind, Res};
 use crate::expr::Expr;
 use crate::parse::{Kind, Node};
-use crate::scope::Scope;
 use crate::span::Span;
-use crate::ty::{PrimitiveType, TypeKind};
+use crate::ty::{PrimitiveType, Type};
 use crate::util::Visit;
 
 #[derive(Debug, Clone)]
-pub struct Statement {
-    span: Span,
-    kind: StatementKind,
+pub struct Statement<'i> {
+    span: Span<'i>,
+    kind: StatementKind<'i>,
 }
 #[derive(Debug, Clone)]
 #[allow(clippy::large_enum_variant)]
-pub enum StatementKind {
-    Return(Option<Expr>),
+pub enum StatementKind<'i> {
+    Return(Option<Expr<'i>>),
     Break,
     Continue,
     If {
-        cond: Expr,
-        then: Block,
-        otherwise: Option<Block>,
+        cond: Expr<'i>,
+        then: Block<'i>,
+        otherwise: Option<Block<'i>>,
     },
     Until {
-        cond: Expr,
-        block: Block,
+        cond: Expr<'i>,
+        block: Block<'i>,
     },
     For {
-        init: VarDefine,
-        cond: Expr,
-        update: Box<Statement>,
-        block: Block,
+        init: VarDefine<'i>,
+        cond: Expr<'i>,
+        update: Box<Statement<'i>>,
+        block: Block<'i>,
     },
     ExprAssign {
-        lvalue: Expr,
-        rvalue: Expr,
+        lvalue: Expr<'i>,
+        rvalue: Expr<'i>,
     },
-    VarDefine(VarDefine),
-    Expr(Expr),
+    VarDefine(VarDefine<'i>),
+    Expr(Expr<'i>),
 }
 
-impl Visit for Statement {
-    fn visit(node: Node) -> Self {
+impl<'i> Visit<'i> for Statement<'i> {
+    fn visit(node: Node<'i>, ctx: &mut Ctx<'i>) -> Self {
         let span = node.span();
         use StatementKind::*;
         let kind = match node.kind() {
-            Kind::ret => Return(node.children().next().map(Node::visit)),
+            Kind::ret => Return(node.children().next().map(|node| node.visit(ctx))),
             Kind::brk => Break,
             Kind::cont => Continue,
             Kind::iff => {
                 let mut nodes = node.children();
 
                 If {
-                    cond: nodes.next().unwrap().visit(),
-                    then: nodes.next().unwrap().visit(),
-                    otherwise: nodes.next().map(Node::visit),
+                    cond: nodes.next().unwrap().visit(ctx),
+                    then: nodes.next().unwrap().visit(ctx),
+                    otherwise: nodes.next().map(|node| node.visit(ctx)),
                 }
             }
             Kind::until => {
                 let mut nodes = node.children();
 
                 Until {
-                    cond: nodes.next().unwrap().visit(),
-                    block: nodes.next().unwrap().visit(),
+                    cond: nodes.next().unwrap().visit(ctx),
+                    block: nodes.next().unwrap().visit(ctx),
                 }
             }
             Kind::forr => {
                 let mut nodes = node.children();
 
                 For {
-                    init: nodes.next().unwrap().visit(),
-                    cond: nodes.next().unwrap().visit(),
-                    update: nodes.next().unwrap().visit::<Statement>().into(),
-                    block: nodes.next().unwrap().visit(),
+                    init: nodes.next().unwrap().visit(ctx),
+                    cond: nodes.next().unwrap().visit(ctx),
+                    update: nodes.next().unwrap().visit::<Statement<'i>>(ctx).into(),
+                    block: nodes.next().unwrap().visit(ctx),
                 }
             }
             Kind::expr_assign => {
                 let mut nodes = node.children();
 
                 ExprAssign {
-                    lvalue: nodes.next().unwrap().visit(),
-                    rvalue: nodes.next().unwrap().visit(),
+                    lvalue: nodes.next().unwrap().visit(ctx),
+                    rvalue: nodes.next().unwrap().visit(ctx),
                 }
             }
-            Kind::var_define => VarDefine(node.visit()),
-            Kind::expr => Expr(node.visit()),
+            Kind::var_define => VarDefine(node.visit(ctx)),
+            Kind::expr => Expr(node.visit(ctx)),
 
             _ => unexpected_kind(node),
         };
@@ -94,39 +94,39 @@ impl Visit for Statement {
     }
 }
 
-impl Statement {
-    pub fn gen(self, c_code: &mut String) -> Res<()> {
+impl<'i> Statement<'i> {
+    pub fn gen(self, ctx: &mut Ctx<'i>) -> Res<'i, ()> {
         use StatementKind::*;
         match self.kind {
             Return(mut value) => {
-                Scope::current().return_called();
+                ctx.scopes.return_called();
 
                 // type check
                 value
                     .as_mut()
-                    .map(|value| value.init_ty())
+                    .map(|value| value.init_ty(ctx))
                     .transpose()?
                     .unwrap_or_else(|| PrimitiveType::Void.ty())
-                    .check(&Scope::current().func_return_type(), self.span)?;
+                    .check(ctx.scopes.func_return_type(), self.span)?;
 
-                c_code.push_str("return");
+                ctx.o.push_str("return");
                 if let Some(value) = value {
-                    c_code.push(' ');
-                    value.gen(c_code)?
+                    ctx.o.push(' ');
+                    value.gen(ctx)?
                 }
-                c_code.push(';');
+                ctx.o.push(';');
             }
             Break => {
-                if !Scope::current().in_loop() {
+                if ctx.scopes.in_loop() {
                     return err("break cant be used outside of loops", self.span);
                 }
-                c_code.push_str("break;")
+                ctx.o.push_str("break;")
             }
             Continue => {
-                if !Scope::current().in_loop() {
+                if ctx.scopes.in_loop() {
                     return err("continue cant be used outside of loops", self.span);
                 }
-                c_code.push_str("continue;")
+                ctx.o.push_str("continue;")
             }
             If {
                 cond,
@@ -134,32 +134,32 @@ impl Statement {
                 otherwise,
             } => {
                 // type check
-                cond.init_ty()?
-                    .check(&PrimitiveType::Bool.ty(), self.span)?;
+                cond.init_ty(ctx)?
+                    .check(PrimitiveType::Bool.ty(), self.span)?;
 
-                c_code.push_str("if (");
-                cond.gen(c_code)?;
-                c_code.push_str(") ");
-                let scope = Scope::new(false, None);
-                then.gen(c_code)?;
-                drop(scope);
+                ctx.o.push_str("if (");
+                cond.gen(ctx)?;
+                ctx.o.push_str(") ");
+                ctx.scopes.push(false, None);
+                then.gen(ctx)?;
+                ctx.scopes.pop();
                 if let Some(otherwise) = otherwise {
-                    let scope = Scope::new(false, None);
-                    otherwise.gen(c_code)?;
-                    drop(scope);
+                    ctx.scopes.push(false, None);
+                    otherwise.gen(ctx)?;
+                    ctx.scopes.pop();
                 }
             }
             Until { cond, block } => {
                 // type check
-                cond.init_ty()?
-                    .check(&PrimitiveType::Bool.ty(), self.span)?;
+                cond.init_ty(ctx)?
+                    .check(PrimitiveType::Bool.ty(), self.span)?;
 
-                c_code.push_str("while (!(");
-                cond.gen(c_code)?;
-                c_code.push_str(")) ");
-                let scope = Scope::new(true, None);
-                block.gen(c_code)?;
-                drop(scope);
+                ctx.o.push_str("while (!(");
+                cond.gen(ctx)?;
+                ctx.o.push_str(")) ");
+                ctx.scopes.push(true, None);
+                block.gen(ctx)?;
+                ctx.scopes.pop();
             }
             For {
                 init,
@@ -167,42 +167,44 @@ impl Statement {
                 update,
                 block,
             } => {
-                let scope = Scope::new(true, None);
-                c_code.push_str("for (");
-                init.gen(c_code)?;
-                c_code.push_str("; ");
+                ctx.scopes.push(true, None);
+                ctx.o.push_str("for (");
+                init.gen(ctx)?;
+                ctx.o.push_str("; ");
 
                 // type check
-                cond.init_ty()?
-                    .check(&PrimitiveType::Bool.ty(), self.span)?;
+                cond.init_ty(ctx)?
+                    .check(PrimitiveType::Bool.ty(), self.span)?;
 
-                cond.gen(c_code)?;
-                c_code.push_str("; ");
-                update.gen(c_code)?;
-                c_code.pop(); // for update statement's semicolon
-                c_code.push_str(") ");
-                block.gen(c_code)?;
-                drop(scope);
+                cond.gen(ctx)?;
+                ctx.o.push_str("; ");
+                update.gen(ctx)?;
+                ctx.o.pop(); // for update statement's semicolon
+                ctx.o.push_str(") ");
+                block.gen(ctx)?;
+                ctx.scopes.pop();
             }
             ExprAssign { lvalue, rvalue } => {
                 // type check
                 lvalue.check_assignable(self.span)?;
-                rvalue.init_ty()?.check(&lvalue.init_ty()?, self.span)?;
+                rvalue
+                    .init_ty(ctx)?
+                    .check(lvalue.init_ty(ctx)?, self.span)?;
 
-                lvalue.gen(c_code)?;
-                c_code.push_str(" = ");
-                rvalue.gen(c_code)?;
-                c_code.push(';');
+                lvalue.gen(ctx)?;
+                ctx.o.push_str(" = ");
+                rvalue.gen(ctx)?;
+                ctx.o.push(';');
             }
             VarDefine(var_define) => {
-                var_define.gen(c_code)?;
-                c_code.push(';');
+                var_define.gen(ctx)?;
+                ctx.o.push(';');
             }
             Expr(expr) => {
                 // type check
-                expr.init_ty()?;
-                expr.gen(c_code)?;
-                c_code.push(';');
+                expr.init_ty(ctx)?;
+                expr.gen(ctx)?;
+                ctx.o.push(';');
             }
         }
         Ok(())
@@ -210,45 +212,45 @@ impl Statement {
 }
 
 #[derive(Debug, Clone)]
-pub struct Block(Vec<Statement>);
+pub struct Block<'i>(Vec<Statement<'i>>);
 
-impl Visit for Block {
-    fn visit(node: Node) -> Self {
-        Self(node.children_checked(Kind::block).visit_rest())
+impl<'i> Visit<'i> for Block<'i> {
+    fn visit(node: Node<'i>, ctx: &mut Ctx<'i>) -> Self {
+        Self(node.children_checked(Kind::block).visit_rest(ctx))
     }
 }
 
-impl Block {
-    pub fn gen(self, c_code: &mut String) -> Res<()> {
-        c_code.push_str("{\n");
+impl<'i> Block<'i> {
+    pub fn gen(self, ctx: &mut Ctx<'i>) -> Res<'i, ()> {
+        ctx.o.push_str("{\n");
         for statement in self.0 {
-            statement.gen(c_code)?;
-            c_code.push('\n')
+            statement.gen(ctx)?;
+            ctx.o.push('\n')
         }
-        c_code.push('}');
+        ctx.o.push('}');
         Ok(())
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct CCode {
-    parts: Vec<CCodePart>,
+pub struct CCode<'i> {
+    parts: Vec<CCodePart<'i>>,
 }
 #[derive(Debug, Clone)]
-pub enum CCodePart {
-    String(String),
-    Expr(Expr),
+pub enum CCodePart<'i> {
+    String(&'i str),
+    Expr(Expr<'i>),
 }
 
-impl Visit for CCode {
-    fn visit(node: Node) -> Self {
+impl<'i> Visit<'i> for CCode<'i> {
+    fn visit(node: Node<'i>, ctx: &mut Ctx<'i>) -> Self {
         Self {
             parts: node
                 .children_checked(Kind::c_code)
                 .into_iter()
                 .map(|node| match node.kind() {
-                    Kind::c_code_str => CCodePart::String(node.as_str().into()),
-                    Kind::expr => CCodePart::Expr(node.visit()),
+                    Kind::c_code_str => CCodePart::String(node.str()),
+                    Kind::expr => CCodePart::Expr(node.visit(ctx)),
 
                     _ => unexpected_kind(node),
                 })
@@ -257,19 +259,19 @@ impl Visit for CCode {
     }
 }
 
-impl CCode {
-    pub fn ty(&self) -> TypeKind {
-        TypeKind::CCode
+impl<'i> CCode<'i> {
+    pub fn ty(&self) -> Type<'i> {
+        Type::CCode
     }
 
-    pub fn gen(self, c_code: &mut String) -> Res<()> {
+    pub fn gen(self, ctx: &mut Ctx<'i>) -> Res<'i, ()> {
         for part in self.parts {
             match part {
-                CCodePart::String(string) => c_code.push_str(&string),
+                CCodePart::String(str) => ctx.o.push_str(str),
                 CCodePart::Expr(expr) => {
                     // type check
-                    expr.init_ty()?;
-                    expr.gen(c_code)?
+                    expr.init_ty(ctx)?;
+                    expr.gen(ctx)?
                 }
             }
         }

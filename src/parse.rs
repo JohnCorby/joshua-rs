@@ -1,6 +1,5 @@
 use crate::error::{IntoErr, Res};
 use crate::span::Span;
-use crate::util::Visit;
 use console::style;
 use pest::error::Error;
 use pest::iterators::{Pair, Pairs};
@@ -19,8 +18,8 @@ impl<'i> From<Pair<'i, Kind>> for Node<'i> {
 }
 impl<'i> Node<'i> {
     /// parse an input string into a node based on a kind
-    pub fn parse(input: &'i str, kind: Kind) -> Res<Self> {
-        let result: Result<Pairs<'i, Kind>, Error<Kind>> = inner::Parser::parse(kind, input);
+    pub fn parse(i: &'i str, kind: Kind) -> Res<'i, Self> {
+        let result: Result<Pairs<'i, Kind>, Error<Kind>> = inner::Parser::parse(kind, i);
         result
             .map(|pairs| Nodes::from(pairs).next().unwrap())
             .map_err(|e| e.into_err(None))
@@ -32,17 +31,13 @@ impl<'i> Node<'i> {
     pub fn kind(&self) -> Kind {
         self.0.as_rule()
     }
-    pub fn span(&self) -> Span {
+    pub fn span(&self) -> Span<'i> {
         self.0.as_span().into()
     }
-    pub fn as_str(&self) -> &'i str {
+    pub fn str(&self) -> &'i str {
         self.0.as_str()
     }
 
-    /// turns visit into an extension method for node
-    pub fn visit<T: Visit>(self) -> T {
-        T::visit(self)
-    }
     /// check that a node matches a kind, and then return its inner nodes
     pub fn children_checked(self, expected: Kind) -> Nodes<'i> {
         let actual = self.kind();
@@ -54,14 +49,14 @@ impl<'i> Node<'i> {
     }
 }
 impl Debug for Node<'_> {
-    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         Debug::fmt(&self.0, f)
     }
 }
 impl Display for Node<'_> {
-    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let kind = style(self.kind());
-        let str = style(self.as_str());
+        let str = style(self.str());
         let children = self
             .clone()
             .children()
@@ -96,15 +91,8 @@ impl<'i> DoubleEndedIterator for Nodes<'i> {
         self.0.next_back().map(Node::from)
     }
 }
-impl<'i> Nodes<'i> {
-    /// visits any not iterated nodes,
-    /// short circuiting if any of them error
-    pub fn visit_rest<T: Visit>(self) -> Vec<T> {
-        self.map(Node::visit).collect()
-    }
-}
 impl Display for Nodes<'_> {
-    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
             "[{}]",
@@ -116,7 +104,7 @@ impl Display for Nodes<'_> {
     }
 }
 impl Debug for Nodes<'_> {
-    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         Debug::fmt(&self.0, f)
     }
 }

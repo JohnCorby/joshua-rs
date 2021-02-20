@@ -1,7 +1,24 @@
-use crate::parse::Node;
+use crate::context::Ctx;
+use crate::parse::{Node, Nodes};
 
-pub trait Visit: Sized {
-    fn visit(node: Node) -> Self;
+pub trait Visit<'i>: Sized {
+    fn visit(node: Node<'i>, ctx: &mut Ctx<'i>) -> Self;
+}
+impl<'i> Node<'i> {
+    pub fn visit<T: Visit<'i>>(self, ctx: &mut Ctx<'i>) -> T {
+        T::visit(self, ctx)
+    }
+}
+impl<'i> Nodes<'i> {
+    /// visits any not iterated nodes,
+    /// short circuiting if any of them error
+    pub fn visit_rest<'c, T: Visit<'i>>(self, ctx: &mut Ctx<'i>) -> Vec<T> {
+        let mut visited = vec![];
+        for node in self {
+            visited.push(node.visit(ctx))
+        }
+        visited
+    }
 }
 
 pub trait Mangle {

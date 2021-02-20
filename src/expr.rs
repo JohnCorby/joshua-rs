@@ -1,70 +1,71 @@
 //! handle the painful process that is parsing expressions
 
-use crate::cached::CachedString;
+use crate::context::Ctx;
 use crate::error::{err, unexpected_kind, Res};
+use crate::interned_string::{Intern, InternedStr};
 use crate::parse::{Kind, Node};
-use crate::scope::{Scope, Symbol};
+use crate::scope::Symbol;
 use crate::span::Span;
 use crate::statement::CCode;
-use crate::ty::{LiteralType, PrimitiveType, Type, TypeKind};
+use crate::ty::{LiteralType, PrimitiveType, Type, TypeNode};
 use crate::util::{Mangle, Visit};
 use std::lazy::OnceCell;
 
 #[derive(Debug, Clone)]
-pub struct Expr {
-    span: Span,
-    kind: ExprKind,
-    ty: OnceCell<TypeKind>,
+pub struct Expr<'i> {
+    span: Span<'i>,
+    kind: ExprKind<'i>,
+    ty: OnceCell<Type<'i>>,
 }
 #[derive(Debug, Clone)]
-pub enum ExprKind {
+pub enum ExprKind<'i> {
     Binary {
-        left: Box<Expr>,
-        op: CachedString,
-        right: Box<Expr>,
+        left: Box<Expr<'i>>,
+        op: InternedStr<&'i str>,
+        right: Box<Expr<'i>>,
     },
     Unary {
-        op: CachedString,
-        thing: Box<Expr>,
+        op: InternedStr<&'i str>,
+        thing: Box<Expr<'i>>,
     },
     Cast {
-        thing: Box<Expr>,
-        ty: Type,
+        thing: Box<Expr<'i>>,
+        ty_node: TypeNode<'i>,
     },
 
     MethodCall {
-        receiver: Box<Expr>,
-        func_call: FuncCall,
+        receiver: Box<Expr<'i>>,
+        func_call: FuncCall<'i>,
     },
     Field {
-        receiver: Box<Expr>,
-        var: CachedString,
+        receiver: Box<Expr<'i>>,
+        var: InternedStr<&'i str>,
     },
 
     // primary
-    Literal(Literal),
-    FuncCall(FuncCall),
-    Var(CachedString),
+    Literal(Literal<'i>),
+    FuncCall(FuncCall<'i>),
+    Var(InternedStr<&'i str>),
 
-    CCode(CCode),
+    CCode(CCode<'i>),
 }
 
-impl Visit for Expr {
-    fn visit(node: Node) -> Self {
+impl<'i> Visit<'i> for Expr<'i> {
+    fn visit(node: Node<'i>, ctx: &mut Ctx<'i>) -> Self {
         let span = node.span();
         use ExprKind::*;
         let kind = match node.kind() {
-            Kind::expr => node.children().next().unwrap().visit::<Expr>().kind,
+            Kind::expr => node.children().next().unwrap().visit::<Expr<'i>>(ctx).kind,
             Kind::equality_expr | Kind::compare_expr | Kind::add_expr | Kind::mul_expr => {
                 // left assoc
                 let mut nodes = node.children();
 
-                let mut left = nodes.next().unwrap().visit::<Expr>();
+                let mut left = nodes.next().unwrap().visit::<Expr<'i>>(ctx);
                 while let Some(op) = nodes.next() {
                     left.kind = Binary {
                         left: left.clone().into(),
-                        op: op.as_str().into(),
-                        right: nodes.next().unwrap().visit::<Expr>().into(),
+                        op: op.str().intern(ctx),
+                        right: nodes.next().unwrap().visit::<Expr<'i>>(ctx).into(),
                     }
                 }
 
@@ -74,10 +75,10 @@ impl Visit for Expr {
                 // right assoc
                 let mut rev_nodes = node.children().rev();
 
-                let mut thing = rev_nodes.next().unwrap().visit::<Expr>();
+                let mut thing = rev_nodes.next().unwrap().visit::<Expr<'i>>(ctx);
                 for op in rev_nodes {
                     thing.kind = Unary {
-                        op: op.as_str().into(),
+                        op: op.str().intern(ctx),
                         thing: thing.clone().into(),
                     }
                 }
@@ -88,11 +89,11 @@ impl Visit for Expr {
                 // left assoc
                 let mut nodes = node.children();
 
-                let mut thing = nodes.next().unwrap().visit::<Expr>();
+                let mut thing = nodes.next().unwrap().visit::<Expr<'i>>(ctx);
                 for ty_node in nodes {
                     thing.kind = Cast {
                         thing: thing.clone().into(),
-                        ty: ty_node.visit(),
+                        ty_node: ty_node.visit(ctx),
                     }
                 }
 
@@ -103,16 +104,16 @@ impl Visit for Expr {
                 // left assoc
                 let mut nodes = node.children();
 
-                let mut left = nodes.next().unwrap().visit::<Expr>();
+                let mut left = nodes.next().unwrap().visit::<Expr<'i>>(ctx);
                 for right in nodes {
                     left.kind = match right.kind() {
                         Kind::func_call => MethodCall {
                             receiver: left.clone().into(),
-                            func_call: right.visit(),
+                            func_call: right.visit(ctx),
                         },
                         Kind::ident => Field {
                             receiver: left.clone().into(),
-                            var: right.visit_ident(),
+                            var: right.visit_ident(ctx),
                         },
 
                         _ => unexpected_kind(right),
@@ -123,11 +124,11 @@ impl Visit for Expr {
             }
 
             // primary
-            Kind::literal => Literal(node.children().next().unwrap().visit()),
-            Kind::func_call => FuncCall(node.visit()),
-            Kind::ident => Var(node.visit_ident()),
+            Kind::literal => Literal(node.children().next().unwrap().visit(ctx)),
+            Kind::func_call => FuncCall(node.visit(ctx)),
+            Kind::ident => Var(node.visit_ident(ctx)),
 
-            Kind::c_code => CCode(node.visit()),
+            Kind::c_code => CCode(node.visit(ctx)),
 
             _ => unexpected_kind(node),
         };
@@ -140,30 +141,30 @@ impl Visit for Expr {
     }
 }
 
-impl Expr {
-    pub fn init_ty(&self) -> Res<TypeKind> {
+impl<'i> Expr<'i> {
+    pub fn init_ty(&self, ctx: &mut Ctx<'i>) -> Res<'i, Type<'i>> {
         self.ty
             .get_or_try_init(|| {
                 use ExprKind::*;
                 Ok(match &self.kind {
-                    Binary { left, op, right } => Scope::current()
-                        .get_func(*op, [left.init_ty()?, right.init_ty()?], self.span)?
-                        .ty(),
-                    Unary { op, thing } => Scope::current()
-                        .get_func(*op, [thing.init_ty()?], self.span)?
-                        .ty(),
-                    Cast { thing, ty } => {
+                    Binary { left, op, right } => {
+                        let left = left.init_ty(ctx)?;
+                        let right = right.init_ty(ctx)?;
+                        ctx.scopes.get_func(*op, [left, right], self.span)?.ty()
+                    }
+                    Unary { op, thing } => {
+                        let thing = thing.init_ty(ctx)?;
+                        ctx.scopes.get_func(*op, [thing], self.span)?.ty()
+                    }
+                    Cast { thing, ty_node } => {
                         // fixme literals are hacky as shit
-                        if let TypeKind::Literal(_) = thing.init_ty()? {
-                            ty.init_ty()?
+                        if let Type::Literal(_) = thing.init_ty(ctx)? {
+                            ty_node.init_ty(ctx)?
                         } else {
-                            Scope::current()
-                                .get_func(
-                                    format!("as {}", ty.init_ty()?.name()).into(),
-                                    [thing.init_ty()?],
-                                    self.span,
-                                )?
-                                .ty()
+                            // let name = format!("as {}", ty_node.init_ty(ctx)?.name());
+                            let name = "bruh".intern(ctx);
+                            let thing = thing.init_ty(ctx)?;
+                            ctx.scopes.get_func(name, [thing], self.span)?.ty()
                         }
                     }
 
@@ -174,17 +175,17 @@ impl Expr {
                         let mut arg_types = func_call
                             .args
                             .iter()
-                            .map(|arg| arg.init_ty())
-                            .collect::<Res<Vec<_>>>()?;
-                        arg_types.insert(0, receiver.init_ty()?);
+                            .map(|arg| arg.init_ty(ctx))
+                            .collect::<Res<'i, Vec<_>>>()?;
+                        arg_types.insert(0, receiver.init_ty(ctx)?);
 
-                        Scope::current()
+                        ctx.scopes
                             .get_func(func_call.name, arg_types, self.span)?
                             .ty()
                     }
                     Field { receiver, var } => {
-                        let struct_name = match receiver.init_ty()? {
-                            TypeKind::Struct(struct_name) => struct_name,
+                        let struct_name = match receiver.init_ty(ctx)? {
+                            Type::Struct(struct_name) => struct_name,
                             ty => {
                                 return err(
                                     format!("expected struct type, but got {}", ty),
@@ -192,7 +193,7 @@ impl Expr {
                                 )
                             }
                         };
-                        let symbol = Scope::current().get_struct(struct_name, self.span)?;
+                        let symbol = ctx.scopes.get_struct(struct_name, self.span)?;
                         let field_types = match &symbol {
                             Symbol::Struct { field_types, .. } => field_types,
                             _ => {
@@ -214,8 +215,8 @@ impl Expr {
                     }
 
                     Literal(literal) => literal.ty(),
-                    FuncCall(func_call) => func_call.init_ty()?,
-                    Var(name) => Scope::current().get_var(*name, self.span)?.ty(),
+                    FuncCall(func_call) => func_call.init_ty(ctx)?,
+                    Var(name) => ctx.scopes.get_var(*name, self.span)?.ty(),
 
                     CCode(c_code) => c_code.ty(),
                 })
@@ -223,7 +224,7 @@ impl Expr {
             .copied()
     }
 
-    pub fn check_assignable(&self, span: impl Into<Option<Span>>) -> Res<()> {
+    pub fn check_assignable(&self, span: impl Into<Option<Span<'i>>>) -> Res<'i, ()> {
         use ExprKind::*;
         let is_assignable = matches!(self.kind, Field { .. } | Var(_));
 
@@ -234,7 +235,7 @@ impl Expr {
         }
     }
 
-    pub fn gen(self, c_code: &mut String) -> Res<()> {
+    pub fn gen(self, ctx: &mut Ctx<'i>) -> Res<'i, ()> {
         use ExprKind::*;
         match self.kind {
             Binary { left, op, right } => {
@@ -251,7 +252,7 @@ impl Expr {
                     args: vec![*left, *right],
                     ty: self.ty,
                 }
-                .gen(c_code)?;
+                .gen(ctx)?;
             }
             Unary { op, thing } => {
                 // c_code.push_str(&op.to_string());
@@ -262,23 +263,25 @@ impl Expr {
                     args: vec![*thing],
                     ty: self.ty,
                 }
-                .gen(c_code)?;
+                .gen(ctx)?;
             }
-            Cast { thing, ty } => {
+            Cast { thing, ty_node } => {
                 // fixme literals are hacky as shit
-                if let TypeKind::Literal(_) = thing.init_ty()? {
-                    c_code.push('(');
-                    ty.gen(c_code)?;
-                    c_code.push_str(") ");
-                    thing.gen(c_code)?;
+                if let Type::Literal(_) = thing.init_ty(ctx)? {
+                    ctx.o.push('(');
+                    ty_node.gen(ctx)?;
+                    ctx.o.push_str(") ");
+                    thing.gen(ctx)?;
                 } else {
+                    // let name = format!("as {}", ty_node.init_ty(ctx)?.name());
                     self::FuncCall {
                         span: self.span,
-                        name: format!("as {}", ty.init_ty()?.name()).into(),
+                        // name: name.intern(ctx),
+                        name: "hello".intern(ctx),
                         args: vec![*thing],
                         ty: self.ty,
                     }
-                    .gen(c_code)?;
+                    .gen(ctx)?;
                 }
             }
 
@@ -287,70 +290,66 @@ impl Expr {
                 mut func_call,
             } => {
                 func_call.args.insert(0, *receiver);
-                func_call.gen(c_code)?
+                func_call.gen(ctx)?
             }
             Field { receiver, var } => {
-                receiver.gen(c_code)?;
-                c_code.push('.');
-                c_code.push_str(&var.to_string().mangle());
+                receiver.gen(ctx)?;
+                ctx.o.push('.');
+                ctx.o.push_str(&var.mangle());
             }
 
-            Literal(literal) => literal.gen(c_code),
-            FuncCall(func_call) => func_call.gen(c_code)?,
-            Var(name) => c_code.push_str(&name.to_string().mangle()),
+            Literal(literal) => literal.gen(ctx),
+            FuncCall(func_call) => func_call.gen(ctx)?,
+            Var(name) => ctx.o.push_str(&name.mangle()),
 
-            CCode(_c_code) => _c_code.gen(c_code)?,
+            CCode(c_code) => c_code.gen(ctx)?,
         }
         Ok(())
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct FuncCall {
-    span: Span,
-    name: CachedString,
-    args: Vec<Expr>,
-    ty: OnceCell<TypeKind>,
+pub struct FuncCall<'i> {
+    span: Span<'i>,
+    name: InternedStr<&'i str>,
+    args: Vec<Expr<'i>>,
+    ty: OnceCell<Type<'i>>,
 }
 
-impl Visit for FuncCall {
-    fn visit(node: Node) -> Self {
+impl<'i> Visit<'i> for FuncCall<'i> {
+    fn visit(node: Node<'i>, ctx: &mut Ctx<'i>) -> Self {
         let span = node.span();
         let mut nodes = node.children_checked(Kind::func_call);
 
         Self {
             span,
-            name: nodes.next().unwrap().visit_ident(),
-            args: nodes.visit_rest(),
+            name: nodes.next().unwrap().visit_ident(ctx),
+            args: nodes.visit_rest(ctx),
             ty: Default::default(),
         }
     }
 }
 
-impl FuncCall {
-    pub fn init_ty(&self) -> Res<TypeKind> {
+impl<'i> FuncCall<'i> {
+    pub fn init_ty(&self, ctx: &mut Ctx<'i>) -> Res<'i, Type<'i>> {
         self.ty
             .get_or_try_init(|| {
-                Ok(Scope::current()
-                    .get_func(
-                        self.name,
-                        self.args
-                            .iter()
-                            .map(|arg| arg.init_ty())
-                            .collect::<Res<Vec<_>>>()?,
-                        self.span,
-                    )?
-                    .ty())
+                let arg_types = self
+                    .args
+                    .iter()
+                    .map(|arg| arg.init_ty(ctx))
+                    .collect::<Res<'i, Vec<_>>>()?;
+                Ok(ctx.scopes.get_func(self.name, arg_types, self.span)?.ty())
             })
             .copied()
     }
 
-    pub fn gen(self, c_code: &mut String) -> Res<()> {
+    pub fn gen(self, ctx: &mut Ctx<'i>) -> Res<'i, ()> {
         let arg_types = self
             .args
             .iter()
-            .map(|arg| arg.init_ty())
-            .collect::<Res<Vec<_>>>()?;
+            .map(|arg| arg.init_ty(ctx))
+            .collect::<Res<'i, Vec<_>>>()?;
 
         // don't mangle func main (entry point)
         let mut name_mangled = self.name.to_string();
@@ -360,54 +359,54 @@ impl FuncCall {
                 name_mangled,
                 arg_types
                     .iter()
-                    .map(TypeKind::name)
+                    .map(|ty| ty.name())
                     .collect::<Vec<_>>()
                     .join(", ")
             )
             .mangle();
         }
 
-        c_code.push_str(&name_mangled);
-        c_code.push('(');
+        ctx.o.push_str(&name_mangled);
+        ctx.o.push('(');
         for arg in self.args {
-            arg.gen(c_code)?;
-            c_code.push_str(", ")
+            arg.gen(ctx)?;
+            ctx.o.push_str(", ")
         }
-        if c_code.ends_with(", ") {
-            c_code.pop();
-            c_code.pop();
+        if ctx.o.ends_with(", ") {
+            ctx.o.pop();
+            ctx.o.pop();
         }
-        c_code.push(')');
+        ctx.o.push(')');
         Ok(())
     }
 }
 
 #[derive(Debug, Clone)]
-pub enum Literal {
+pub enum Literal<'i> {
     Float(f64),
     Int(i64),
     Bool(bool),
     Char(char),
-    Str(String),
+    Str(&'i str),
 }
 
-impl Visit for Literal {
-    fn visit(node: Node) -> Self {
+impl<'i> Visit<'i> for Literal<'i> {
+    fn visit(node: Node<'i>, _: &mut Ctx<'i>) -> Self {
         use Literal::*;
         match node.kind() {
-            Kind::float_literal => Float(node.as_str().parse().unwrap()),
-            Kind::int_literal => Int(node.as_str().parse().unwrap()),
-            Kind::bool_literal => Bool(node.as_str().parse().unwrap()),
-            Kind::char_literal => Char(node.children().next().unwrap().as_str().parse().unwrap()),
-            Kind::str_literal => Str(node.children().next().unwrap().as_str().into()),
+            Kind::float_literal => Float(node.str().parse().unwrap()),
+            Kind::int_literal => Int(node.str().parse().unwrap()),
+            Kind::bool_literal => Bool(node.str().parse().unwrap()),
+            Kind::char_literal => Char(node.children().next().unwrap().str().parse().unwrap()),
+            Kind::str_literal => Str(node.children().next().unwrap().str()),
 
             _ => unexpected_kind(node),
         }
     }
 }
 
-impl Literal {
-    pub fn ty(&self) -> TypeKind {
+impl<'i> Literal<'i> {
+    pub fn ty(&self) -> Type<'i> {
         use Literal::*;
         match self {
             Float(_) => LiteralType::Float.ty(),
@@ -418,9 +417,9 @@ impl Literal {
         }
     }
 
-    pub fn gen(self, c_code: &mut String) {
+    pub fn gen(self, ctx: &mut Ctx<'i>) {
         use Literal::*;
-        c_code.push_str(&match self {
+        ctx.o.push_str(&match self {
             Float(value) => value.to_string(),
             Int(value) => value.to_string(),
             Bool(value) => (value as u8).to_string(),
@@ -430,16 +429,13 @@ impl Literal {
     }
 }
 
-pub trait VisitIdent {
-    fn visit_ident(&self) -> CachedString;
-}
-impl VisitIdent for Node<'_> {
-    fn visit_ident(&self) -> CachedString {
-        let str = self.as_str();
+impl<'i> Node<'i> {
+    pub fn visit_ident(&self, ctx: &mut Ctx<'i>) -> InternedStr<&'i str> {
+        let str = self.str();
         str.strip_prefix('`')
             .unwrap_or(str)
             .strip_suffix('`')
             .unwrap_or(str)
-            .into()
+            .intern(ctx)
     }
 }

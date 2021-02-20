@@ -19,12 +19,14 @@
 #![feature(hash_set_entry)]
 #![feature(option_unwrap_none)]
 #![feature(result_copied)]
+#![warn(elided_lifetimes_in_paths)]
 
-mod cached;
 mod compile;
+mod context;
 mod define;
 mod error;
 mod expr;
+mod interned_string;
 mod parse;
 mod scope;
 mod span;
@@ -33,29 +35,27 @@ mod ty;
 mod util;
 
 use crate::compile::compile_program;
+use crate::context::Ctx;
 use crate::define::Program;
-use crate::error::{Err, Res};
+use crate::error::Err;
 use crate::parse::{Kind, Node};
-use std::lazy::SyncOnceCell;
 use std::path::Path;
 
-pub static PROGRAM: SyncOnceCell<String> = SyncOnceCell::new();
-#[quit::main]
-fn main() -> Res<()> {
+// #[quit::main]
+fn main() {
     Err::init();
 
     let path = Path::new("test/test2.jo");
     let program = std::fs::read_to_string(path).unwrap();
-    PROGRAM.set(program).unwrap();
+    let mut ctx = Ctx::new(&program);
 
-    let node = Node::parse(PROGRAM.get().unwrap(), Kind::program)?;
+    // let node = Node::parse(ctx.i, Kind::program)?;
+    let node = Node::parse(ctx.i, Kind::program).unwrap();
     println!("{}", node);
-    let program = node.visit::<Program>();
+    let program = node.visit::<Program<'_>>(&mut ctx);
     println!("{:?}", program);
-    let mut c_code = String::new();
-    program.gen(&mut c_code)?;
-    println!("{}", c_code);
-    compile_program(c_code, path);
-
-    Ok(())
+    // program.gen(&mut ctx)?;
+    program.gen(&mut ctx).unwrap();
+    println!("{}", ctx.o);
+    compile_program(ctx.o, path);
 }
