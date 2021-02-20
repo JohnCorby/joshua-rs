@@ -29,6 +29,14 @@ impl<T: AsRef<str>> Deref for InternedStr<T> {
         self.str.as_ref()
     }
 }
+impl InternedStr<&str> {
+    pub fn str_to_string(self) -> InternedStr<String> {
+        InternedStr {
+            str: self.str.to_string(),
+            index: self.index,
+        }
+    }
+}
 
 impl<T> Hash for InternedStr<T> {
     fn hash<H: Hasher>(&self, state: &mut H) {

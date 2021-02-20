@@ -17,7 +17,7 @@ use std::hash::{Hash, Hasher};
 pub enum Symbol<'i> {
     Func {
         ty: Type<'i>,
-        name: InternedStr<&'i str>,
+        name: InternedStr<String>,
         arg_types: Vec<Type<'i>>,
     },
     Var {
@@ -300,7 +300,7 @@ impl<'i> Scopes<'i> {
     }
     pub fn get_func(
         &self,
-        name: InternedStr<&'i str>,
+        name: InternedStr<String>,
         arg_types: impl AsRef<[Type<'i>]>,
         span: impl Into<Option<Span<'i>>>,
     ) -> Res<'i, Symbol<'i>> {

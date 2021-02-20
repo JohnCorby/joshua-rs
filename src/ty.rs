@@ -79,14 +79,14 @@ impl<'i> Type<'i> {
         }
     }
 
-    pub fn name(self) -> &'static str {
-        // use Type::*;
-        // match self {
-        //     Primitive(ty) => ty.as_ref(),
-        //     Struct(name) => &*name,
-        //     Literal(ty) => ty.as_ref(),
-        //     _ => unreachable!("{} doesnt have a name", self),
-        // }
+    pub fn name(self) -> String {
+        use Type::*;
+        match self {
+            Primitive(ty) => ty.to_string(),
+            Struct(name) => name.to_string(),
+            Literal(ty) => ty.to_string(),
+            _ => unreachable!("{} doesnt have a name", self),
+        }
     }
 }
 impl Default for Type<'_> {
@@ -135,9 +135,7 @@ impl Display for Type<'_> {
     }
 }
 
-#[derive(
-    Debug, Copy, Clone, Hash, PartialEq, strum::EnumString, strum::Display, strum::AsRefStr,
-)]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, strum::EnumString, strum::Display)]
 #[strum(serialize_all = "snake_case")]
 pub enum PrimitiveType {
     I8,
@@ -179,7 +177,7 @@ impl PrimitiveType {
     }
 }
 
-#[derive(Debug, Copy, Clone, Hash, PartialEq, strum::Display, strum::AsRefStr)]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, strum::Display)]
 pub enum LiteralType {
     Float,
     Int,

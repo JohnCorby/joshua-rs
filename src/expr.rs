@@ -149,20 +149,21 @@ impl<'i> Expr<'i> {
                 Ok(match &self.kind {
                     Binary { left, op, right } => {
                         let left = left.init_ty(ctx)?;
+                        let op = op.str_to_string();
                         let right = right.init_ty(ctx)?;
-                        ctx.scopes.get_func(*op, [left, right], self.span)?.ty()
+                        ctx.scopes.get_func(op, [left, right], self.span)?.ty()
                     }
                     Unary { op, thing } => {
+                        let op = op.str_to_string();
                         let thing = thing.init_ty(ctx)?;
-                        ctx.scopes.get_func(*op, [thing], self.span)?.ty()
+                        ctx.scopes.get_func(op, [thing], self.span)?.ty()
                     }
                     Cast { thing, ty_node } => {
                         // fixme literals are hacky as shit
                         if let Type::Literal(_) = thing.init_ty(ctx)? {
                             ty_node.init_ty(ctx)?
                         } else {
-                            // let name = format!("as {}", ty_node.init_ty(ctx)?.name());
-                            let name = "bruh".intern(ctx);
+                            let name = format!("as {}", ty_node.init_ty(ctx)?.name()).intern(ctx);
                             let thing = thing.init_ty(ctx)?;
                             ctx.scopes.get_func(name, [thing], self.span)?.ty()
                         }
@@ -179,9 +180,8 @@ impl<'i> Expr<'i> {
                             .collect::<Res<'i, Vec<_>>>()?;
                         arg_types.insert(0, receiver.init_ty(ctx)?);
 
-                        ctx.scopes
-                            .get_func(func_call.name, arg_types, self.span)?
-                            .ty()
+                        let name = func_call.name.str_to_string();
+                        ctx.scopes.get_func(name, arg_types, self.span)?.ty()
                     }
                     Field { receiver, var } => {
                         let struct_name = match receiver.init_ty(ctx)? {
@@ -339,7 +339,10 @@ impl<'i> FuncCall<'i> {
                     .iter()
                     .map(|arg| arg.init_ty(ctx))
                     .collect::<Res<'i, Vec<_>>>()?;
-                Ok(ctx.scopes.get_func(self.name, arg_types, self.span)?.ty())
+                Ok(ctx
+                    .scopes
+                    .get_func(self.name.str_to_string(), arg_types, self.span)?
+                    .ty())
             })
             .copied()
     }

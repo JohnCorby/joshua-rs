@@ -1,7 +1,7 @@
 use crate::context::Ctx;
 use crate::error::{unexpected_kind, Res};
 use crate::expr::Expr;
-use crate::interned_string::InternedStr;
+use crate::interned_string::{Intern, InternedStr};
 use crate::parse::{Kind, Node};
 use crate::scope::Symbol;
 use crate::span::Span;
@@ -161,6 +161,7 @@ impl<'i> Define<'i> {
                     .mangle();
                 }
 
+                let name = name.to_string().intern(ctx);
                 ctx.scopes.add(
                     Symbol::Func {
                         ty: ty_node.init_ty(ctx)?,
