@@ -123,7 +123,11 @@ impl<'i> Ctx<'i> {
         impl<'i> Ext<'i> for Ctx<'i> {
             #[allow(warnings)]
             fn make_func(&mut self, i: impl AsRef<str>) {
-                Node::parse(todo!("make_func"), Kind::func_define)
+                // this doesnt seem to break everything,
+                // and is localized within this init function, so it should be okay for now
+                let i = unsafe { std::mem::transmute::<&str, &'i str>(i.as_ref()) };
+
+                Node::parse(i, Kind::func_define)
                     .unwrap()
                     .visit::<Define<'i>>(self)
                     .gen(self)

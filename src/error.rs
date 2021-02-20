@@ -2,6 +2,7 @@ use crate::parse::Node;
 use crate::span::Span;
 use std::backtrace::{Backtrace, BacktraceStatus};
 use std::fmt::{Debug, Display, Formatter};
+use std::panic::UnwindSafe;
 
 pub type Res<'i, T> = Result<T, Err<'i>>;
 pub struct Err<'i> {
@@ -27,12 +28,12 @@ impl Err<'_> {
         }))
     }
 
-    // /// run in closure
-    // pub fn run<F: FnOnce() -> R + UnwindSafe, R>(f: F) {
-    //     std::panic::catch_unwind(Box::new(|| {
-    //
-    //     }));
-    // }
+    /// run in closure
+    /// todo implement and use this
+    #[allow(warnings)]
+    pub fn run<F: FnOnce() -> R + UnwindSafe, R>(f: F) {
+        std::panic::catch_unwind(Box::new(|| {}));
+    }
 }
 
 impl Display for Err<'_> {

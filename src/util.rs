@@ -12,12 +12,8 @@ impl<'i> Node<'i> {
 impl<'i> Nodes<'i> {
     /// visits any not iterated nodes,
     /// short circuiting if any of them error
-    pub fn visit_rest<'c, T: Visit<'i>>(self, ctx: &mut Ctx<'i>) -> Vec<T> {
-        let mut visited = vec![];
-        for node in self {
-            visited.push(node.visit(ctx))
-        }
-        visited
+    pub fn visit_rest<T: Visit<'i>>(self, ctx: &mut Ctx<'i>) -> Vec<T> {
+        self.map(|node| node.visit(ctx)).collect()
     }
 }
 
@@ -27,7 +23,8 @@ pub trait Mangle {
 }
 impl Mangle for str {
     fn mangle(&self) -> String {
-        mangling::mangle(self.as_bytes())
+        format!("`{}`", self)
+        // mangling::mangle(self.as_bytes())
     }
     fn demangle(&self) -> String {
         String::from_utf8_lossy(&mangling::demangle(self).unwrap()).into()

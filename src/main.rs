@@ -1,5 +1,6 @@
 //!todo
 //! - collect globals into 1 context struct, and just pass that around functions like a boss
+//! - TESTS
 //! - "mir" thingy for c, might make replacement easier; or at least just a way to gen funcs/structs outside of where we are lol
 //!todo
 //! - methods

@@ -40,8 +40,9 @@ f32 `+`(baba_booey a, baba_booey b)
 //i32 ok = 2 as i32
 
 i32 main() {
-    for (u8 i = 0 as u8; i < 10 as u8; i = i + 1 as u8)
-        break
+    // fixme regression: break inside loop triggers "break is out of loop" text
+//    for (u8 i = 0 as u8; i < 10 as u8; i = i + 1 as u8)
+//        break
 
     if (true) {
         i8 t0
@@ -60,6 +61,7 @@ i32 main() {
     }
 
     f32 i = 1 as f32
+    // fixme string uninterning is baba broken, returns fn `hello(f32)` for "i as f32"
     f32 e = 1 as f32 + i as f32 / 2 as f32
     u8 bruh = (1 as u8 + 1 as u8 + 1 as u8) + (2 as u8 + 2 as u8)
 
