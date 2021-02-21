@@ -19,6 +19,7 @@
 #![feature(hash_set_entry)]
 #![feature(option_unwrap_none)]
 #![feature(result_copied)]
+#![feature(try_blocks)]
 #![warn(elided_lifetimes_in_paths)]
 
 mod compile;
@@ -37,26 +38,30 @@ mod util;
 use crate::compile::compile_program;
 use crate::context::Ctx;
 use crate::define::Program;
-use crate::error::Err;
+use crate::error::{Err, Res};
 use crate::parse::{Kind, Node};
 use std::path::Path;
 
-// #[quit::main]
+#[quit::main]
 fn main() {
     Err::init();
 
     let path = Path::new("test/test2.jo");
     let program = &mut std::fs::read_to_string(path).unwrap();
     Ctx::attach_rt(program);
-    let mut ctx = &mut Ctx::new(program);
+    let ctx = &mut Ctx::new(program);
 
-    // let node = Node::parse(ctx.i, Kind::program)?;
-    let node = Node::parse(ctx.i, Kind::program).unwrap();
-    println!("{}", node);
-    let program = node.visit::<Program<'_>>(ctx);
-    println!("{:?}", program);
-    // program.gen(&mut ctx)?;
-    program.gen(&mut ctx).unwrap();
-    println!("{}", ctx.o);
+    let result: Res<'_, ()> = try {
+        let node = Node::parse(ctx.i, Kind::program)?;
+        println!("{}", node);
+        let program = node.visit::<Program<'_>>(ctx);
+        println!("{:?}", program);
+        program.gen(ctx)?;
+        println!("{}", ctx.o);
+    };
+    if let Err(err) = result {
+        return eprintln!("Error: {}", err);
+    }
+
     compile_program(&ctx.o, path);
 }

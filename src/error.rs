@@ -1,10 +1,10 @@
 use crate::parse::Node;
 use crate::span::Span;
 use std::backtrace::{Backtrace, BacktraceStatus};
-use std::fmt::{Debug, Display, Formatter};
-use std::panic::UnwindSafe;
+use std::fmt::{Display, Formatter};
 
 pub type Res<'i, T> = Result<T, Err<'i>>;
+#[derive(Debug)]
 pub struct Err<'i> {
     message: String,
     span: Option<Span<'i>>,
@@ -27,13 +27,6 @@ impl Err<'_> {
             eprintln!("Internal Error: {}", message.into_err(None));
         }))
     }
-
-    /// run in closure
-    /// todo implement and use this
-    #[allow(warnings)]
-    pub fn run<F: FnOnce() -> R + UnwindSafe, R>(f: F) {
-        std::panic::catch_unwind(Box::new(|| {}));
-    }
 }
 
 impl Display for Err<'_> {
@@ -48,11 +41,6 @@ impl Display for Err<'_> {
             write!(f, "{}", self.backtrace)?;
         }
         Ok(())
-    }
-}
-impl Debug for Err<'_> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        Display::fmt(self, f)
     }
 }
 
