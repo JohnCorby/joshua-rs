@@ -194,12 +194,12 @@ impl<'i> Expr<'i> {
                                 )
                             }
                         };
-                        let symbol = ctx.scopes.get_struct(struct_name, self.span)?;
+                        let symbol = ctx.scopes.get_type(struct_name, self.span)?;
                         let field_types = match &symbol {
-                            Symbol::Struct { field_types, .. } => field_types,
+                            Symbol::StructType { field_types, .. } => field_types,
                             _ => {
                                 return err(
-                                    format!("expected struct symbol, but got {}", symbol),
+                                    format!("expected struct type symbol, but got {}", symbol),
                                     self.span,
                                 )
                             }
@@ -250,6 +250,7 @@ impl<'i> Expr<'i> {
                 self::FuncCall {
                     span: self.span,
                     name: op.str_to_string(),
+                    generic_replacements: vec![], // todo
                     args: vec![*left, *right],
                     ty: self.ty,
                 }
@@ -261,6 +262,7 @@ impl<'i> Expr<'i> {
                 self::FuncCall {
                     span: self.span,
                     name: op.str_to_string(),
+                    generic_replacements: vec![], // todo
                     args: vec![*thing],
                     ty: self.ty,
                 }
@@ -277,6 +279,7 @@ impl<'i> Expr<'i> {
                     self::FuncCall {
                         span: self.span,
                         name: format!("as {}", ty_node.init_ty(ctx)?.name()).intern(ctx),
+                        generic_replacements: vec![], // todo
                         args: vec![*thing],
                         ty: self.ty,
                     }
@@ -311,6 +314,7 @@ impl<'i> Expr<'i> {
 pub struct FuncCall<'i> {
     span: Span<'i>,
     name: InternedStr<String>,
+    generic_replacements: Vec<TypeNode<'i>>,
     args: Vec<Expr<'i>>,
     ty: OnceCell<Type<'i>>,
 }
@@ -323,6 +327,12 @@ impl<'i> Visit<'i> for FuncCall<'i> {
         Self {
             span,
             name: nodes.next().unwrap().visit_ident(ctx).str_to_string(),
+            generic_replacements: nodes
+                .next()
+                .unwrap()
+                .children_checked(Kind::func_call_generics)
+                .map(|node| node.visit(ctx))
+                .collect(),
             args: nodes.visit_rest(ctx),
             ty: Default::default(),
         }
@@ -330,14 +340,47 @@ impl<'i> Visit<'i> for FuncCall<'i> {
 }
 
 impl<'i> FuncCall<'i> {
+    fn replaced_arg_types(&self, ctx: &mut Ctx<'i>) -> Res<'i, Vec<Type<'i>>> {
+        let mut arg_types = self
+            .args
+            .iter()
+            .map(|it| it.init_ty(ctx))
+            .collect::<Res<'i, Vec<_>>>()?;
+
+        let replacements = self
+            .args
+            .iter()
+            .map(|it| it.init_ty(ctx))
+            .collect::<Res<'i, Vec<_>>>()?;
+
+        let placeholders = match ctx
+            .scopes
+            .get_func(self.name.clone(), &arg_types, self.span)?
+        {
+            Symbol::GenericFunc {
+                generic_placeholders,
+                ..
+            } => generic_placeholders,
+            _ => return Ok(arg_types),
+        };
+
+        for (placeholder, replacement) in placeholders.iter().zip(replacements) {
+            for arg_type in &mut arg_types {
+                if *arg_type == Type::GenericPlaceholder(*placeholder) {
+                    *arg_type = replacement
+                }
+            }
+        }
+
+        ctx.specialize_generic_func(self, &placeholders, &arg_types)?;
+
+        Ok(arg_types)
+    }
+
     pub fn init_ty(&self, ctx: &mut Ctx<'i>) -> Res<'i, Type<'i>> {
         self.ty
             .get_or_try_init(|| {
-                let arg_types = self
-                    .args
-                    .iter()
-                    .map(|arg| arg.init_ty(ctx))
-                    .collect::<Res<'i, Vec<_>>>()?;
+                let arg_types = self.replaced_arg_types(ctx)?;
                 Ok(ctx
                     .scopes
                     .get_func(self.name.clone(), arg_types, self.span)?
@@ -347,19 +390,13 @@ impl<'i> FuncCall<'i> {
     }
 
     pub fn gen(self, ctx: &mut Ctx<'i>) -> Res<'i, ()> {
-        let arg_types = self
-            .args
-            .iter()
-            .map(|arg| arg.init_ty(ctx))
-            .collect::<Res<'i, Vec<_>>>()?;
-
         // don't mangle func main (entry point)
         let mut name_mangled = self.name.to_string();
         if name_mangled != "main" {
             name_mangled = format!(
                 "{}({})",
                 name_mangled,
-                arg_types
+                self.replaced_arg_types(ctx)?
                     .iter()
                     .map(|ty| ty.name())
                     .collect::<Vec<_>>()

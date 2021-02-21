@@ -52,12 +52,12 @@ fn main() {
     let ctx = &mut Ctx::new(program);
 
     let result: Res<'_, ()> = try {
+        println!("parsing");
         let node = Node::parse(ctx.i, Kind::program)?;
-        println!("{}", node);
+        println!("visiting");
         let program = node.visit::<Program<'_>>(ctx);
-        println!("{:?}", program);
+        println!("generating");
         program.gen(ctx)?;
-        println!("{}", ctx.o);
     };
     if let Err(err) = result {
         return eprintln!("Error: {}", err);

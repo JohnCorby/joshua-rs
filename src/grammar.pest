@@ -24,9 +24,10 @@ statement = _{
 
 block = { statement | "{" ~ statement* ~ "}" }
 
-func_define = { ty ~ ident ~ "(" ~ (var_define ~ ("," ~ var_define)*)? ~ ")" ~ block }
-func_call = { ident ~ "(" ~ (expr ~ ("," ~ expr)*)? ~ ")" }
-
+func_define = { ty ~ ident ~ func_define_generics ~ "(" ~ (var_define ~ ("," ~ var_define)*)? ~ ")" ~ block }
+func_define_generics = { ("<" ~ ident ~ ("," ~ ident)* ~ ">")? }
+func_call = { ident ~ func_call_generics ~ "(" ~ (expr ~ ("," ~ expr)*)? ~ ")" }
+func_call_generics = { ("<" ~ (ty ~ ("," ~ ty)*)~ ">")? }
 
 var_define = { ty ~ ident ~ ("=" ~ expr)? }
 expr_assign = { expr ~ "=" ~ expr }
@@ -46,7 +47,11 @@ cont = { "continue" }
 
 
 
-ty = { primitive | ident }
+ty = {
+    primitive
+    | struct_ty
+    | generic_ty
+}
 primitive = {
     "i8"
     | "u8"
@@ -62,6 +67,8 @@ primitive = {
     | "char"
     | "void"
 }
+struct_ty = { "struct" ~ ident }
+generic_ty = { "generic" ~ ident }
 
 
 expr = !{ equality_expr }
@@ -116,7 +123,7 @@ char = {
 
 
 ident = @{
-    (LETTER | "_") ~ (LETTER | ASCII_DIGIT | "_" | "::")*
+    (LETTER | "_") ~ (LETTER | ASCII_DIGIT | "_")*
     | "`" ~ (!"`" ~ ANY)+ ~ "`"
 }
 

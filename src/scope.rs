@@ -2,7 +2,10 @@
 //! scopes contain symbols
 //! symbols allow us to check for existence and type of stuff we define
 
+use crate::context::Ctx;
+use crate::define::DefineKind;
 use crate::error::{err, Res};
+use crate::expr::FuncCall;
 use crate::interned_string::InternedStr;
 use crate::span::Span;
 use crate::ty::{PrimitiveType, Type};
@@ -21,18 +24,25 @@ pub enum Symbol<'i> {
         ty: Type<'i>,
         name: InternedStr<&'i str>,
     },
-    Struct {
+    StructType {
         name: InternedStr<&'i str>,
         field_types: HashMap<InternedStr<&'i str>, Type<'i>>,
+    },
+    GenericPlaceholderType(InternedStr<&'i str>),
+    GenericFunc {
+        ty: Type<'i>,
+        name: InternedStr<String>,
+        generic_placeholders: Vec<InternedStr<&'i str>>,
+        arg_types: Vec<Type<'i>>,
     },
 }
 impl<'i> Symbol<'i> {
     pub fn ty(&self) -> Type<'i> {
         use Symbol::*;
         match self {
-            Func { ty, .. } => *ty,
-            Var { ty, .. } => *ty,
-            Struct { name, .. } => Type::Struct(*name),
+            Func { ty, .. } | Var { ty, .. } | GenericFunc { ty, .. } => *ty,
+            StructType { name, .. } => Type::Struct(*name),
+            GenericPlaceholderType(name) => Type::GenericPlaceholder(*name),
         }
     }
 }
@@ -44,12 +54,16 @@ impl Hash for Symbol<'_> {
         match self {
             Func {
                 name, arg_types, ..
+            }
+            | GenericFunc {
+                name, arg_types, ..
             } => {
                 name.hash(state);
                 arg_types.hash(state);
             }
-            Var { name, .. } => name.hash(state),
-            Struct { name, .. } => name.hash(state),
+            Var { name, .. } | StructType { name, .. } | GenericPlaceholderType(name) => {
+                name.hash(state)
+            }
         }
     }
 }
@@ -68,9 +82,48 @@ impl PartialEq for Symbol<'_> {
                     arg_types: arg_types2,
                     ..
                 },
+            )
+            | (
+                GenericFunc {
+                    name: name1,
+                    arg_types: arg_types1,
+                    ..
+                },
+                GenericFunc {
+                    name: name2,
+                    arg_types: arg_types2,
+                    ..
+                },
+            )
+            | (
+                Func {
+                    name: name1,
+                    arg_types: arg_types1,
+                    ..
+                },
+                GenericFunc {
+                    name: name2,
+                    arg_types: arg_types2,
+                    ..
+                },
+            )
+            | (
+                GenericFunc {
+                    name: name1,
+                    arg_types: arg_types1,
+                    ..
+                },
+                Func {
+                    name: name2,
+                    arg_types: arg_types2,
+                    ..
+                },
             ) => name1 == name2 && arg_types1 == arg_types2,
-            (Var { name: name1, .. }, Var { name: name2, .. }) => name1 == name2,
-            (Struct { name: name1, .. }, Struct { name: name2, .. }) => name1 == name2,
+            (Var { name: name1, .. }, Var { name: name2, .. })
+            | (StructType { name: name1, .. }, StructType { name: name2, .. })
+            | (GenericPlaceholderType(name1), GenericPlaceholderType(name2))
+            | (StructType { name: name1, .. }, GenericPlaceholderType(name2))
+            | (GenericPlaceholderType(name1), StructType { name: name2, .. }) => name1 == name2,
 
             _ => false,
         }
@@ -86,7 +139,7 @@ impl Display for Symbol<'_> {
                 name, arg_types, ..
             } => write!(
                 f,
-                "func `{}` with arg types ({})",
+                "func symbol `{}` with arg types ({})",
                 name,
                 arg_types
                     .iter()
@@ -94,8 +147,21 @@ impl Display for Symbol<'_> {
                     .collect::<Vec<_>>()
                     .join(", ")
             ),
-            Var { name, .. } => write!(f, "var `{}`", name),
-            Struct { name, .. } => write!(f, "struct `{}`", name),
+            Var { name, .. } => write!(f, "var symbol `{}`", name),
+            StructType { name, .. } => write!(f, "struct type symbol `{}`", name),
+            GenericPlaceholderType(name) => write!(f, "generic placeholder type symbol `{}`", name),
+            GenericFunc {
+                name, arg_types, ..
+            } => write!(
+                f,
+                "generic func symbol `{}` and arg types ({})",
+                name,
+                arg_types
+                    .iter()
+                    .map(Type::to_string)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
         }
     }
 }
@@ -238,17 +304,94 @@ impl<'i> Scopes<'i> {
             span,
         )
     }
-    pub fn get_struct(
+    pub fn get_type(
         &self,
         name: InternedStr<&'i str>,
         span: impl Into<Option<Span<'i>>>,
     ) -> Res<'i, Symbol<'i>> {
+        // fixme this will always say struct, when it COULD also find a generic
         self.find(
-            Symbol::Struct {
+            Symbol::StructType {
                 name,
                 field_types: Default::default(),
             },
             span,
         )
+    }
+}
+
+impl<'i> Ctx<'i> {
+    pub fn make_generic_func(
+        &mut self,
+        func_define: DefineKind<'i>,
+        span: impl Into<Option<Span<'i>>> + Copy,
+    ) -> Res<'i, ()> {
+        if let DefineKind::Func {
+            ty_node,
+            name,
+            generic_placeholders,
+            args,
+            ..
+        } = func_define
+        {
+            self.scopes.push(false, ty_node.init_ty(self)?);
+            for &placeholder in &generic_placeholders {
+                self.scopes
+                    .add(Symbol::GenericPlaceholderType(placeholder), span)?;
+            }
+
+            self.scopes.add(
+                Symbol::GenericFunc {
+                    ty: ty_node.init_ty(self)?,
+                    name: name.str_to_string(),
+                    generic_placeholders,
+                    arg_types: args
+                        .iter()
+                        .map(|var_define| var_define.ty_node.init_ty(self))
+                        .collect::<Res<'i, Vec<_>>>()?,
+                },
+                span,
+            )?;
+            self.scopes.pop();
+            Ok(())
+        } else {
+            unreachable!()
+        }
+    }
+    #[allow(warnings)]
+    pub fn specialize_generic_func(
+        &mut self,
+        func_call: &FuncCall<'i>,
+        placeholders: &[InternedStr<&'i str>],
+        replaced_arg_types: &[Type<'i>],
+    ) -> Res<'i, ()> {
+        // todo
+        eprintln!("TODO: Ctx::specialize_generic_func");
+        Ok(())
+        // // get template
+        // // todo
+        //
+        // // todo replace generics
+        // let arg_types = arg_types.as_ref().to_vec();
+        // // for (generic, replacement) in generic_replacements {
+        // //     for arg_type in arg_types.iter_mut() {
+        // //         if let TypeKind::Generic(name) = arg_type {
+        // //             if generic == *name {
+        // //                 *arg_type = replacement
+        // //             }
+        // //         }
+        // //     }
+        // // }
+        //
+        // // add or get
+        // let symbol = Symbol::Func {
+        //     ty: ret_type,
+        //     name: name.str_to_string(),
+        //     arg_types,
+        // };
+        // if self.scopes.add(symbol.clone(), span).is_ok() {
+        //     return Ok(symbol);
+        // }
+        // self.scopes.find(symbol, span)
     }
 }

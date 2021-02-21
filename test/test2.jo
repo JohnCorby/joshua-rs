@@ -2,11 +2,15 @@
 #include <stdio.h>
 }>
 
+void template_func<T>(generic T a) {
+
+}
+
 struct baba_booey {
     f32 hello
 }
 struct im {
-    baba_booey pain
+    struct baba_booey pain
 
 //    void fuck() {}
 }
@@ -19,25 +23,25 @@ void `raw`() {}
 //    return a + b
 //}
 
-im gimme_im() {
-    im im
+struct im gimme_im() {
+    struct im im
     im.pain.hello = 23 as f32
     return im
 }
 
 /// pretend this is a method of baba_booey
-f32 kill_yourself(baba_booey this, i32 a, f32 b, bool c, char d) {
+f32 kill_yourself(struct baba_booey this, i32 a, f32 b, bool c, char d) {
     <{puts("woah! this is the method kill_yourself of baba_booey")}>
     return 11565 as f32
 }
-f32 kill_yourself(baba_booey this, i32 a, f32 b) {
+f32 kill_yourself(struct baba_booey this, i32 a, f32 b) {
     <{puts("woah! this is the method kill_yourself but the other one of baba_booey")}>
     return 4915.95010 as f32
 }
-f32 `+`(baba_booey a, baba_booey b)
+f32 `+`(struct baba_booey a, struct baba_booey b)
     return a.hello + b.hello
 
-//i32 ok = 2 as i32
+i32 ok = 2 as i32
 
 i32 main() {
     // fixme `localize all statics` regression: break inside loop triggers "break is out of loop" text
@@ -64,7 +68,7 @@ i32 main() {
     f32 e = 1 as f32 + i as f32 / 2 as f32
     u8 bruh = (1 as u8 + 1 as u8 + 1 as u8) + (2 as u8 + 2 as u8)
 
-    baba_booey ok
+    struct baba_booey ok
     f32 woah = ok.hello
     f32 woah2 = gimme_im().pain.hello
     <{printf("woah2 is %f\n", ${woah2})}>
@@ -84,6 +88,8 @@ i32 main() {
 
 //    u32 test = ((1 as u16) + (2 as u16)) as u32 + <{&${ok}}>
     f32 test2 = (1 as f32) + (2 as f32)
+
+    template_func<i32>(1 as i32)
 
     <{puts("you are a poopy head")}>
 //    <{

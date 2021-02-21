@@ -9,10 +9,9 @@ edition = "2018"
 [dependencies]
 pest = "*"
 pest_derive = "*"
-parking_lot = { version = "*", features = ["nightly", "owning_ref"] }
 mangling = "*"
 console = "*"
-owning_ref = "*"
 strum = { version = "*", features = ["derive"] }
 string-interner = "*"
 quit = "*"
+elsa = { git = "https://github.com/Manishearth/elsa", features = ["indexmap"] }

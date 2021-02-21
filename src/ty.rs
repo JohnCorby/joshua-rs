@@ -2,6 +2,7 @@ use crate::context::Ctx;
 use crate::error::{err, unexpected_kind, Res};
 use crate::interned_string::InternedStr;
 use crate::parse::{Kind, Node};
+use crate::scope::Symbol;
 use crate::span::Span;
 use crate::util::Visit;
 use std::fmt::{Display, Formatter};
@@ -18,15 +19,19 @@ pub struct TypeNode<'i> {
 impl<'i> Visit<'i> for TypeNode<'i> {
     fn visit(node: Node<'i>, ctx: &mut Ctx<'i>) -> Self {
         let node = node.children_checked(Kind::ty).next().unwrap();
+        let span = node.span();
         let ty = match node.kind() {
             Kind::primitive => Type::Primitive(node.str().parse().unwrap()),
-            Kind::ident => Type::Struct(node.visit_ident(ctx)),
+            Kind::struct_ty => Type::Struct(node.children().next().unwrap().visit_ident(ctx)),
+            Kind::generic_ty => {
+                Type::GenericPlaceholder(node.children().next().unwrap().visit_ident(ctx))
+            }
 
             _ => unexpected_kind(node),
         };
 
         Self {
-            span: node.span(),
+            span,
             _ty: ty,
             ty: Default::default(),
         }
@@ -37,8 +42,31 @@ impl<'i> TypeNode<'i> {
     pub fn init_ty(&self, ctx: &Ctx<'i>) -> Res<'i, Type<'i>> {
         self.ty
             .get_or_try_init(|| {
-                if let Type::Struct(name) = self._ty {
-                    ctx.scopes.get_struct(name, self.span)?;
+                match self._ty {
+                    Type::Struct(name) => match ctx.scopes.get_type(name, self.span)? {
+                        Symbol::StructType { .. } => {}
+                        symbol => {
+                            return err(
+                                format!("expected struct type symbol, but got {}", symbol),
+                                self.span,
+                            )
+                        }
+                    },
+                    Type::GenericPlaceholder(name) => {
+                        match ctx.scopes.get_type(name, self.span)? {
+                            Symbol::GenericPlaceholderType { .. } => {}
+                            symbol => {
+                                return err(
+                                    format!(
+                                        "expected generic placeholder type symbol, but got {}",
+                                        symbol
+                                    ),
+                                    self.span,
+                                )
+                            }
+                        }
+                    }
+                    _ => {}
                 }
                 Ok(self._ty)
             })
@@ -50,7 +78,7 @@ impl<'i> TypeNode<'i> {
         match self._ty {
             Primitive(ty) => ctx.o.push_str(ty.c_type()),
             Struct(name) => {
-                ctx.scopes.get_struct(name, self.span)?;
+                ctx.o.push_str("struct ");
                 ctx.o.push_str(&name)
             }
             ty => panic!("tried to gen {}", ty),
@@ -63,6 +91,7 @@ impl<'i> TypeNode<'i> {
 pub enum Type<'i> {
     Primitive(PrimitiveType),
     Struct(InternedStr<&'i str>),
+    GenericPlaceholder(InternedStr<&'i str>),
     Literal(LiteralType),
     CCode,
 }
@@ -83,9 +112,10 @@ impl<'i> Type<'i> {
         use Type::*;
         match self {
             Primitive(ty) => ty.to_string(),
-            Struct(name) => name.to_string(),
+            Struct(name) => format!("struct {}", name),
+            GenericPlaceholder(name) => format!("generic {}", name),
             Literal(ty) => ty.to_string(),
-            _ => unreachable!("{} doesnt have a name", self),
+            CCode => unreachable!("{} doesnt have a name", self),
         }
     }
 }
@@ -101,7 +131,7 @@ impl Hash for Type<'_> {
         use Type::*;
         match self {
             Primitive(ty) => ty.hash(state),
-            Struct(name) => name.hash(state),
+            Struct(name) | GenericPlaceholder(name) => name.hash(state),
             Literal(ty) => ty.hash(state),
             CCode => ().hash(state),
         }
@@ -112,11 +142,16 @@ impl PartialEq for Type<'_> {
         use Type::*;
         match (self, other) {
             (Primitive(ty1), Primitive(ty2)) => ty1 == ty2,
-            (Struct(name1), Struct(name2)) => name1 == name2,
+            (Struct(name1), Struct(name2))
+            | (GenericPlaceholder(name1), GenericPlaceholder(name2)) => name1 == name2,
             (Literal(ty1), Literal(ty2)) => ty1 == ty2,
 
             // c code can be any type lol
             (CCode, _) | (_, CCode) => true,
+
+            // generic placeholders work for any other non-generic type
+            // by happy accident, more specific types are checked first, because hash is run before eq in scope find
+            (GenericPlaceholder(_), _) | (_, GenericPlaceholder(_)) => true,
 
             _ => false,
         }
@@ -128,7 +163,8 @@ impl Display for Type<'_> {
         use Type::*;
         match self {
             Primitive(ty) => write!(f, "primitive type {}", ty),
-            Struct(name) => write!(f, "named type `{}`", name),
+            Struct(name) => write!(f, "struct type `{}`", name),
+            GenericPlaceholder(name) => write!(f, "generic placeholder type `{}`", name),
             Literal(ty) => write!(f, "literal type {}", ty),
             CCode => write!(f, "c code type"),
         }

@@ -1,3 +1,4 @@
+use crate::error::Res;
 use crate::scope::Scopes;
 use crate::ty::PrimitiveType;
 use string_interner::StringInterner;
@@ -85,5 +86,12 @@ impl<'i> Ctx<'i> {
         }
 
         i.insert_str(0, pre_i);
+    }
+
+    #[allow(warnings)]
+    pub fn make_func<'i2>(&'_ mut self, i: &'i2 str) -> Res<'i, ()> {
+        // todo
+        eprintln!("TODO: Ctx::make_func");
+        Ok(())
     }
 }
