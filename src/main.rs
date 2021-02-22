@@ -1,4 +1,5 @@
 //!todo
+//! - use elsa to append input while still holding references
 //! - TESTS
 //! - "mir" thingy for c, might make replacement easier; or at least just a way to gen funcs/structs outside of where we are lol
 //!todo
@@ -47,17 +48,16 @@ fn main() {
     Err::init();
 
     let path = Path::new("test/test2.jo");
-    let program = &mut std::fs::read_to_string(path).unwrap();
-    Ctx::attach_rt(program);
-    let ctx = &mut Ctx::new(program);
+    let program = std::fs::read_to_string(path).unwrap();
+    let mut ctx = Ctx::new();
 
     let result: Res<'_, ()> = try {
         println!("parsing");
-        let node = Node::parse(ctx.i, Kind::program)?;
+        let node = Node::parse(ctx.new_i(program), Kind::program)?;
         println!("visiting");
-        let program = node.visit::<Program<'_>>(ctx);
+        let program = node.visit::<Program<'_>>(&mut ctx);
         println!("generating");
-        program.gen(ctx)?;
+        program.gen(&mut ctx)?;
     };
     if let Err(err) = result {
         return eprintln!("Error: {}", err);

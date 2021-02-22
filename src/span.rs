@@ -2,6 +2,7 @@ use crate::parse::Kind;
 use pest::error::Error;
 use pest::error::ErrorVariant::CustomError;
 use std::fmt::{Debug, Display, Formatter};
+use std::mem::transmute;
 
 #[derive(Copy, Clone)]
 pub struct Span<'i> {
@@ -12,14 +13,14 @@ pub struct Span<'i> {
 impl From<pest::Span<'_>> for Span<'_> {
     fn from(span: pest::Span<'_>) -> Self {
         let str = span.as_str();
-        let mut span: Span<'_> = unsafe { std::mem::transmute(span) };
+        let mut span: Span<'_> = unsafe { transmute(span) };
         span.end = str.find('\n').map_or(span.end, |i| span.start + i);
         span
     }
 }
 impl From<Span<'_>> for pest::Span<'_> {
     fn from(span: Span<'_>) -> Self {
-        unsafe { std::mem::transmute(span) }
+        unsafe { transmute(span) }
     }
 }
 

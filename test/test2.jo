@@ -2,9 +2,9 @@
 #include <stdio.h>
 }>
 
-void template_func<T>(generic T a) {
-
-}
+//void template_func<T>(generic T a) {
+//
+//}
 
 struct baba_booey {
     f32 hello
@@ -89,7 +89,7 @@ i32 main() {
 //    u32 test = ((1 as u16) + (2 as u16)) as u32 + <{&${ok}}>
     f32 test2 = (1 as f32) + (2 as f32)
 
-    template_func<i32>(1 as i32)
+//    template_func<i32>(1 as i32)
 
     <{puts("you are a poopy head")}>
 //    <{

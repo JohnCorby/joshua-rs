@@ -14,4 +14,4 @@ console = "*"
 strum = { version = "*", features = ["derive"] }
 string-interner = "*"
 quit = "*"
-elsa = { git = "https://github.com/Manishearth/elsa", features = ["indexmap"] }
+elsa = "*"
