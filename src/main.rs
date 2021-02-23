@@ -60,9 +60,9 @@ fn main() {
         program.gen(&mut ctx)?;
     };
     if let Err(err) = result {
-        return eprintln!("Error: {}", err);
+        eprintln!("Error: {}", err);
+    } else {
+        compile_program(&ctx.o, path);
     }
-
-    compile_program(&ctx.o, path);
     ctx.drop();
 }

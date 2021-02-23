@@ -25,7 +25,7 @@ statement = _{
 block = { statement | "{" ~ statement* ~ "}" }
 
 func_define = { ty ~ ident ~ func_define_generics ~ "(" ~ (var_define ~ ("," ~ var_define)*)? ~ ")" ~ block }
-func_define_generics = { ("<" ~ ident ~ ("," ~ ident)* ~ ">")? }
+func_define_generics = { ("<" ~ "generic" ~ ident ~ ("," ~ "generic" ~ ident)* ~ ">")? }
 func_call = { ident ~ func_call_generics ~ "(" ~ (expr ~ ("," ~ expr)*)? ~ ")" }
 func_call_generics = { ("<" ~ (ty ~ ("," ~ ty)*)~ ">")? }
 

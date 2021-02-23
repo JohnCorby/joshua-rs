@@ -248,17 +248,16 @@ impl<'i> Scopes<'i> {
 
 impl<'i> Scopes<'i> {
     pub fn add(&mut self, symbol: Symbol<'i>, span: impl Into<Option<Span<'i>>>) -> Res<'i, ()> {
-        let symbols = &mut self.0.last_mut().unwrap().symbols;
-        let err = err(format!("{} already defined", symbol), span);
+        let scope = self.0.last_mut().unwrap();
         // find with hash first
-        if symbols.contains(&symbol) {
-            return err;
+        if let Some(symbol) = scope.symbols.get(&symbol) {
+            return err(format!("{} already defined", symbol), span);
         }
         // then use eq if hash didnt find anything
-        if symbols.iter().any(|s| s == &symbol) {
-            return err;
+        if let Some(symbol) = scope.symbols.iter().find(|&s| s == &symbol) {
+            return err(format!("{} already defined", symbol), span);
         }
-        symbols.insert(symbol);
+        scope.symbols.insert(symbol);
         Ok(())
     }
 
@@ -309,7 +308,6 @@ impl<'i> Scopes<'i> {
         name: InternedStr<'i>,
         span: impl Into<Option<Span<'i>>>,
     ) -> Res<'i, Symbol<'i>> {
-        // fixme this will always say struct, when it COULD also find a generic
         self.find(
             Symbol::StructType {
                 name,
@@ -340,26 +338,28 @@ impl<'i> Ctx<'i> {
                 "tried to make a generic func from a normal func"
             );
 
-            self.scopes.push(false, ty_node.init_ty(self)?);
+            // hack so generic types resolve in args and ret type
+            self.scopes.push(false, None);
             for &placeholder in &generic_placeholders {
                 self.scopes
                     .add(Symbol::GenericPlaceholderType(placeholder), span)?;
             }
+            let ty = ty_node.init_ty(self)?;
+            let arg_types = args
+                .iter()
+                .map(|var_define| var_define.ty_node.init_ty(self))
+                .collect::<Res<'i, Vec<_>>>()?;
+            self.scopes.pop();
 
             self.scopes.add(
                 Symbol::GenericFunc {
-                    ty: ty_node.init_ty(self)?,
+                    ty,
                     name,
                     generic_placeholders,
-                    arg_types: args
-                        .iter()
-                        .map(|var_define| var_define.ty_node.init_ty(self))
-                        .collect::<Res<'i, Vec<_>>>()?,
+                    arg_types,
                 },
                 span,
-            )?;
-            self.scopes.pop();
-            Ok(())
+            )
         } else {
             unreachable!()
         }
@@ -388,6 +388,7 @@ impl<'i> Ctx<'i> {
         // let i = format!("");
         // self.make_func(i)?;
 
+        dbg!(&self.scopes);
         let placeholders =
             match self
                 .scopes
@@ -416,14 +417,13 @@ impl<'i> Ctx<'i> {
             .zip(replacements)
             .collect::<HashMap<_, _>>();
         // todo remove because it should already include replacements (EXPECT THE RET_TYPE!!!)
-        let mut ret_type = func_call
-            .ty
-            .get()
-            .copied()
-            .expect("ret type should be initialized at this point");
+        // let mut ret_type = func_call
+        //     .ty
+        //     .get()
+        //     .copied()
+        //     .expect("ret type should be initialized at this point");
 
-        // todo
-        eprintln!("TODO: replace generics in specialized func body as well");
-        Ok((ret_type, arg_types))
+        todo!("replace generics in specialized func (in ret type and body. arg types should already be specialized)")
+        // Ok((ret_type, arg_types))
     }
 }

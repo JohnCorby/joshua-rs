@@ -138,6 +138,7 @@ impl<'i> Define<'i> {
                 ctx.o.push_str(&name);
                 ctx.o.push_str(" {\n");
                 for define in body {
+                    // fixme this will put these as defines in the same scope that this struct is in
                     define.gen(ctx)?;
                     ctx.o.push('\n')
                 }

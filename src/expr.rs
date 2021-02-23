@@ -179,7 +179,7 @@ impl<'i> Expr<'i> {
                         arg_types.insert(0, receiver.init_ty(ctx)?);
 
                         ctx.scopes
-                            .get_func(func_call.name.clone(), arg_types, self.span)?
+                            .get_func(func_call.name, arg_types, self.span)?
                             .ty()
                     }
                     Field { receiver, var } => {
@@ -351,10 +351,7 @@ impl<'i> FuncCall<'i> {
         self.ty
             .get_or_try_init(|| {
                 let arg_types = self.replaced_arg_types(ctx)?;
-                Ok(ctx
-                    .scopes
-                    .get_func(self.name.clone(), arg_types, self.span)?
-                    .ty())
+                Ok(ctx.scopes.get_func(self.name, arg_types, self.span)?.ty())
             })
             .copied()
     }

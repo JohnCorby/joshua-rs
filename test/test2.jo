@@ -2,7 +2,7 @@
 #include <stdio.h>
 }>
 
-void template_func<T>(generic T a) {
+void template_func<generic T>(generic T a) {
 
 }
 
