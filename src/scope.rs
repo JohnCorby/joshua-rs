@@ -3,7 +3,7 @@
 //! symbols allow us to check for existence and type of stuff we define
 
 use crate::context::Ctx;
-use crate::define::DefineKind;
+use crate::define::{Define, DefineKind};
 use crate::error::{err, Res};
 use crate::expr::FuncCall;
 use crate::interned_string::InternedStr;
@@ -17,22 +17,22 @@ use std::hash::{Hash, Hasher};
 pub enum Symbol<'i> {
     Func {
         ty: Type<'i>,
-        name: InternedStr<String>,
+        name: InternedStr<'i>,
         arg_types: Vec<Type<'i>>,
     },
     Var {
         ty: Type<'i>,
-        name: InternedStr<&'i str>,
+        name: InternedStr<'i>,
     },
     StructType {
-        name: InternedStr<&'i str>,
-        field_types: HashMap<InternedStr<&'i str>, Type<'i>>,
+        name: InternedStr<'i>,
+        field_types: HashMap<InternedStr<'i>, Type<'i>>,
     },
-    GenericPlaceholderType(InternedStr<&'i str>),
+    GenericPlaceholderType(InternedStr<'i>),
     GenericFunc {
         ty: Type<'i>,
-        name: InternedStr<String>,
-        generic_placeholders: Vec<InternedStr<&'i str>>,
+        name: InternedStr<'i>,
+        generic_placeholders: Vec<InternedStr<'i>>,
         arg_types: Vec<Type<'i>>,
     },
 }
@@ -278,7 +278,7 @@ impl<'i> Scopes<'i> {
 
     pub fn get_var(
         &self,
-        name: InternedStr<&'i str>,
+        name: InternedStr<'i>,
         span: impl Into<Option<Span<'i>>>,
     ) -> Res<'i, Symbol<'i>> {
         self.find(
@@ -291,7 +291,7 @@ impl<'i> Scopes<'i> {
     }
     pub fn get_func(
         &self,
-        name: InternedStr<String>,
+        name: InternedStr<'i>,
         arg_types: impl AsRef<[Type<'i>]>,
         span: impl Into<Option<Span<'i>>>,
     ) -> Res<'i, Symbol<'i>> {
@@ -306,7 +306,7 @@ impl<'i> Scopes<'i> {
     }
     pub fn get_type(
         &self,
-        name: InternedStr<&'i str>,
+        name: InternedStr<'i>,
         span: impl Into<Option<Span<'i>>>,
     ) -> Res<'i, Symbol<'i>> {
         // fixme this will always say struct, when it COULD also find a generic
@@ -321,19 +321,25 @@ impl<'i> Scopes<'i> {
 }
 
 impl<'i> Ctx<'i> {
-    pub fn make_generic_func(
-        &mut self,
-        func_define: DefineKind<'i>,
-        span: impl Into<Option<Span<'i>>> + Copy,
-    ) -> Res<'i, ()> {
-        if let DefineKind::Func {
-            ty_node,
-            name,
-            generic_placeholders,
-            args,
-            ..
+    /// create a template for a generic func using a func_define
+    pub fn make_generic_func(&mut self, func_define: Define<'i>) -> Res<'i, ()> {
+        if let Define {
+            span,
+            kind:
+                DefineKind::Func {
+                    ty_node,
+                    name,
+                    generic_placeholders,
+                    args,
+                    ..
+                },
         } = func_define
         {
+            assert!(
+                !generic_placeholders.is_empty(),
+                "tried to make a generic func from a normal func"
+            );
+
             self.scopes.push(false, ty_node.init_ty(self)?);
             for &placeholder in &generic_placeholders {
                 self.scopes
@@ -343,7 +349,7 @@ impl<'i> Ctx<'i> {
             self.scopes.add(
                 Symbol::GenericFunc {
                     ty: ty_node.init_ty(self)?,
-                    name: name.str_to_string(),
+                    name,
                     generic_placeholders,
                     arg_types: args
                         .iter()
@@ -358,40 +364,66 @@ impl<'i> Ctx<'i> {
             unreachable!()
         }
     }
+
+    /// take a generic function and specialize it
+    /// returns specialized ret type and arg types
     #[allow(warnings)]
     pub fn specialize_generic_func(
         &mut self,
         func_call: &FuncCall<'i>,
-        placeholders: &[InternedStr<&'i str>],
-        replaced_arg_types: &[Type<'i>],
-    ) -> Res<'i, ()> {
+    ) -> Res<'i, (Type<'i>, Vec<Type<'i>>)> {
+        assert!(
+            !func_call.generic_replacements.is_empty(),
+            "tried to specialize a non-generic func"
+        );
+
+        let mut arg_types = func_call
+            .args
+            .iter()
+            .map(|it| it.init_ty(self))
+            .collect::<Res<'i, Vec<_>>>()?;
+
+        // get or create specialized func
+        // if self.scopes.get_func(func_call.name, func_call)
+        // let i = format!("");
+        // self.make_func(i)?;
+
+        let placeholders =
+            match self
+                .scopes
+                .get_func(func_call.name.clone(), &arg_types, func_call.span)?
+            {
+                Symbol::GenericFunc {
+                    generic_placeholders,
+                    ..
+                } => generic_placeholders,
+                symbol => {
+                    return err(
+                        format!("expected generic func symbol, but got {}", symbol),
+                        func_call.span,
+                    )
+                }
+            };
+        let replacements = func_call
+            .generic_replacements
+            .iter()
+            .map(|it| it.init_ty(self))
+            .collect::<Res<'i, Vec<_>>>()?;
+        assert_eq!(placeholders.len(), func_call.generic_replacements.len());
+        let generic_map = placeholders
+            .iter()
+            .map(|it| Type::GenericPlaceholder(*it))
+            .zip(replacements)
+            .collect::<HashMap<_, _>>();
+        // todo remove because it should already include replacements (EXPECT THE RET_TYPE!!!)
+        let mut ret_type = func_call
+            .ty
+            .get()
+            .copied()
+            .expect("ret type should be initialized at this point");
+
         // todo
-        eprintln!("TODO: Ctx::specialize_generic_func");
-        Ok(())
-        // // get template
-        // // todo
-        //
-        // // todo replace generics
-        // let arg_types = arg_types.as_ref().to_vec();
-        // // for (generic, replacement) in generic_replacements {
-        // //     for arg_type in arg_types.iter_mut() {
-        // //         if let TypeKind::Generic(name) = arg_type {
-        // //             if generic == *name {
-        // //                 *arg_type = replacement
-        // //             }
-        // //         }
-        // //     }
-        // // }
-        //
-        // // add or get
-        // let symbol = Symbol::Func {
-        //     ty: ret_type,
-        //     name: name.str_to_string(),
-        //     arg_types,
-        // };
-        // if self.scopes.add(symbol.clone(), span).is_ok() {
-        //     return Ok(symbol);
-        // }
-        // self.scopes.find(symbol, span)
+        eprintln!("TODO: replace generics in specialized func body as well");
+        Ok((ret_type, arg_types))
     }
 }

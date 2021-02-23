@@ -3,13 +3,15 @@ use crate::error::Res;
 use crate::parse::{Kind, Node};
 use crate::scope::Scopes;
 use crate::ty::PrimitiveType;
-use elsa::FrozenVec;
 use std::mem::transmute;
 use string_interner::StringInterner;
 
 /// stores general program context
+#[derive(Debug)]
 pub struct Ctx<'i> {
-    is: FrozenVec<String>,
+    dropped: bool,
+
+    is: Vec<Box<str>>,
     pub o: String,
 
     pub scopes: Scopes<'i>,
@@ -19,6 +21,8 @@ pub struct Ctx<'i> {
 impl<'i> Ctx<'i> {
     pub fn new() -> Self {
         let mut ctx = Ctx {
+            dropped: false,
+
             is: Default::default(),
             o: Default::default(),
 
@@ -29,13 +33,27 @@ impl<'i> Ctx<'i> {
         ctx
     }
 
+    /// this makes sure we must manually drop ctx instead of by accident
+    pub fn drop(mut self) {
+        self.dropped = true;
+    }
+
+    /// # safety
+    /// you must keep self alive as long as the returned &str
+    ///
+    /// todo at some point maybe use a safer method
     pub fn new_i(&mut self, i: String) -> &'i str {
-        self.is.push(i);
-        let i = self.is.iter().last().unwrap();
-        // safety: this will live for 'i because the Strings never reallocate
-        // even newly added Strings can be considered having the lifetime 'i
-        // because once theyre added, theyre there forever
+        self.is.push(i.into_boxed_str());
+        let i = &**self.is.last().unwrap();
         unsafe { transmute::<&str, &'i str>(i) }
+    }
+}
+
+impl Drop for Ctx<'_> {
+    fn drop(&mut self) {
+        if !self.dropped {
+            panic!("ctx must be manually dropped")
+        }
     }
 }
 
@@ -110,9 +128,23 @@ impl<'i> Ctx<'i> {
 
     #[allow(warnings)]
     pub fn make_func(&mut self, i: String) -> Res<'i, ()> {
-        Node::parse(self.new_i(i), Kind::func_define)?
+        Node::parse(&self.new_i(i), Kind::func_define)?
             .visit::<Define<'i>>(self)
             .gen(self)?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::context::Ctx;
+
+    #[test]
+    #[should_panic]
+    fn ub_prevention() {
+        let mut ctx = Ctx::new();
+        let i = ctx.o.clone(); // just get some random string
+        let _i = ctx.new_i(i);
+        // we should get a drop error
     }
 }

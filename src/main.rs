@@ -64,4 +64,5 @@ fn main() {
     }
 
     compile_program(&ctx.o, path);
+    ctx.drop();
 }

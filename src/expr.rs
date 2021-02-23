@@ -21,11 +21,11 @@ pub struct Expr<'i> {
 pub enum ExprKind<'i> {
     Binary {
         left: Box<Expr<'i>>,
-        op: InternedStr<&'i str>,
+        op: InternedStr<'i>,
         right: Box<Expr<'i>>,
     },
     Unary {
-        op: InternedStr<&'i str>,
+        op: InternedStr<'i>,
         thing: Box<Expr<'i>>,
     },
     Cast {
@@ -39,13 +39,13 @@ pub enum ExprKind<'i> {
     },
     Field {
         receiver: Box<Expr<'i>>,
-        var: InternedStr<&'i str>,
+        var: InternedStr<'i>,
     },
 
     // primary
     Literal(Literal<'i>),
     FuncCall(FuncCall<'i>),
-    Var(InternedStr<&'i str>),
+    Var(InternedStr<'i>),
 
     CCode(CCode<'i>),
 }
@@ -149,14 +149,12 @@ impl<'i> Expr<'i> {
                 Ok(match &self.kind {
                     Binary { left, op, right } => {
                         let left = left.init_ty(ctx)?;
-                        let op = op.str_to_string();
                         let right = right.init_ty(ctx)?;
-                        ctx.scopes.get_func(op, [left, right], self.span)?.ty()
+                        ctx.scopes.get_func(*op, [left, right], self.span)?.ty()
                     }
                     Unary { op, thing } => {
-                        let op = op.str_to_string();
                         let thing = thing.init_ty(ctx)?;
-                        ctx.scopes.get_func(op, [thing], self.span)?.ty()
+                        ctx.scopes.get_func(*op, [thing], self.span)?.ty()
                     }
                     Cast { thing, ty_node } => {
                         // fixme literals are hacky as shit
@@ -249,7 +247,7 @@ impl<'i> Expr<'i> {
                 // c_code.push(')');
                 self::FuncCall {
                     span: self.span,
-                    name: op.str_to_string(),
+                    name: op,
                     generic_replacements: vec![], // todo
                     args: vec![*left, *right],
                     ty: self.ty,
@@ -261,7 +259,7 @@ impl<'i> Expr<'i> {
                 // thing.gen(c_code)?;
                 self::FuncCall {
                     span: self.span,
-                    name: op.str_to_string(),
+                    name: op,
                     generic_replacements: vec![], // todo
                     args: vec![*thing],
                     ty: self.ty,
@@ -312,11 +310,11 @@ impl<'i> Expr<'i> {
 
 #[derive(Debug, Clone)]
 pub struct FuncCall<'i> {
-    span: Span<'i>,
-    name: InternedStr<String>,
-    generic_replacements: Vec<TypeNode<'i>>,
-    args: Vec<Expr<'i>>,
-    ty: OnceCell<Type<'i>>,
+    pub span: Span<'i>,
+    pub name: InternedStr<'i>,
+    pub generic_replacements: Vec<TypeNode<'i>>,
+    pub args: Vec<Expr<'i>>,
+    pub ty: OnceCell<Type<'i>>,
 }
 
 impl<'i> Visit<'i> for FuncCall<'i> {
@@ -326,7 +324,7 @@ impl<'i> Visit<'i> for FuncCall<'i> {
 
         Self {
             span,
-            name: nodes.next().unwrap().visit_ident(ctx).str_to_string(),
+            name: nodes.next().unwrap().visit_ident(ctx),
             generic_replacements: nodes
                 .next()
                 .unwrap()
@@ -341,40 +339,12 @@ impl<'i> Visit<'i> for FuncCall<'i> {
 
 impl<'i> FuncCall<'i> {
     fn replaced_arg_types(&self, ctx: &mut Ctx<'i>) -> Res<'i, Vec<Type<'i>>> {
-        let mut arg_types = self
-            .args
-            .iter()
-            .map(|it| it.init_ty(ctx))
-            .collect::<Res<'i, Vec<_>>>()?;
-
-        let replacements = self
-            .args
-            .iter()
-            .map(|it| it.init_ty(ctx))
-            .collect::<Res<'i, Vec<_>>>()?;
-
-        let placeholders = match ctx
-            .scopes
-            .get_func(self.name.clone(), &arg_types, self.span)?
-        {
-            Symbol::GenericFunc {
-                generic_placeholders,
-                ..
-            } => generic_placeholders,
-            _ => return Ok(arg_types),
-        };
-
-        for (placeholder, replacement) in placeholders.iter().zip(replacements) {
-            for arg_type in &mut arg_types {
-                if *arg_type == Type::GenericPlaceholder(*placeholder) {
-                    *arg_type = replacement
-                }
-            }
+        if !self.generic_replacements.is_empty() {
+            let (_, arg_types) = ctx.specialize_generic_func(self)?;
+            Ok(arg_types)
+        } else {
+            self.args.iter().map(|it| it.init_ty(ctx)).collect()
         }
-
-        ctx.specialize_generic_func(self, &placeholders, &arg_types)?;
-
-        Ok(arg_types)
     }
 
     pub fn init_ty(&self, ctx: &mut Ctx<'i>) -> Res<'i, Type<'i>> {
@@ -469,7 +439,7 @@ impl<'i> Literal<'i> {
 }
 
 impl<'i> Node<'i> {
-    pub fn visit_ident(&self, ctx: &mut Ctx<'i>) -> InternedStr<&'i str> {
+    pub fn visit_ident(&self, ctx: &mut Ctx<'i>) -> InternedStr<'i> {
         let str = self.str();
         str.strip_prefix('`')
             .unwrap_or(str)

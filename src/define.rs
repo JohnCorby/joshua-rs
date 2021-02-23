@@ -1,7 +1,7 @@
 use crate::context::Ctx;
 use crate::error::{unexpected_kind, Res};
 use crate::expr::Expr;
-use crate::interned_string::{Intern, InternedStr};
+use crate::interned_string::InternedStr;
 use crate::parse::{Kind, Node};
 use crate::scope::Symbol;
 use crate::span::Span;
@@ -41,19 +41,19 @@ impl<'i> Program<'i> {
 
 #[derive(Debug, Clone)]
 pub struct Define<'i> {
-    span: Span<'i>,
-    kind: DefineKind<'i>,
+    pub span: Span<'i>,
+    pub kind: DefineKind<'i>,
 }
 #[derive(Debug, Clone)]
 pub enum DefineKind<'i> {
     Struct {
-        name: InternedStr<&'i str>,
+        name: InternedStr<'i>,
         body: Vec<Define<'i>>,
     },
     Func {
         ty_node: TypeNode<'i>,
-        name: InternedStr<&'i str>,
-        generic_placeholders: Vec<InternedStr<&'i str>>,
+        name: InternedStr<'i>,
+        generic_placeholders: Vec<InternedStr<'i>>,
         args: Vec<VarDefine<'i>>,
         body: Block<'i>,
     },
@@ -151,16 +151,16 @@ impl<'i> Define<'i> {
                 body,
             } => {
                 if !generic_placeholders.is_empty() {
-                    ctx.make_generic_func(
-                        Func {
+                    ctx.make_generic_func(Define {
+                        span: self.span,
+                        kind: Func {
                             ty_node,
                             name,
                             generic_placeholders,
                             args,
                             body,
                         },
-                        self.span,
-                    )?
+                    })?
                 } else {
                     let arg_types = args
                         .iter()
@@ -182,7 +182,6 @@ impl<'i> Define<'i> {
                         .mangle();
                     }
 
-                    let name = name.to_string().intern(ctx);
                     ctx.scopes.add(
                         Symbol::Func {
                             ty: ty_node.init_ty(ctx)?,
@@ -226,7 +225,7 @@ impl<'i> Define<'i> {
 pub struct VarDefine<'i> {
     span: Span<'i>,
     pub ty_node: TypeNode<'i>,
-    name: InternedStr<&'i str>,
+    name: InternedStr<'i>,
     value: Option<Expr<'i>>,
 }
 

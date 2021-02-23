@@ -90,8 +90,8 @@ impl<'i> TypeNode<'i> {
 #[derive(Debug, Copy, Clone)]
 pub enum Type<'i> {
     Primitive(PrimitiveType),
-    Struct(InternedStr<&'i str>),
-    GenericPlaceholder(InternedStr<&'i str>),
+    Struct(InternedStr<'i>),
+    GenericPlaceholder(InternedStr<'i>),
     Literal(LiteralType),
     CCode,
 }
@@ -157,6 +157,7 @@ impl PartialEq for Type<'_> {
         }
     }
 }
+impl Eq for Type<'_> {}
 
 impl Display for Type<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {

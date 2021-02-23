@@ -1,65 +1,67 @@
 use crate::context::Ctx;
+use crate::error::warn_internal;
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::ops::Deref;
 use string_interner::Symbol;
 
 /// stores string for fast access, and index for fast compare
-/// fixme InternedStr<String> has to be cloned which is ech, not sure how to fix this
+/// fixme InternedStr<'i> has to be cloned which is ech, not sure how to fix this
 #[derive(Copy, Clone)]
-pub struct InternedStr<T> {
-    str: T,
+pub struct InternedStr<'i> {
+    str: &'i str,
     index: usize,
 }
 
-pub trait Intern<T> {
-    fn intern(self, ctx: &mut Ctx<'_>) -> InternedStr<T>;
+pub trait Intern<'i> {
+    fn intern(self, ctx: &mut Ctx<'i>) -> InternedStr<'i>;
 }
-impl<T: AsRef<str>> Intern<T> for T {
-    fn intern(self, ctx: &mut Ctx<'_>) -> InternedStr<T> {
+impl<'i> Intern<'i> for &'i str {
+    fn intern(self, ctx: &mut Ctx<'i>) -> InternedStr<'i> {
         InternedStr {
-            index: ctx.interner.get_or_intern(self.as_ref()).to_usize(),
             str: self,
+            index: ctx.interner.get_or_intern(self).to_usize(),
         }
     }
 }
+impl<'i> Intern<'i> for String {
+    fn intern(self, ctx: &mut Ctx<'i>) -> InternedStr<'i> {
+        if ctx.interner.get(&self).is_some() {
+            // fixme
+            warn_internal(format!("interning string {:?} creates a new i in ctx even though it already exists in the interner :(", self), None);
+        }
+        ctx.new_i(self).intern(ctx)
+    }
+}
 
-impl<T: AsRef<str>> Deref for InternedStr<T> {
+impl Deref for InternedStr<'_> {
     type Target = str;
     fn deref(&self) -> &Self::Target {
-        self.str.as_ref()
-    }
-}
-impl InternedStr<&str> {
-    pub fn str_to_string(self) -> InternedStr<String> {
-        InternedStr {
-            str: self.str.to_string(),
-            index: self.index,
-        }
+        self.str
     }
 }
 
-impl<T> Hash for InternedStr<T> {
+impl Hash for InternedStr<'_> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.index.hash(state)
     }
 }
-impl<T, U> PartialEq<InternedStr<U>> for InternedStr<T> {
-    fn eq(&self, other: &InternedStr<U>) -> bool {
+impl PartialEq for InternedStr<'_> {
+    fn eq(&self, other: &InternedStr<'_>) -> bool {
         self.index == other.index
     }
 }
-impl<T> Eq for InternedStr<T> {}
+impl Eq for InternedStr<'_> {}
 
-impl<T: AsRef<str>> Display for InternedStr<T> {
+impl Display for InternedStr<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.str.as_ref())
+        f.write_str(self.str)
     }
 }
-impl<T: AsRef<str>> Debug for InternedStr<T> {
+impl Debug for InternedStr<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("InternedStr")
-            .field("str", &self.str.as_ref())
+            .field("str", &self.str)
             .field("index", &self.index)
             .finish()
     }
