@@ -117,13 +117,13 @@ impl<'i> Statement<'i> {
                 ctx.o.push(';');
             }
             Break => {
-                if ctx.scopes.in_loop() {
+                if !ctx.scopes.in_loop() {
                     return err("break cant be used outside of loops", self.span);
                 }
                 ctx.o.push_str("break;")
             }
             Continue => {
-                if ctx.scopes.in_loop() {
+                if !ctx.scopes.in_loop() {
                     return err("continue cant be used outside of loops", self.span);
                 }
                 ctx.o.push_str("continue;")
