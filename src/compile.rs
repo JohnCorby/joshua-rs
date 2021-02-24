@@ -18,7 +18,7 @@ pub fn compile_program(c_code: impl AsRef<str>, path: impl AsRef<Path>) {
         // .arg("-Wall")
         .status()
         .unwrap();
-    std::fs::remove_file(c_path).unwrap();
+    // std::fs::remove_file(c_path).unwrap();
     if !status.success() {
         quit::with_code(status.code().unwrap());
     }

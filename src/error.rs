@@ -1,10 +1,9 @@
 use crate::parse::Node;
 use crate::span::Span;
 use std::backtrace::{Backtrace, BacktraceStatus};
-use std::fmt::{Display, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 
 pub type Res<'i, T> = Result<T, Err<'i>>;
-#[derive(Debug)]
 pub struct Err<'i> {
     message: String,
     span: Option<Span<'i>>,
@@ -41,6 +40,11 @@ impl Display for Err<'_> {
             write!(f, "{}", self.backtrace)?;
         }
         Ok(())
+    }
+}
+impl Debug for Err<'_> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        Display::fmt(self, f)
     }
 }
 

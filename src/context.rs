@@ -1,5 +1,4 @@
-use crate::define::{Define, Program};
-use crate::error::Res;
+use crate::define::Program;
 use crate::frozen_vec::FrozenVec;
 use crate::parse::{Kind, Node};
 use crate::scope::Scopes;
@@ -58,6 +57,7 @@ impl<'i> Ctx<'i> {
                         ),
                         _ => unreachable!(),
                     });
+                    i.push('\n')
                 }
             }
         }
@@ -91,6 +91,7 @@ impl<'i> Ctx<'i> {
                     arg_ty,
                     ret_ty.c_type()
                 ));
+                i.push('\n')
             }
         }
 
@@ -99,13 +100,5 @@ impl<'i> Ctx<'i> {
             .visit::<Program<'i>>(self)
             .gen(self)
             .unwrap();
-    }
-
-    #[allow(warnings)]
-    pub fn make_func(&mut self, i: String) -> Res<'i, ()> {
-        Node::parse(&self.new_i(i), Kind::func_define)?
-            .visit::<Define<'i>>(self)
-            .gen(self)?;
-        Ok(())
     }
 }

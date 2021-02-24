@@ -88,7 +88,7 @@ i32 main() {
 //    u32 test = ((1 as u16) + (2 as u16)) as u32 + <{&${ok}}>
     f32 test2 = (1 as f32) + (2 as f32)
 
-    template_func<f32>(1 as i32)
+    template_func<f32>(1 as f32)
 
     <{puts("you are a poopy head")}>
 //    <{

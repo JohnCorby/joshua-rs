@@ -176,7 +176,7 @@ impl<'i> Define<'i> {
                             name_mangled,
                             arg_types
                                 .iter()
-                                .map(|ty| ty.span())
+                                .map(|ty| ty.name())
                                 .collect::<Vec<_>>()
                                 .join(", ")
                         )

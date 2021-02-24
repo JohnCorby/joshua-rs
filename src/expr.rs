@@ -15,7 +15,7 @@ use std::lazy::OnceCell;
 pub struct Expr<'i> {
     pub span: Span<'i>,
     pub kind: ExprKind<'i>,
-    pub ty: OnceCell<Type<'i>>,
+    pub _ty: OnceCell<Type<'i>>,
 }
 #[derive(Debug, Clone)]
 pub enum ExprKind<'i> {
@@ -136,14 +136,14 @@ impl<'i> Visit<'i> for Expr<'i> {
         Self {
             span,
             kind,
-            ty: Default::default(),
+            _ty: Default::default(),
         }
     }
 }
 
 impl<'i> Expr<'i> {
     pub fn init_ty(&self, ctx: &mut Ctx<'i>) -> Res<'i, Type<'i>> {
-        self.ty
+        self._ty
             .get_or_try_init(|| {
                 use ExprKind::*;
                 Ok(match &self.kind {
@@ -161,7 +161,7 @@ impl<'i> Expr<'i> {
                         if let Type::Literal(_) = thing.init_ty(ctx)? {
                             ty_node.init_ty(ctx)?
                         } else {
-                            let name = format!("as {}", ty_node.init_ty(ctx)?.span()).intern(ctx);
+                            let name = format!("as {}", ty_node.init_ty(ctx)?.name()).intern(ctx);
                             let thing = thing.init_ty(ctx)?;
                             ctx.scopes.get_func(name, [thing], self.span)?.ty()
                         }
@@ -192,15 +192,10 @@ impl<'i> Expr<'i> {
                                 )
                             }
                         };
-                        let symbol = ctx.scopes.get_type(struct_name, self.span)?;
+                        let symbol = ctx.scopes.get_struct(struct_name, self.span)?;
                         let field_types = match &symbol {
                             Symbol::StructType { field_types, .. } => field_types,
-                            _ => {
-                                return err(
-                                    format!("expected struct type symbol, but got {}", symbol),
-                                    self.span,
-                                )
-                            }
+                            _ => unreachable!(),
                         };
                         match field_types.get(&var) {
                             Some(&field_type) => field_type,
@@ -214,7 +209,7 @@ impl<'i> Expr<'i> {
                     }
 
                     Literal(literal) => literal.ty(),
-                    FuncCall(func_call) => func_call.init_ty(ctx)?,
+                    FuncCall(func_call) => func_call.init_cached(ctx)?.0,
                     Var(name) => ctx.scopes.get_var(*name, self.span)?.ty(),
 
                     CCode(c_code) => c_code.ty(),
@@ -245,26 +240,28 @@ impl<'i> Expr<'i> {
                 // c_code.push(' ');
                 // right.gen(c_code)?;
                 // c_code.push(')');
-                self::FuncCall {
+                let func_call = self::FuncCall {
                     span: self.span,
                     name: op,
                     generic_replacements: vec![], // todo
                     args: vec![*left, *right],
-                    ty: self.ty,
-                }
-                .gen(ctx)?;
+                    _cached: Default::default(),
+                };
+                func_call.init_cached(ctx)?;
+                func_call.gen(ctx)?;
             }
             Unary { op, thing } => {
                 // c_code.push_str(&op.to_string());
                 // thing.gen(c_code)?;
-                self::FuncCall {
+                let func_call = self::FuncCall {
                     span: self.span,
                     name: op,
                     generic_replacements: vec![], // todo
                     args: vec![*thing],
-                    ty: self.ty,
-                }
-                .gen(ctx)?;
+                    _cached: Default::default(),
+                };
+                func_call.init_cached(ctx)?;
+                func_call.gen(ctx)?;
             }
             Cast { thing, ty_node } => {
                 // fixme literals are hacky as shit
@@ -274,14 +271,15 @@ impl<'i> Expr<'i> {
                     ctx.o.push_str(") ");
                     thing.gen(ctx)?;
                 } else {
-                    self::FuncCall {
+                    let func_call = self::FuncCall {
                         span: self.span,
-                        name: format!("as {}", ty_node.init_ty(ctx)?.span()).intern(ctx),
+                        name: format!("as {}", ty_node.init_ty(ctx)?.name()).intern(ctx),
                         generic_replacements: vec![], // todo
                         args: vec![*thing],
-                        ty: self.ty,
-                    }
-                    .gen(ctx)?;
+                        _cached: Default::default(),
+                    };
+                    func_call.init_cached(ctx)?;
+                    func_call.gen(ctx)?;
                 }
             }
 
@@ -314,7 +312,7 @@ pub struct FuncCall<'i> {
     pub name: InternedStr<'i>,
     pub generic_replacements: Vec<TypeNode<'i>>,
     pub args: Vec<Expr<'i>>,
-    pub ty: OnceCell<Type<'i>>,
+    pub _cached: OnceCell<(Type<'i>, Vec<Type<'i>>)>,
 }
 
 impl<'i> Visit<'i> for FuncCall<'i> {
@@ -332,28 +330,29 @@ impl<'i> Visit<'i> for FuncCall<'i> {
                 .map(|node| node.visit(ctx))
                 .collect(),
             args: nodes.visit_rest(ctx),
-            ty: Default::default(),
+            _cached: Default::default(),
         }
     }
 }
 
 impl<'i> FuncCall<'i> {
-    fn replaced_arg_types(&self, ctx: &mut Ctx<'i>) -> Res<'i, Vec<Type<'i>>> {
-        if !self.generic_replacements.is_empty() {
-            let (_, arg_types) = ctx.specialize_generic_func(self)?;
-            Ok(arg_types)
-        } else {
-            self.args.iter().map(|it| it.init_ty(ctx)).collect()
-        }
-    }
-
-    pub fn init_ty(&self, ctx: &mut Ctx<'i>) -> Res<'i, Type<'i>> {
-        self.ty
-            .get_or_try_init(|| {
-                let arg_types = self.replaced_arg_types(ctx)?;
-                Ok(ctx.scopes.get_func(self.name, arg_types, self.span)?.ty())
+    pub fn init_cached(&self, ctx: &mut Ctx<'i>) -> Res<'i, &(Type<'i>, Vec<Type<'i>>)> {
+        self._cached.get_or_try_init(|| {
+            Ok(if !self.generic_replacements.is_empty() {
+                ctx.find_generic_func(self)?
+            } else {
+                let arg_types = self
+                    .args
+                    .iter()
+                    .map(|it| it.init_ty(ctx))
+                    .collect::<Res<'_, Vec<_>>>()?;
+                let ret_type = ctx
+                    .scopes
+                    .get_func(self.name, arg_types.clone(), self.span)?
+                    .ty();
+                (ret_type, arg_types)
             })
-            .copied()
+        })
     }
 
     pub fn gen(self, ctx: &mut Ctx<'i>) -> Res<'i, ()> {
@@ -363,9 +362,10 @@ impl<'i> FuncCall<'i> {
             name_mangled = format!(
                 "{}({})",
                 name_mangled,
-                self.replaced_arg_types(ctx)?
+                self.init_cached(ctx)?
+                    .1
                     .iter()
-                    .map(|ty| ty.span())
+                    .map(|ty| ty.name())
                     .collect::<Vec<_>>()
                     .join(", ")
             )

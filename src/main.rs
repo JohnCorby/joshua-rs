@@ -29,6 +29,7 @@ mod define;
 mod error;
 mod expr;
 mod frozen_vec;
+mod generics;
 mod interned_string;
 mod parse;
 mod scope;
