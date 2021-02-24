@@ -176,7 +176,7 @@ impl<'i> Define<'i> {
                             name_mangled,
                             arg_types
                                 .iter()
-                                .map(|ty| ty.name())
+                                .map(|ty| ty.span())
                                 .collect::<Vec<_>>()
                                 .join(", ")
                         )
@@ -224,10 +224,10 @@ impl<'i> Define<'i> {
 
 #[derive(Debug, Clone)]
 pub struct VarDefine<'i> {
-    span: Span<'i>,
+    pub span: Span<'i>,
     pub ty_node: TypeNode<'i>,
-    name: InternedStr<'i>,
-    value: Option<Expr<'i>>,
+    pub name: InternedStr<'i>,
+    pub value: Option<Expr<'i>>,
 }
 
 impl<'i> Visit<'i> for VarDefine<'i> {

@@ -13,9 +13,9 @@ use std::lazy::OnceCell;
 
 #[derive(Debug, Clone)]
 pub struct Expr<'i> {
-    span: Span<'i>,
-    kind: ExprKind<'i>,
-    ty: OnceCell<Type<'i>>,
+    pub span: Span<'i>,
+    pub kind: ExprKind<'i>,
+    pub ty: OnceCell<Type<'i>>,
 }
 #[derive(Debug, Clone)]
 pub enum ExprKind<'i> {
@@ -161,7 +161,7 @@ impl<'i> Expr<'i> {
                         if let Type::Literal(_) = thing.init_ty(ctx)? {
                             ty_node.init_ty(ctx)?
                         } else {
-                            let name = format!("as {}", ty_node.init_ty(ctx)?.name()).intern(ctx);
+                            let name = format!("as {}", ty_node.init_ty(ctx)?.span()).intern(ctx);
                             let thing = thing.init_ty(ctx)?;
                             ctx.scopes.get_func(name, [thing], self.span)?.ty()
                         }
@@ -276,7 +276,7 @@ impl<'i> Expr<'i> {
                 } else {
                     self::FuncCall {
                         span: self.span,
-                        name: format!("as {}", ty_node.init_ty(ctx)?.name()).intern(ctx),
+                        name: format!("as {}", ty_node.init_ty(ctx)?.span()).intern(ctx),
                         generic_replacements: vec![], // todo
                         args: vec![*thing],
                         ty: self.ty,
@@ -365,7 +365,7 @@ impl<'i> FuncCall<'i> {
                 name_mangled,
                 self.replaced_arg_types(ctx)?
                     .iter()
-                    .map(|ty| ty.name())
+                    .map(|ty| ty.span())
                     .collect::<Vec<_>>()
                     .join(", ")
             )

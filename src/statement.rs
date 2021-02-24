@@ -9,8 +9,8 @@ use crate::util::Visit;
 
 #[derive(Debug, Clone)]
 pub struct Statement<'i> {
-    span: Span<'i>,
-    kind: StatementKind<'i>,
+    pub span: Span<'i>,
+    pub kind: StatementKind<'i>,
 }
 #[derive(Debug, Clone)]
 #[allow(clippy::large_enum_variant)]
@@ -118,13 +118,13 @@ impl<'i> Statement<'i> {
             }
             Break => {
                 if !ctx.scopes.in_loop() {
-                    return err("break cant be used outside of loops", self.span);
+                    return err("break can't be used outside of loops", self.span);
                 }
                 ctx.o.push_str("break;")
             }
             Continue => {
                 if !ctx.scopes.in_loop() {
-                    return err("continue cant be used outside of loops", self.span);
+                    return err("continue can't be used outside of loops", self.span);
                 }
                 ctx.o.push_str("continue;")
             }
@@ -212,7 +212,7 @@ impl<'i> Statement<'i> {
 }
 
 #[derive(Debug, Clone)]
-pub struct Block<'i>(Vec<Statement<'i>>);
+pub struct Block<'i>(pub Vec<Statement<'i>>);
 
 impl<'i> Visit<'i> for Block<'i> {
     fn visit(node: Node<'i>, ctx: &mut Ctx<'i>) -> Self {

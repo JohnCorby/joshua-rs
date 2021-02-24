@@ -3,12 +3,13 @@
 //! symbols allow us to check for existence and type of stuff we define
 
 use crate::context::Ctx;
-use crate::define::{Define, DefineKind};
+use crate::define::{Define, DefineKind, VarDefine};
 use crate::error::{err, Res};
 use crate::expr::FuncCall;
 use crate::interned_string::InternedStr;
 use crate::span::Span;
-use crate::ty::{PrimitiveType, Type};
+use crate::statement::{Block, StatementKind};
+use crate::ty::{PrimitiveType, Type, TypeNode};
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
@@ -34,6 +35,9 @@ pub enum Symbol<'i> {
         name: InternedStr<'i>,
         generic_placeholders: Vec<InternedStr<'i>>,
         arg_types: Vec<Type<'i>>,
+
+        args: Vec<VarDefine<'i>>,
+        body: Block<'i>,
     },
 }
 impl<'i> Symbol<'i> {
@@ -207,6 +211,7 @@ pub struct Scope<'i> {
 impl<'i> Scopes<'i> {
     pub fn in_loop(&self) -> bool {
         for scope in self.0.iter().rev() {
+            // accounts for inner functions
             if scope.func_return_type.is_some() {
                 return false;
             }
@@ -331,7 +336,7 @@ impl<'i> Ctx<'i> {
                     name,
                     generic_placeholders,
                     args,
-                    ..
+                    body,
                 },
         } = func_define
         {
@@ -359,6 +364,8 @@ impl<'i> Ctx<'i> {
                     name,
                     generic_placeholders,
                     arg_types,
+                    args,
+                    body,
                 },
                 span,
             )
@@ -385,47 +392,113 @@ impl<'i> Ctx<'i> {
             .map(|it| it.init_ty(self))
             .collect::<Res<'i, Vec<_>>>()?;
 
-        // get or create specialized func
-        // if self.scopes.get_func(func_call.name, func_call)
-        // let i = format!("");
-        // self.make_func(i)?;
+        // get generic func data
+        let (mut ret_type, generic_placeholders, mut generic_args, mut generic_body) = match self
+            .scopes
+            .get_func(func_call.name.clone(), &arg_types, func_call.span)?
+        {
+            Symbol::GenericFunc {
+                ty,
+                generic_placeholders,
 
-        dbg!(&self.scopes);
-        let placeholders =
-            match self
-                .scopes
-                .get_func(func_call.name.clone(), &arg_types, func_call.span)?
-            {
-                Symbol::GenericFunc {
-                    generic_placeholders,
-                    ..
-                } => generic_placeholders,
-                symbol => {
-                    return err(
-                        format!("expected generic func symbol, but got {}", symbol),
-                        func_call.span,
-                    )
-                }
-            };
+                args,
+                body,
+                ..
+            } => (ty, generic_placeholders, args, body),
+            Symbol::Func { ty: ret_type, .. } => {
+                // we're actually calling a normal func, so just use that one
+                // be returning early and not making any funcs
+                return Ok((ret_type, arg_types));
+            }
+            _ => unreachable!(),
+        };
+
+        // check that placeholders and replacements match
+        if generic_placeholders.len() != func_call.generic_replacements.len() {
+            return err(
+                format!(
+                    "expected {} generic parameters, but got {}",
+                    generic_placeholders.len(),
+                    func_call.generic_replacements.len()
+                ),
+                func_call.span,
+            );
+        }
+
         let replacements = func_call
             .generic_replacements
             .iter()
             .map(|it| it.init_ty(self))
             .collect::<Res<'i, Vec<_>>>()?;
-        assert_eq!(placeholders.len(), func_call.generic_replacements.len());
-        let generic_map = placeholders
-            .iter()
-            .map(|it| Type::GenericPlaceholder(*it))
+        let generic_map = generic_placeholders
+            .into_iter()
             .zip(replacements)
             .collect::<HashMap<_, _>>();
-        // todo remove because it should already include replacements (EXPECT THE RET_TYPE!!!)
-        // let mut ret_type = func_call
-        //     .ty
-        //     .get()
-        //     .copied()
-        //     .expect("ret type should be initialized at this point");
 
-        todo!("replace generics in specialized func (in ret type and body. arg types should already be specialized)")
-        // Ok((ret_type, arg_types))
+        // modify ret type
+        if let Type::GenericPlaceholder(name) = ret_type {
+            ret_type = generic_map[&name]
+        }
+
+        // modify var_defines
+        for var_define in generic_args.iter_mut() {
+            if let Type::GenericPlaceholder(name) = var_define.ty_node._ty {
+                let old_var_define = var_define.clone(); // ech
+                *var_define = VarDefine {
+                    span: old_var_define.span,
+                    ty_node: {
+                        let ty_node = TypeNode {
+                            span: old_var_define.ty_node.span,
+                            _ty: generic_map[&name],
+                            ty: Default::default(),
+                        };
+                        ty_node.init_ty(self)?;
+                        ty_node
+                    },
+                    name: old_var_define.name,
+                    value: old_var_define.value,
+                };
+                // we gotta reinit this again since we changed the type
+            }
+        }
+
+        // todo modify body. oh boy this'll be fun
+        for statement in generic_body.0.iter_mut() {
+            match statement.kind {
+                StatementKind::Return(_) => {}
+                StatementKind::Break => {}
+                StatementKind::Continue => {}
+                StatementKind::If { .. } => {}
+                StatementKind::Until { .. } => {}
+                StatementKind::For { .. } => {}
+                StatementKind::ExprAssign { .. } => {}
+                StatementKind::VarDefine(_) => {}
+                StatementKind::Expr(_) => {}
+            }
+        }
+
+        // make specialized func
+        let def = Define {
+            span: func_call.span, // big lol
+            kind: DefineKind::Func {
+                ty_node: {
+                    let ty_node = TypeNode {
+                        span: func_call.span, // big lol
+                        _ty: ret_type,
+                        ty: Default::default(),
+                    };
+                    ty_node.init_ty(self)?;
+                    ty_node
+                },
+                name: func_call.name,
+                generic_placeholders: vec![], // empty because not generic
+                args: generic_args,
+                body: generic_body,
+            },
+        };
+        // fixme have this generate at the top of the output instead of in the middle of nowhere
+        // def.gen(self);
+
+        Ok((ret_type, arg_types))
     }
 }

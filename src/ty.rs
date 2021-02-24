@@ -11,9 +11,9 @@ use std::lazy::OnceCell;
 
 #[derive(Debug, Clone)]
 pub struct TypeNode<'i> {
-    span: Span<'i>,
-    _ty: Type<'i>,
-    ty: OnceCell<Type<'i>>,
+    pub span: Span<'i>,
+    pub _ty: Type<'i>,
+    pub ty: OnceCell<Type<'i>>,
 }
 
 impl<'i> Visit<'i> for TypeNode<'i> {
@@ -108,7 +108,8 @@ impl<'i> Type<'i> {
         }
     }
 
-    pub fn name(self) -> String {
+    /// may not actually be the exact span in the future
+    pub fn span(self) -> String {
         use Type::*;
         match self {
             Primitive(ty) => ty.to_string(),
