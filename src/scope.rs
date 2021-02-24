@@ -168,8 +168,8 @@ impl Display for Symbol<'_> {
 
 #[derive(Debug)]
 pub struct Scopes<'i>(Vec<Scope<'i>>);
-impl<'i> Scopes<'i> {
-    pub fn new() -> Self {
+impl Default for Scopes<'_> {
+    fn default() -> Self {
         Scopes(vec![Scope {
             in_loop: false,
             func_return_type: None,
@@ -177,7 +177,9 @@ impl<'i> Scopes<'i> {
             symbols: Default::default(),
         }])
     }
+}
 
+impl<'i> Scopes<'i> {
     pub fn push(&mut self, in_loop: bool, func_return_type: impl Into<Option<Type<'i>>>) {
         self.0.push(Scope {
             in_loop,

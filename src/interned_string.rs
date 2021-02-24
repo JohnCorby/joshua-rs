@@ -6,7 +6,6 @@ use std::ops::Deref;
 use string_interner::Symbol;
 
 /// stores string for fast access, and index for fast compare
-/// fixme InternedStr<'i> has to be cloned which is ech, not sure how to fix this
 #[derive(Copy, Clone)]
 pub struct InternedStr<'i> {
     str: &'i str,

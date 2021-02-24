@@ -14,3 +14,4 @@ console = "*"
 strum = { version = "*", features = ["derive"] }
 string-interner = "*"
 quit = "*"
+stable_deref_trait = "*"

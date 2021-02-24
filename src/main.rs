@@ -28,6 +28,7 @@ mod context;
 mod define;
 mod error;
 mod expr;
+mod frozen_vec;
 mod interned_string;
 mod parse;
 mod scope;
@@ -47,22 +48,23 @@ use std::path::Path;
 fn main() {
     Err::init();
 
+    let is = &Default::default();
+    let ctx = &mut Ctx::new(is);
+
     let path = Path::new("test/test2.jo");
     let program = std::fs::read_to_string(path).unwrap();
-    let mut ctx = Ctx::new();
 
     let result: Res<'_, ()> = try {
         println!("parsing");
         let node = Node::parse(ctx.new_i(program), Kind::program)?;
         println!("visiting");
-        let program = node.visit::<Program<'_>>(&mut ctx);
+        let program = node.visit::<Program<'_>>(ctx);
         println!("generating");
-        program.gen(&mut ctx)?;
+        program.gen(ctx)?;
     };
     if let Err(err) = result {
-        eprintln!("Error: {}", err);
-    } else {
-        compile_program(&ctx.o, path);
+        return eprintln!("Error: {}", err);
     }
-    ctx.drop();
+
+    compile_program(&ctx.o, path)
 }
