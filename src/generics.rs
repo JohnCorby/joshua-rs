@@ -2,20 +2,20 @@
 
 use crate::context::Ctx;
 use crate::define::{Define, DefineKind, VarDefine};
-use crate::error::{err, warn_internal, Res};
+use crate::error::{err, Res};
 use crate::expr::{Expr, FuncCall};
 use crate::interned_string::InternedStr;
-use crate::scope::Symbol;
+use crate::scope::{Scopes, Symbol};
 use crate::statement::{Block, Statement};
 use crate::ty::{Type, TypeNode};
 use std::collections::HashMap;
 
 type GenericMap<'i> = HashMap<InternedStr<'i>, Type<'i>>;
 
-impl<'i> Ctx<'i> {
+impl<'i> Define<'i> {
     /// create a template for a generic func using a func_define
-    pub fn make_generic_func(&mut self, func_define: Define<'i>) -> Res<'i, ()> {
-        if let Define {
+    pub fn gen_generic(self, ctx: &mut Ctx<'i>) -> Res<'i, ()> {
+        if let Self {
             span,
             kind:
                 DefineKind::Func {
@@ -25,27 +25,24 @@ impl<'i> Ctx<'i> {
                     args,
                     body,
                 },
-        } = func_define
+        } = self
         {
-            assert!(
-                !generic_placeholders.is_empty(),
-                "tried to make a generic func from a normal func"
-            );
+            assert!(!generic_placeholders.is_empty());
 
             // hack so generic types resolve in args and ret type
-            self.scopes.push(false, None);
+            ctx.scopes.push(false, None);
             for &placeholder in &generic_placeholders {
-                self.scopes
+                ctx.scopes
                     .add(Symbol::GenericPlaceholderType(placeholder), span)?;
             }
-            let _ty = ty_node.init_ty(self)?;
+            let _ty = ty_node.init_ty(ctx)?;
             let _arg_types = args
                 .iter()
-                .map(|var_define| var_define.ty_node.init_ty(self))
+                .map(|var_define| var_define.ty_node.init_ty(ctx))
                 .collect::<Res<'i, Vec<_>>>()?;
-            self.scopes.pop();
+            ctx.scopes.pop();
 
-            self.scopes.add(
+            ctx.scopes.add(
                 Symbol::GenericFunc {
                     _ty,
                     name,
@@ -63,39 +60,28 @@ impl<'i> Ctx<'i> {
             unreachable!()
         }
     }
+}
 
+impl<'i> FuncCall<'i> {
     /// use a func call to find a generic (or normal) function
     /// then specializes it using the func_call's replacements
     /// returns specialized ret type and arg types
-    pub fn find_generic_func(
-        &mut self,
-        func_call: &FuncCall<'i>,
-    ) -> Res<'i, (Type<'i>, Vec<Type<'i>>)> {
-        assert!(
-            !func_call.generic_replacements.is_empty(),
-            "tried to specialize a non-generic func"
-        );
+    pub fn init_ty_generic(&self, ctx: &mut Ctx<'i>) -> Res<'i, Type<'i>> {
+        assert!(!self.generic_replacements.is_empty(),);
 
         // already-specialized arg types from the func call
-        let call_arg_types = func_call
+        let call_arg_types = self
             .args
             .iter()
-            .map(|it| it.init_ty(self))
+            .map(|it| it.init_ty(ctx))
             .collect::<Res<'i, Vec<_>>>()?;
 
         Ok(
-            match self
-                .scopes
-                .get_func(func_call.name, &call_arg_types, func_call.span)?
-            {
-                Symbol::Func {
-                    ty: ret_type,
-                    arg_types,
-                    ..
-                } => {
+            match ctx.scopes.get_func(self.name, &call_arg_types, self.span)? {
+                Symbol::Func { ty: ret_type, .. } => {
                     // we're actually calling a normal func, so just use that one
                     // and don't do any other special generic stuff
-                    (ret_type, arg_types)
+                    ret_type
                 }
 
                 Symbol::GenericFunc {
@@ -110,21 +96,21 @@ impl<'i> Ctx<'i> {
                 } => {
                     // get mapping from placeholder names to replacement types
                     let generic_map = {
-                        if generic_placeholders.len() != func_call.generic_replacements.len() {
+                        if generic_placeholders.len() != self.generic_replacements.len() {
                             return err(
                                 format!(
                                     "expected {} generic parameters, but got {}",
                                     generic_placeholders.len(),
-                                    func_call.generic_replacements.len()
+                                    self.generic_replacements.len()
                                 ),
-                                func_call.span,
+                                self.span,
                             );
                         }
 
-                        let replacement_types = func_call
+                        let replacement_types = self
                             .generic_replacements
                             .iter()
-                            .map(|it| it.init_ty(self))
+                            .map(|it| it.init_ty(ctx))
                             .collect::<Res<'i, Vec<_>>>()?;
                         generic_placeholders
                             .iter()
@@ -160,31 +146,74 @@ impl<'i> Ctx<'i> {
                                 "specialized func args ({}) doesn't match with func call args ({})",
                                 arg_types
                                     .iter()
-                                    .map(|it| it.name())
+                                    .map(Type::to_string)
                                     .collect::<Vec<_>>()
                                     .join(", "),
                                 call_arg_types
                                     .iter()
-                                    .map(|it| it.name())
+                                    .map(Type::to_string)
                                     .collect::<Vec<_>>()
                                     .join(", "),
                             ),
-                            func_call.span,
+                            self.span,
                         );
                     }
 
-                    // fixme
-                    warn_internal("FIXME: have this generate at the top of the output instead of at call site :P", func_call.span);
-                    let mut old_o = std::mem::take(&mut self.o);
-                    def.gen(self)?;
-                    eprintln!("we WOULD have generated:\n{}", self.o);
-                    std::mem::swap(&mut self.o, &mut old_o);
+                    let scopes_after_top_level = ctx.scopes.0.split_off(1);
+                    let o_after_prelude = ctx.o.split_off(ctx.prelude_end_index);
+                    ctx.o.push_str("// specialized generic func\n");
+                    def.gen(ctx)?;
+                    ctx.o.push('\n');
+                    ctx.o.push_str("// end specialized generic func\n");
+                    ctx.scopes.0.extend(scopes_after_top_level);
+                    ctx.o.push_str(&o_after_prelude);
 
-                    (ret_type, arg_types)
+                    ret_type
                 }
                 _ => unreachable!(),
             },
         )
+    }
+}
+
+impl<'i> Scopes<'i> {
+    /// find a generic func fuzzily
+    pub fn find_generic_func(&self, symbol: &Symbol<'i>) -> Option<Symbol<'i>> {
+        if let Symbol::Func {
+            name: name1,
+            arg_types: arg_types1,
+            ..
+        } = symbol
+        {
+            if let Some(symbol) = self.0[0].symbols.iter().find(|&s| {
+                if let Symbol::GenericFunc {
+                    name: name2,
+                    _arg_types: arg_types2,
+                    ..
+                } = s
+                {
+                    if name1 != name2 {
+                        return false;
+                    }
+                    for (&ty1, &ty2) in arg_types1.iter().zip(arg_types2.iter()) {
+                        if let Type::GenericPlaceholder(_) = ty2 {
+                            // generic ty2 will always match ty1, so don't return false
+                        } else if ty1 != ty2 {
+                            return false;
+                        }
+                    }
+                    true
+                } else {
+                    false
+                }
+            }) {
+                Some(symbol.clone())
+            } else {
+                None
+            }
+        } else {
+            unreachable!()
+        }
     }
 }
 
@@ -199,6 +228,7 @@ impl<'i> Define<'i> {
             }
             Func {
                 ty_node,
+                generic_placeholders,
                 args,
                 body,
                 ..
@@ -207,7 +237,8 @@ impl<'i> Define<'i> {
                 for arg in args {
                     arg.replace_generics(generic_map)
                 }
-                body.replace_generics(generic_map)
+                body.replace_generics(generic_map);
+                generic_placeholders.clear()
             }
             Var(var_define) => var_define.replace_generics(generic_map),
             CCode(_) => {}
@@ -312,7 +343,7 @@ impl<'i> FuncCall<'i> {
         for arg in &mut self.args {
             arg.replace_generics(generic_map)
         }
-        self._cached = Default::default()
+        self._ty = Default::default()
     }
 }
 impl<'i> TypeNode<'i> {

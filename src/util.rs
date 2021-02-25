@@ -1,5 +1,6 @@
 use crate::context::Ctx;
 use crate::parse::{Node, Nodes};
+use crate::ty::Type;
 
 pub trait Visit<'i>: Sized {
     fn visit(node: Node<'i>, ctx: &mut Ctx<'i>) -> Self;
@@ -19,10 +20,27 @@ impl<'i> Nodes<'i> {
 
 pub trait Mangle {
     fn mangle(&self) -> String;
+    fn mangle_func(&self, arg_types: &[Type<'_>]) -> String;
 }
 impl Mangle for str {
     fn mangle(&self) -> String {
-        // format!("`{}`", self)
-        mangling::mangle(self.as_bytes())
+        format!("{}/*{}*/", mangling::mangle(self.as_bytes()), self)
+    }
+    fn mangle_func(&self, arg_types: &[Type<'_>]) -> String {
+        // don't mangle func main (entry point)
+        if self == "main" {
+            self.to_string()
+        } else {
+            format!(
+                "{}({})",
+                self,
+                arg_types
+                    .iter()
+                    .map(|ty| ty.name())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )
+            .mangle()
+        }
     }
 }

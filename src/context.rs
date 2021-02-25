@@ -12,6 +12,9 @@ pub struct Ctx<'i> {
     pub o: String,
     pub scopes: Scopes<'i>,
     pub interner: StringInterner,
+
+    // ugly hack used for generic codegen
+    pub prelude_end_index: usize,
 }
 
 impl<'i> Ctx<'i> {
@@ -21,8 +24,9 @@ impl<'i> Ctx<'i> {
             o: "".to_string(),
             scopes: Default::default(),
             interner: Default::default(),
+            prelude_end_index: 0,
         };
-        ctx.init_rt();
+        ctx.gen_prelude();
         ctx
     }
 
@@ -32,7 +36,7 @@ impl<'i> Ctx<'i> {
 }
 
 impl<'i> Ctx<'i> {
-    fn init_rt(&mut self) {
+    pub fn gen_prelude(&mut self) {
         let mut i = String::new();
 
         fn op_funcs<Str: AsRef<str>>(
@@ -57,7 +61,6 @@ impl<'i> Ctx<'i> {
                         ),
                         _ => unreachable!(),
                     });
-                    i.push('\n')
                 }
             }
         }
@@ -91,14 +94,18 @@ impl<'i> Ctx<'i> {
                     arg_ty,
                     ret_ty.c_type()
                 ));
-                i.push('\n')
             }
         }
 
+        self.o.push_str("// prelude\n");
         Node::parse(self.new_i(i), Kind::program)
             .unwrap()
             .visit::<Program<'i>>(self)
             .gen(self)
             .unwrap();
+        self.o.push('\n');
+        self.o.push_str("// end prelude\n");
+
+        self.prelude_end_index = self.o.len();
     }
 }

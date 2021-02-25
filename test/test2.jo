@@ -2,9 +2,14 @@
 #include <stdio.h>
 }>
 
+// fixme you can generate multiple generic funcs
+generic T template_func<generic T>(generic T a) {
+    return a + a
+}
 void template_func<generic T>(generic T a) {}
-// fixme cant specialize
-//void template_func(i32 a) {}
+void template_func<generic T>(generic T a) {}
+void template_func<generic T>(generic T a) {}
+void template_func(i32 a) {}
 
 struct baba_booey {
     f32 hello
@@ -32,6 +37,11 @@ struct im gimme_im() {
 /// pretend this is a method of baba_booey
 f32 kill_yourself(struct baba_booey this, i32 a, f32 b, bool c, char d) {
     <{puts("woah! this is the method kill_yourself of baba_booey")}>
+
+    template_func<f32>(1 as f32)
+    // fixme?: this will just find the previously-generated template_func(f32)
+    template_func<i32>(1 as f32)
+
     return 11565 as f32
 }
 f32 kill_yourself(struct baba_booey this, i32 a, f32 b) {
@@ -85,9 +95,10 @@ i32 main() {
     i32 two = `+`(1 as i32, 1 as i32)
     <{printf("1 + 1 is %i\n", ${two})}>
 
-//    u32 test = ((1 as u16) + (2 as u16)) as u32 + <{&${ok}}>
+    u32 test = ((1 as u16) + (2 as u16)) as u32 + <{&${ok}}>
     f32 test2 = (1 as f32) + (2 as f32)
 
+    template_func<f32>(1 as f32)
     template_func<f32>(1 as f32)
 
     <{puts("you are a poopy head")}>

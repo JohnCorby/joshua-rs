@@ -161,7 +161,7 @@ impl Display for Symbol<'_> {
 }
 
 #[derive(Debug)]
-pub struct Scopes<'i>(Vec<Scope<'i>>);
+pub struct Scopes<'i>(pub Vec<Scope<'i>>);
 impl Default for Scopes<'_> {
     fn default() -> Self {
         Scopes(vec![Scope {
@@ -195,7 +195,7 @@ pub struct Scope<'i> {
     func_return_type: Option<Type<'i>>,
     return_called: bool,
 
-    symbols: HashSet<Symbol<'i>>,
+    pub symbols: HashSet<Symbol<'i>>,
 }
 
 impl<'i> Scopes<'i> {
@@ -258,54 +258,15 @@ impl<'i> Scopes<'i> {
         Ok(())
     }
 
-    fn find(&self, symbol: Symbol<'i>, span: impl Into<Option<Span<'i>>>) -> Res<'i, Symbol<'i>> {
+    fn find(&self, symbol: &Symbol<'i>, span: impl Into<Option<Span<'i>>>) -> Res<'i, Symbol<'i>> {
         for scope in self.0.iter().rev() {
             // find with hash first
-            if let Some(symbol) = scope.symbols.get(&symbol) {
+            if let Some(symbol) = scope.symbols.get(symbol) {
                 return Ok(symbol.clone());
             }
             // then use eq if hash didnt find anything
-            if let Some(symbol) = scope.symbols.iter().find(|&s| s == &symbol) {
+            if let Some(symbol) = scope.symbols.iter().find(|&s| s == symbol) {
                 return Ok(symbol.clone());
-            }
-
-            // then try to find a fuzzy generic match (for funcs only)
-            if let Symbol::Func {
-                name: name1,
-                arg_types: arg_types1,
-                ..
-            } = &symbol
-            {
-                if let Some(symbol) = scope.symbols.iter().find(|&s| {
-                    if let Symbol::GenericFunc {
-                        name: name2,
-                        _arg_types: arg_types2,
-                        ..
-                    } = s
-                    {
-                        println!("FUZZY GENERIC SEARCH! for {} == {}", symbol, s);
-                        if name1 != name2 {
-                            println!("failed on name :( for {} == {}", name1, name2);
-                            return false;
-                        }
-                        println!("name match! for {} == {}", name1, name2);
-                        for (&ty1, &ty2) in arg_types1.iter().zip(arg_types2.iter()) {
-                            if let Type::GenericPlaceholder(_) = ty2 {
-                                println!("generic fuzzy match! for {} == {}", ty1, ty2)
-                                // generic ty2 will always match ty1, so don't return false
-                            } else if ty1 != ty2 {
-                                println!("failed on regular types :( for {} == {}", ty1, ty2);
-                                return false;
-                            }
-                        }
-                        println!("MATCHED!");
-                        true
-                    } else {
-                        false
-                    }
-                }) {
-                    return Ok(symbol.clone());
-                }
             }
         }
         err(format!("could not find {}", symbol), span)
@@ -317,7 +278,7 @@ impl<'i> Scopes<'i> {
         span: impl Into<Option<Span<'i>>>,
     ) -> Res<'i, Symbol<'i>> {
         self.find(
-            Symbol::Var {
+            &Symbol::Var {
                 ty: Default::default(),
                 name,
             },
@@ -329,16 +290,15 @@ impl<'i> Scopes<'i> {
         &self,
         name: InternedStr<'i>,
         arg_types: impl AsRef<[Type<'i>]>,
-        span: impl Into<Option<Span<'i>>>,
+        span: impl Into<Option<Span<'i>>> + Copy,
     ) -> Res<'i, Symbol<'i>> {
-        self.find(
-            Symbol::Func {
-                ty: Default::default(),
-                name,
-                arg_types: arg_types.as_ref().into(),
-            },
-            span,
-        )
+        let symbol = &Symbol::Func {
+            ty: Default::default(),
+            name,
+            arg_types: arg_types.as_ref().into(),
+        };
+        self.find(symbol, span)
+            .or_else(|e| self.find_generic_func(symbol).ok_or(e))
     }
     pub fn get_struct(
         &self,
@@ -346,7 +306,7 @@ impl<'i> Scopes<'i> {
         span: impl Into<Option<Span<'i>>>,
     ) -> Res<'i, Symbol<'i>> {
         self.find(
-            Symbol::StructType {
+            &Symbol::StructType {
                 name,
                 field_types: Default::default(),
             },
@@ -358,6 +318,6 @@ impl<'i> Scopes<'i> {
         name: InternedStr<'i>,
         span: impl Into<Option<Span<'i>>>,
     ) -> Res<'i, Symbol<'i>> {
-        self.find(Symbol::GenericPlaceholderType(name), span)
+        self.find(&Symbol::GenericPlaceholderType(name), span)
     }
 }

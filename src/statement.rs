@@ -265,6 +265,7 @@ impl<'i> CCode<'i> {
     }
 
     pub fn gen(self, ctx: &mut Ctx<'i>) -> Res<'i, ()> {
+        ctx.o.push_str("/*<{*/");
         for part in self.parts {
             match part {
                 CCodePart::String(str) => ctx.o.push_str(str),
@@ -275,6 +276,7 @@ impl<'i> CCode<'i> {
                 }
             }
         }
+        ctx.o.push_str("/*}>*/");
         Ok(())
     }
 }

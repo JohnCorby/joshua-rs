@@ -209,7 +209,7 @@ impl<'i> Expr<'i> {
                     }
 
                     Literal(literal) => literal.ty(),
-                    FuncCall(func_call) => func_call.init_cached(ctx)?.0,
+                    FuncCall(func_call) => func_call.init_ty(ctx)?,
                     Var(name) => ctx.scopes.get_var(*name, self.span)?.ty(),
 
                     CCode(c_code) => c_code.ty(),
@@ -245,9 +245,9 @@ impl<'i> Expr<'i> {
                     name: op,
                     generic_replacements: vec![], // todo
                     args: vec![*left, *right],
-                    _cached: Default::default(),
+                    _ty: Default::default(),
                 };
-                func_call.init_cached(ctx)?;
+                func_call.init_ty(ctx)?;
                 func_call.gen(ctx)?;
             }
             Unary { op, thing } => {
@@ -258,9 +258,9 @@ impl<'i> Expr<'i> {
                     name: op,
                     generic_replacements: vec![], // todo
                     args: vec![*thing],
-                    _cached: Default::default(),
+                    _ty: Default::default(),
                 };
-                func_call.init_cached(ctx)?;
+                func_call.init_ty(ctx)?;
                 func_call.gen(ctx)?;
             }
             Cast { thing, ty_node } => {
@@ -276,9 +276,9 @@ impl<'i> Expr<'i> {
                         name: format!("as {}", ty_node.init_ty(ctx)?.name()).intern(ctx),
                         generic_replacements: vec![], // todo
                         args: vec![*thing],
-                        _cached: Default::default(),
+                        _ty: Default::default(),
                     };
-                    func_call.init_cached(ctx)?;
+                    func_call.init_ty(ctx)?;
                     func_call.gen(ctx)?;
                 }
             }
@@ -312,7 +312,7 @@ pub struct FuncCall<'i> {
     pub name: InternedStr<'i>,
     pub generic_replacements: Vec<TypeNode<'i>>,
     pub args: Vec<Expr<'i>>,
-    pub _cached: OnceCell<(Type<'i>, Vec<Type<'i>>)>,
+    pub _ty: OnceCell<Type<'i>>,
 }
 
 impl<'i> Visit<'i> for FuncCall<'i> {
@@ -330,47 +330,36 @@ impl<'i> Visit<'i> for FuncCall<'i> {
                 .map(|node| node.visit(ctx))
                 .collect(),
             args: nodes.visit_rest(ctx),
-            _cached: Default::default(),
+            _ty: Default::default(),
         }
     }
 }
 
 impl<'i> FuncCall<'i> {
-    pub fn init_cached(&self, ctx: &mut Ctx<'i>) -> Res<'i, &(Type<'i>, Vec<Type<'i>>)> {
-        self._cached.get_or_try_init(|| {
-            Ok(if !self.generic_replacements.is_empty() {
-                ctx.find_generic_func(self)?
-            } else {
-                let arg_types = self
-                    .args
-                    .iter()
-                    .map(|it| it.init_ty(ctx))
-                    .collect::<Res<'_, Vec<_>>>()?;
-                let ret_type = ctx
-                    .scopes
-                    .get_func(self.name, arg_types.clone(), self.span)?
-                    .ty();
-                (ret_type, arg_types)
+    pub fn init_ty(&self, ctx: &mut Ctx<'i>) -> Res<'i, Type<'i>> {
+        self._ty
+            .get_or_try_init(|| {
+                Ok(if !self.generic_replacements.is_empty() {
+                    self.init_ty_generic(ctx)?
+                } else {
+                    let arg_types = self
+                        .args
+                        .iter()
+                        .map(|it| it.init_ty(ctx))
+                        .collect::<Res<'_, Vec<_>>>()?;
+                    ctx.scopes.get_func(self.name, arg_types, self.span)?.ty()
+                })
             })
-        })
+            .copied()
     }
 
     pub fn gen(self, ctx: &mut Ctx<'i>) -> Res<'i, ()> {
-        // don't mangle func main (entry point)
-        let mut name_mangled = self.name.to_string();
-        if name_mangled != "main" {
-            name_mangled = format!(
-                "{}({})",
-                name_mangled,
-                self.init_cached(ctx)?
-                    .1
-                    .iter()
-                    .map(|ty| ty.name())
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            )
-            .mangle();
-        }
+        let arg_types = self
+            .args
+            .iter()
+            .map(|arg| arg.init_ty(ctx))
+            .collect::<Res<'i, Vec<_>>>()?;
+        let name_mangled = self.name.mangle_func(&arg_types);
 
         ctx.o.push_str(&name_mangled);
         ctx.o.push('(');

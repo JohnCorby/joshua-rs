@@ -152,7 +152,7 @@ impl<'i> Define<'i> {
                 body,
             } => {
                 if !generic_placeholders.is_empty() {
-                    ctx.make_generic_func(Define {
+                    Self {
                         span: self.span,
                         kind: Func {
                             ty_node,
@@ -161,27 +161,14 @@ impl<'i> Define<'i> {
                             args,
                             body,
                         },
-                    })?
+                    }
+                    .gen_generic(ctx)?
                 } else {
                     let arg_types = args
                         .iter()
                         .map(|arg| arg.ty_node.init_ty(ctx))
                         .collect::<Res<'i, Vec<_>>>()?;
-
-                    // don't mangle func main (entry point)
-                    let mut name_mangled = name.to_string();
-                    if name_mangled != "main" {
-                        name_mangled = format!(
-                            "{}({})",
-                            name_mangled,
-                            arg_types
-                                .iter()
-                                .map(|ty| ty.name())
-                                .collect::<Vec<_>>()
-                                .join(", ")
-                        )
-                        .mangle();
-                    }
+                    let name_mangled = name.mangle_func(&arg_types);
 
                     ctx.scopes.add(
                         Symbol::Func {
