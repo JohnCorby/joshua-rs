@@ -2,13 +2,11 @@
 #include <stdio.h>
 }>
 
-// fixme you can generate multiple generic funcs
 generic T template_func<generic T>(generic T a) {
     return a + a
 }
-void template_func<generic T>(generic T a) {}
-void template_func<generic T>(generic T a) {}
-void template_func<generic T>(generic T a) {}
+// fixme this will be found when doing `template_func<f32>(1 as f32)`
+//void template_func<generic T>(generic T a, generic T b) {}
 void template_func(i32 a) {}
 
 struct baba_booey {
@@ -95,7 +93,7 @@ i32 main() {
     i32 two = `+`(1 as i32, 1 as i32)
     <{printf("1 + 1 is %i\n", ${two})}>
 
-    u32 test = ((1 as u16) + (2 as u16)) as u32 + <{&${ok}}>
+    u32 test = ((1 as u16) + (2 as u16)) as u32 + <{&${ok}}> as u32
     f32 test2 = (1 as f32) + (2 as f32)
 
     template_func<f32>(1 as f32)

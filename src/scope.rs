@@ -53,7 +53,6 @@ impl<'i> Symbol<'i> {
     }
 }
 
-/// note: eq contains cases that hash doesnt cover, check both when comparing
 impl Hash for Symbol<'_> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         use Symbol::*;
@@ -92,26 +91,14 @@ impl PartialEq for Symbol<'_> {
                 },
             )
             | (
-                Func {
-                    name: name1,
-                    arg_types: arg_types1,
-                    ..
-                },
-                GenericFunc {
-                    name: name2,
-                    _arg_types: arg_types2,
-                    ..
-                },
-            )
-            | (
                 GenericFunc {
                     name: name1,
                     _arg_types: arg_types1,
                     ..
                 },
-                Func {
+                GenericFunc {
                     name: name2,
-                    arg_types: arg_types2,
+                    _arg_types: arg_types2,
                     ..
                 },
             ) => name1 == name2 && arg_types1 == arg_types2,
@@ -246,12 +233,7 @@ impl<'i> Scopes<'i> {
 impl<'i> Scopes<'i> {
     pub fn add(&mut self, symbol: Symbol<'i>, span: impl Into<Option<Span<'i>>>) -> Res<'i, ()> {
         let scope = self.0.last_mut().unwrap();
-        // find with hash first
         if let Some(symbol) = scope.symbols.get(&symbol) {
-            return err(format!("{} already defined", symbol), span);
-        }
-        // then use eq if hash didnt find anything
-        if let Some(symbol) = scope.symbols.iter().find(|&s| s == &symbol) {
             return err(format!("{} already defined", symbol), span);
         }
         scope.symbols.insert(symbol);
@@ -260,12 +242,7 @@ impl<'i> Scopes<'i> {
 
     fn find(&self, symbol: &Symbol<'i>, span: impl Into<Option<Span<'i>>>) -> Res<'i, Symbol<'i>> {
         for scope in self.0.iter().rev() {
-            // find with hash first
             if let Some(symbol) = scope.symbols.get(symbol) {
-                return Ok(symbol.clone());
-            }
-            // then use eq if hash didnt find anything
-            if let Some(symbol) = scope.symbols.iter().find(|&s| s == symbol) {
                 return Ok(symbol.clone());
             }
         }

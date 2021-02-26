@@ -75,7 +75,6 @@ pub enum Type<'i> {
     Struct(InternedStr<'i>),
     GenericPlaceholder(InternedStr<'i>),
     Literal(LiteralType),
-    CCode,
 }
 impl<'i> Type<'i> {
     pub fn check(self, expected: Self, span: impl Into<Option<Span<'i>>>) -> Res<'i, ()> {
@@ -97,7 +96,6 @@ impl<'i> Type<'i> {
             Struct(name) => format!("struct {}", name),
             GenericPlaceholder(name) => format!("generic {}", name),
             Literal(ty) => ty.to_string(),
-            CCode => unreachable!("{} doesnt have a name", self),
         }
     }
 }
@@ -107,7 +105,6 @@ impl Default for Type<'_> {
     }
 }
 
-/// note: eq contains cases that hash doesnt cover, check both when comparing
 impl Hash for Type<'_> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         use Type::*;
@@ -115,7 +112,6 @@ impl Hash for Type<'_> {
             Primitive(ty) => ty.hash(state),
             Struct(name) | GenericPlaceholder(name) => name.hash(state),
             Literal(ty) => ty.hash(state),
-            CCode => ().hash(state),
         }
     }
 }
@@ -127,9 +123,6 @@ impl PartialEq for Type<'_> {
             (Struct(name1), Struct(name2))
             | (GenericPlaceholder(name1), GenericPlaceholder(name2)) => name1 == name2,
             (Literal(ty1), Literal(ty2)) => ty1 == ty2,
-
-            // c code can be any type (let the c compiler do type checking for it)
-            (CCode, _) | (_, CCode) => true,
 
             _ => false,
         }
@@ -144,7 +137,6 @@ impl Display for Type<'_> {
             Struct(name) => write!(f, "struct type `{}`", name),
             GenericPlaceholder(name) => write!(f, "generic placeholder type `{}`", name),
             Literal(ty) => write!(f, "literal type {}", ty),
-            CCode => write!(f, "c code type"),
         }
     }
 }
@@ -196,6 +188,7 @@ impl PrimitiveType {
 pub enum LiteralType {
     Float,
     Int,
+    CCode,
 }
 impl LiteralType {
     pub fn ty(&self) -> Type<'_> {

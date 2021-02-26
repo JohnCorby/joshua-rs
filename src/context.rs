@@ -52,12 +52,12 @@ impl<'i> Ctx<'i> {
                     let ret_ty = ret_tys.into().unwrap_or(arg_ty);
                     i.push_str(&match num_args {
                         1 => format!(
-                            "{} `{}`({} a) return <{{ {} ${{ a }} }}>",
-                            ret_ty, op, arg_ty, op
+                            "{} `{}`({} a) return <{{ {} ${{ a }} }}> as {}\n",
+                            ret_ty, op, arg_ty, op, ret_ty
                         ),
                         2 => format!(
-                            "{} `{}`({} a, {} b) return <{{ ${{ a }} {} ${{ b }} }}>",
-                            ret_ty, op, arg_ty, arg_ty, op
+                            "{} `{}`({} a, {} b) return <{{ ${{ a }} {} ${{ b }} }}> as {}\n",
+                            ret_ty, op, arg_ty, arg_ty, op, ret_ty
                         ),
                         _ => unreachable!(),
                     });
@@ -88,11 +88,12 @@ impl<'i> Ctx<'i> {
         for &ret_ty in &num_prims {
             for &arg_ty in &num_prims {
                 i.push_str(&format!(
-                    "{} `as {}`({} a) return <{{ ({}) ${{ a }} }}>",
+                    "{} `as {}`({} a) return <{{ ({}) ${{ a }} }}> as {}\n",
                     ret_ty,
                     ret_ty,
                     arg_ty,
-                    ret_ty.c_type()
+                    ret_ty.c_type(),
+                    ret_ty,
                 ));
             }
         }

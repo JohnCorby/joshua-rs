@@ -4,7 +4,7 @@ use crate::error::{err, unexpected_kind, Res};
 use crate::expr::Expr;
 use crate::parse::{Kind, Node};
 use crate::span::Span;
-use crate::ty::{PrimitiveType, Type};
+use crate::ty::{LiteralType, PrimitiveType, Type};
 use crate::util::Visit;
 
 #[derive(Debug, Clone)]
@@ -261,7 +261,7 @@ impl<'i> Visit<'i> for CCode<'i> {
 
 impl<'i> CCode<'i> {
     pub fn ty(&self) -> Type<'i> {
-        Type::CCode
+        LiteralType::CCode.ty()
     }
 
     pub fn gen(self, ctx: &mut Ctx<'i>) -> Res<'i, ()> {
