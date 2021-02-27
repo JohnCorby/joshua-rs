@@ -55,7 +55,7 @@ impl<T: ToString> IntoErr for T {
     fn into_err(self, span: Option<Span<'_>>) -> Err<'_> {
         Err {
             message: self.to_string(),
-            span: span.into(),
+            span,
             backtrace: Backtrace::capture(),
         }
     }

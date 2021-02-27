@@ -39,7 +39,7 @@ pub enum Symbol<'i> {
         name: InternedStr<'i>,
         generic_placeholders: Vec<InternedStr<'i>>,
         args: Vec<VarDefine<'i>>,
-        body: Block<'i>,
+        body: Box<Block<'i>>,
 
         // codegen info
         scopes_index: usize,
@@ -134,14 +134,12 @@ impl Display for Symbol<'_> {
             StructType { name, .. } => write!(f, "struct type symbol `{}`", name),
             GenericPlaceholderType(name) => write!(f, "generic placeholder type symbol `{}`", name),
             GenericFunc {
-                name,
-                arg_types: _arg_types,
-                ..
+                name, arg_types, ..
             } => write!(
                 f,
                 "generic func symbol `{}` and arg types ({})",
                 name,
-                _arg_types
+                arg_types
                     .iter()
                     .map(Type::to_string)
                     .collect::<Vec<_>>()

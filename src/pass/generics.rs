@@ -35,8 +35,8 @@ impl<'i> Define<'i> {
                 ctx.scopes
                     .add(Symbol::GenericPlaceholderType(placeholder), Some(span))?;
             }
-            let _ty = ty_node.init_ty(ctx)?;
-            let _arg_types = args
+            let ty = ty_node.init_ty(ctx)?;
+            let arg_types = args
                 .iter()
                 .map(|var_define| var_define.ty_node.init_ty(ctx))
                 .collect::<Res<'i, Vec<_>>>()?;
@@ -44,15 +44,15 @@ impl<'i> Define<'i> {
 
             ctx.scopes.add(
                 Symbol::GenericFunc {
-                    ty: _ty,
-                    arg_types: _arg_types,
+                    ty,
+                    arg_types,
 
                     span,
                     ty_node,
                     name,
                     generic_placeholders,
                     args,
-                    body,
+                    body: body.into(),
 
                     scopes_index: ctx.scopes.0.len(),
                     o_index: ctx.o.len(),
@@ -80,7 +80,8 @@ impl<'i> FuncCall<'i> {
             .collect::<Res<'i, Vec<_>>>()?;
 
         if let Ok(Symbol::Func { ty: ret_type, .. }) =
-            ctx.scopes.get_func(self.name, &call_arg_types, Some(self.span))
+            ctx.scopes
+                .get_func(self.name, &call_arg_types, Some(self.span))
         {
             // we're actually calling a normal func, so just use that one
             // and don't do any other special generic stuff
@@ -131,7 +132,7 @@ impl<'i> FuncCall<'i> {
                     name,
                     generic_placeholders,
                     args,
-                    body,
+                    body: *body,
                 },
             };
             def.replace_generics(&generic_map);
@@ -196,19 +197,17 @@ impl<'i> Scopes<'i> {
         name: InternedStr<'i>,
         arg_types: &[Type<'i>],
     ) -> Option<Symbol<'i>> {
-        let name1 = &name;
-        let arg_types1 = arg_types.as_ref();
         if let Some(symbol) = self.0[0].symbols.iter().find(|&s| {
             if let Symbol::GenericFunc {
-                name: name2,
-                arg_types: arg_types2,
+                name: other_name,
+                arg_types: other_arg_types,
                 ..
             } = s
             {
-                if name1 != name2 {
+                if &name != other_name {
                     return false;
                 }
-                for (&ty1, &ty2) in arg_types1.iter().zip(arg_types2.iter()) {
+                for (&ty1, &ty2) in arg_types.iter().zip(other_arg_types.iter()) {
                     if let Type::GenericPlaceholder(_) = ty2 {
                         // generic ty2 will always match ty1, so don't return false
                     } else if ty1 != ty2 {
