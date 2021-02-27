@@ -55,7 +55,7 @@ impl<'i> Define<'i> {
                     body: body.into(),
 
                     scopes_index: ctx.scopes.0.len(),
-                    o_index: ctx.o.len(),
+                    o_index: ctx.o.make_index(ctx.o.len()),
                 },
                 Some(span),
             )
@@ -165,13 +165,15 @@ impl<'i> FuncCall<'i> {
             }
 
             let scopes_after = ctx.scopes.0.split_off(scopes_index);
-            let o_after = ctx.o.split_off(o_index);
+            let current_o = std::mem::take(&mut ctx.o);
             ctx.o.push_str("// begin specialized generic func\n");
             def.gen(ctx)?;
             ctx.o.push('\n');
             ctx.o.push_str("// end specialized generic func\n");
+            let generated_o = std::mem::replace(&mut ctx.o, current_o);
+            let idx = *o_index.borrow();
+            ctx.o.insert_str(idx, &generated_o);
             ctx.scopes.0.extend(scopes_after);
-            ctx.o.push_str(&o_after);
 
             Ok(ret_type)
         } else {

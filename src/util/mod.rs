@@ -3,6 +3,7 @@ use crate::parse::{Node, Nodes};
 use crate::pass::ty::Type;
 
 pub mod frozen_vec;
+pub mod index_string;
 pub mod interned_string;
 
 pub trait Visit<'i>: Sized {

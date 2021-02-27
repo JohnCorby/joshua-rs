@@ -3,6 +3,9 @@
 use stable_deref_trait::StableDeref;
 use std::cell::UnsafeCell;
 
+/// append only vec
+/// that doesn't require mutable borrow.
+/// returns stable deref address that can be stored in other places and will never move.
 #[derive(Debug, Default)]
 pub struct FrozenVec<T>(UnsafeCell<Vec<T>>);
 

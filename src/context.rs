@@ -3,24 +3,29 @@ use crate::pass::define::Program;
 use crate::pass::ty::PrimitiveType;
 use crate::scope::Scopes;
 use crate::util::frozen_vec::FrozenVec;
+use crate::util::index_string::IndexString;
 use string_interner::StringInterner;
 
 /// stores general program context
 #[derive(Debug)]
 pub struct Ctx<'i> {
     is: &'i FrozenVec<String>,
-    pub o: String,
+    pub o: IndexString,
     pub scopes: Scopes<'i>,
     pub interner: StringInterner,
+
+    // ugly internal used for generic codegen
+    pub prelude_end_index: usize,
 }
 
 impl<'i> Ctx<'i> {
     pub fn new(is: &'i FrozenVec<std::string::String>) -> Self {
         let mut ctx = Self {
             is,
-            o: "".to_string(),
+            o: Default::default(),
             scopes: Default::default(),
             interner: Default::default(),
+            prelude_end_index: 0,
         };
         ctx.gen_prelude();
         ctx
@@ -83,12 +88,8 @@ impl<'i> Ctx<'i> {
         for &ret_ty in num_prims {
             for &arg_ty in num_prims {
                 i.push_str(&format!(
-                    "{} `as {}`({} a) return <{{ ({}) ${{ a }} }}> as {}\n",
-                    ret_ty,
-                    ret_ty,
-                    arg_ty,
-                    ret_ty.c_type(),
-                    ret_ty,
+                    "{} `as {}`({} a) return <{{ ${{ a }} }}> as {}\n",
+                    ret_ty, ret_ty, arg_ty, ret_ty,
                 ));
             }
         }
@@ -101,5 +102,7 @@ impl<'i> Ctx<'i> {
             .unwrap();
         self.o.push('\n');
         self.o.push_str("// end prelude\n");
+
+        self.prelude_end_index = self.o.len();
     }
 }
