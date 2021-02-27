@@ -1,3 +1,7 @@
+void f1(i8 a, i8 b) {}
+
 i32 main() {
+    f1(1 as i8, 2 as i8)
+
     return 0 as i32
 }

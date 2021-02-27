@@ -37,6 +37,7 @@ mod parse;
 mod pass;
 mod scope;
 mod span;
+mod test;
 mod util;
 
 #[quit::main]
