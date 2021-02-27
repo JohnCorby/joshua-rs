@@ -2,12 +2,12 @@
 
 use crate::context::Ctx;
 use crate::error::{err, unexpected_kind, Res};
-use crate::interned_string::{Intern, InternedStr};
 use crate::parse::{Kind, Node};
+use crate::pass::statement::CCode;
+use crate::pass::ty::{LiteralType, PrimitiveType, Type, TypeNode};
 use crate::scope::Symbol;
 use crate::span::Span;
-use crate::statement::CCode;
-use crate::ty::{LiteralType, PrimitiveType, Type, TypeNode};
+use crate::util::interned_string::{Intern, InternedStr};
 use crate::util::{Mangle, Visit};
 use std::lazy::OnceCell;
 

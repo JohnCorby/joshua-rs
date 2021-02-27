@@ -1,8 +1,8 @@
-use crate::define::Program;
-use crate::frozen_vec::FrozenVec;
 use crate::parse::{Kind, Node};
+use crate::pass::define::Program;
+use crate::pass::ty::PrimitiveType;
 use crate::scope::Scopes;
-use crate::ty::PrimitiveType;
+use crate::util::frozen_vec::FrozenVec;
 use string_interner::StringInterner;
 
 /// stores general program context

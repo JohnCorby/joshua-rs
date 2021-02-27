@@ -1,6 +1,6 @@
 use crate::context::Ctx;
 use crate::error::{err, unexpected_kind, Res};
-use crate::interned_string::InternedStr;
+use crate::util::interned_string::InternedStr;
 use crate::parse::{Kind, Node};
 use crate::span::Span;
 use crate::util::Visit;

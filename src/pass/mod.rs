@@ -1,8 +1,13 @@
-//! take c code string, write it to a c file, and compile that file
-
 use std::path::Path;
 use std::process::Command;
 
+pub mod define;
+pub mod expr;
+pub mod generics;
+pub mod statement;
+pub mod ty;
+
+/// take c code string, write it to a c file, and compile that file
 pub fn compile_program(c_code: impl AsRef<str>, path: impl AsRef<Path>) {
     let c_path = &path.as_ref().with_extension("c");
     let out_path = &path.as_ref().with_extension("exe");

@@ -1,6 +1,9 @@
 use crate::context::Ctx;
 use crate::parse::{Node, Nodes};
-use crate::ty::Type;
+use crate::pass::ty::Type;
+
+pub mod frozen_vec;
+pub mod interned_string;
 
 pub trait Visit<'i>: Sized {
     fn visit(node: Node<'i>, ctx: &mut Ctx<'i>) -> Self;

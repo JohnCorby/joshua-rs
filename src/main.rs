@@ -23,27 +23,20 @@
 #![feature(try_blocks)]
 #![warn(elided_lifetimes_in_paths)]
 
-mod compile;
-mod context;
-mod define;
-mod error;
-mod expr;
-mod frozen_vec;
-mod generics;
-mod interned_string;
-mod parse;
-mod scope;
-mod span;
-mod statement;
-mod ty;
-mod util;
-
-use crate::compile::compile_program;
 use crate::context::Ctx;
-use crate::define::Program;
 use crate::error::{Err, Res};
 use crate::parse::{Kind, Node};
-use std::path::Path;
+use crate::pass::compile_program;
+use crate::pass::define::Program;
+use std::env::args;
+
+mod context;
+mod error;
+mod parse;
+mod pass;
+mod scope;
+mod span;
+mod util;
 
 #[quit::main]
 fn main() {
@@ -52,8 +45,8 @@ fn main() {
     let is = &Default::default();
     let ctx = &mut Ctx::new(is);
 
-    let path = Path::new("test/test2.jo");
-    let program = std::fs::read_to_string(path).unwrap();
+    let path = args().nth(1).unwrap();
+    let program = std::fs::read_to_string(&path).unwrap();
 
     let result: Res<'_, ()> = try {
         println!("parsing");
@@ -67,5 +60,5 @@ fn main() {
         return eprintln!("Error: {}", err);
     }
 
-    compile_program(&ctx.o, path)
+    compile_program(&ctx.o, &path)
 }

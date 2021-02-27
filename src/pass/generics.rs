@@ -1,13 +1,13 @@
 //! helper stuff for generic handling
 
 use crate::context::Ctx;
-use crate::define::{Define, DefineKind, VarDefine};
 use crate::error::{err, Res};
-use crate::expr::{Expr, FuncCall};
-use crate::interned_string::InternedStr;
+use crate::pass::define::{Define, DefineKind, VarDefine};
+use crate::pass::expr::{Expr, FuncCall};
+use crate::pass::statement::{Block, Statement};
+use crate::pass::ty::{Type, TypeNode};
 use crate::scope::{Scopes, Symbol};
-use crate::statement::{Block, Statement};
-use crate::ty::{Type, TypeNode};
+use crate::util::interned_string::InternedStr;
 use std::collections::HashMap;
 
 type GenericMap<'i> = HashMap<InternedStr<'i>, Type<'i>>;
@@ -229,7 +229,7 @@ impl<'i> Scopes<'i> {
 
 impl<'i> Define<'i> {
     fn replace_generics(&mut self, generic_map: &GenericMap<'i>) {
-        use crate::define::DefineKind::*;
+        use crate::pass::define::DefineKind::*;
         match &mut self.kind {
             Struct { body, .. } => {
                 for define in body {
@@ -265,7 +265,7 @@ impl<'i> VarDefine<'i> {
 }
 impl<'i> Statement<'i> {
     fn replace_generics(&mut self, generic_map: &GenericMap<'i>) {
-        use crate::statement::StatementKind::*;
+        use crate::pass::statement::StatementKind::*;
         match &mut self.kind {
             Return(value) => {
                 if let Some(value) = value {
@@ -318,7 +318,7 @@ impl<'i> Block<'i> {
 }
 impl<'i> Expr<'i> {
     fn replace_generics(&mut self, generic_map: &GenericMap<'i>) {
-        use crate::expr::ExprKind::*;
+        use crate::pass::expr::ExprKind::*;
         match &mut self.kind {
             Binary { left, right, .. } => {
                 left.replace_generics(generic_map);

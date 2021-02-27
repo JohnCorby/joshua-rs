@@ -1,10 +1,10 @@
 use crate::context::Ctx;
-use crate::define::VarDefine;
 use crate::error::{err, unexpected_kind, Res};
-use crate::expr::Expr;
 use crate::parse::{Kind, Node};
+use crate::pass::define::VarDefine;
+use crate::pass::expr::Expr;
+use crate::pass::ty::{LiteralType, PrimitiveType, Type};
 use crate::span::Span;
-use crate::ty::{LiteralType, PrimitiveType, Type};
 use crate::util::Visit;
 
 #[derive(Debug, Clone)]

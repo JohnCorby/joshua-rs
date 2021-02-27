@@ -1,12 +1,12 @@
 use crate::context::Ctx;
 use crate::error::{unexpected_kind, Res};
-use crate::expr::Expr;
-use crate::interned_string::InternedStr;
 use crate::parse::{Kind, Node};
+use crate::pass::expr::Expr;
+use crate::pass::statement::{Block, CCode};
+use crate::pass::ty::TypeNode;
 use crate::scope::Symbol;
 use crate::span::Span;
-use crate::statement::{Block, CCode};
-use crate::ty::TypeNode;
+use crate::util::interned_string::InternedStr;
 use crate::util::{Mangle, Visit};
 use std::collections::HashMap;
 
