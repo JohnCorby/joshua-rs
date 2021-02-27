@@ -46,7 +46,7 @@ impl<'i> TypeNode<'i> {
                         ctx.scopes.get_struct(name, self.span)?;
                     }
                     Type::GenericPlaceholder(name) => {
-                        ctx.scopes.get_generic(name, self.span)?;
+                        ctx.scopes.get_generic_type(name, self.span)?;
                     }
                     _ => {}
                 }

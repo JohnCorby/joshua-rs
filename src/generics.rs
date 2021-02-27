@@ -44,15 +44,18 @@ impl<'i> Define<'i> {
 
             ctx.scopes.add(
                 Symbol::GenericFunc {
-                    _ty,
-                    name,
-                    generic_placeholders,
-                    _arg_types,
+                    ty: _ty,
+                    arg_types: _arg_types,
 
                     span,
                     ty_node,
+                    name,
+                    generic_placeholders,
                     args,
                     body,
+
+                    scopes_index: ctx.scopes.0.len(),
+                    o_index: ctx.o.len(),
                 },
                 span,
             )
@@ -67,7 +70,7 @@ impl<'i> FuncCall<'i> {
     /// then specializes it using the func_call's replacements
     /// returns specialized ret type and arg types
     pub fn init_ty_generic(&self, ctx: &mut Ctx<'i>) -> Res<'i, Type<'i>> {
-        assert!(!self.generic_replacements.is_empty(),);
+        assert!(!self.generic_replacements.is_empty());
 
         // already-specialized arg types from the func call
         let call_arg_types = self
@@ -76,143 +79,150 @@ impl<'i> FuncCall<'i> {
             .map(|it| it.init_ty(ctx))
             .collect::<Res<'i, Vec<_>>>()?;
 
-        Ok(
-            match ctx.scopes.get_func(self.name, &call_arg_types, self.span)? {
-                Symbol::Func { ty: ret_type, .. } => {
-                    // we're actually calling a normal func, so just use that one
-                    // and don't do any other special generic stuff
-                    ret_type
+        if let Ok(Symbol::Func { ty: ret_type, .. }) =
+            ctx.scopes.get_func(self.name, &call_arg_types, self.span)
+        {
+            // we're actually calling a normal func, so just use that one
+            // and don't do any other special generic stuff
+            Ok(ret_type)
+        } else if let Some(Symbol::GenericFunc {
+            span,
+            ty_node,
+            name,
+            generic_placeholders,
+            args,
+            body,
+
+            scopes_index,
+            o_index,
+            ..
+        }) = ctx.scopes.get_generic_func(self.name, &call_arg_types)
+        {
+            // get mapping from placeholder names to replacement types
+            let generic_map = {
+                if generic_placeholders.len() != self.generic_replacements.len() {
+                    return err(
+                        format!(
+                            "expected {} generic parameters, but got {}",
+                            generic_placeholders.len(),
+                            self.generic_replacements.len()
+                        ),
+                        self.span,
+                    );
                 }
 
-                Symbol::GenericFunc {
+                let replacement_types = self
+                    .generic_replacements
+                    .iter()
+                    .map(|it| it.init_ty(ctx))
+                    .collect::<Res<'i, Vec<_>>>()?;
+                generic_placeholders
+                    .iter()
+                    .copied()
+                    .zip(replacement_types)
+                    .collect::<GenericMap<'i>>()
+            };
+
+            // make specialized func
+            let mut def = Define {
+                span,
+                kind: DefineKind::Func {
+                    ty_node,
                     name,
                     generic_placeholders,
-
-                    span,
-                    ty_node,
                     args,
                     body,
-                    ..
-                } => {
-                    // get mapping from placeholder names to replacement types
-                    let generic_map = {
-                        if generic_placeholders.len() != self.generic_replacements.len() {
-                            return err(
-                                format!(
-                                    "expected {} generic parameters, but got {}",
-                                    generic_placeholders.len(),
-                                    self.generic_replacements.len()
-                                ),
-                                self.span,
-                            );
-                        }
-
-                        let replacement_types = self
-                            .generic_replacements
-                            .iter()
-                            .map(|it| it.init_ty(ctx))
-                            .collect::<Res<'i, Vec<_>>>()?;
-                        generic_placeholders
-                            .iter()
-                            .copied()
-                            .zip(replacement_types)
-                            .collect::<GenericMap<'i>>()
-                    };
-
-                    // make specialized func
-                    let mut def = Define {
-                        span,
-                        kind: DefineKind::Func {
-                            ty_node,
-                            name,
-                            generic_placeholders,
-                            args,
-                            body,
-                        },
-                    };
-                    def.replace_generics(&generic_map);
-                    let (ret_type, arg_types) = match &def.kind {
-                        DefineKind::Func { ty_node, args, .. } => (
-                            ty_node.ty,
-                            args.iter().map(|it| it.ty_node.ty).collect::<Vec<_>>(),
-                        ),
-                        _ => unreachable!(),
-                    };
-
-                    // check that specialization matches with func call
-                    if arg_types != call_arg_types {
-                        return err(
-                            format!(
-                                "specialized func args ({}) doesn't match with func call args ({})",
-                                arg_types
-                                    .iter()
-                                    .map(Type::to_string)
-                                    .collect::<Vec<_>>()
-                                    .join(", "),
-                                call_arg_types
-                                    .iter()
-                                    .map(Type::to_string)
-                                    .collect::<Vec<_>>()
-                                    .join(", "),
-                            ),
-                            self.span,
-                        );
-                    }
-
-                    let scopes_after_top_level = ctx.scopes.0.split_off(1);
-                    let o_after_prelude = ctx.o.split_off(ctx.prelude_end_index);
-                    ctx.o.push_str("// specialized generic func\n");
-                    def.gen(ctx)?;
-                    ctx.o.push('\n');
-                    ctx.o.push_str("// end specialized generic func\n");
-                    ctx.scopes.0.extend(scopes_after_top_level);
-                    ctx.o.push_str(&o_after_prelude);
-
-                    ret_type
-                }
+                },
+            };
+            def.replace_generics(&generic_map);
+            let (ret_type, arg_types) = match &def.kind {
+                DefineKind::Func { ty_node, args, .. } => (
+                    ty_node.ty,
+                    args.iter().map(|it| it.ty_node.ty).collect::<Vec<_>>(),
+                ),
                 _ => unreachable!(),
-            },
-        )
+            };
+
+            // check that specialization matches with func call
+            if arg_types != call_arg_types {
+                return err(
+                    format!(
+                        "specialized generic func args ({}) doesn't match with func call args ({})",
+                        arg_types
+                            .iter()
+                            .map(Type::to_string)
+                            .collect::<Vec<_>>()
+                            .join(", "),
+                        call_arg_types
+                            .iter()
+                            .map(Type::to_string)
+                            .collect::<Vec<_>>()
+                            .join(", "),
+                    ),
+                    self.span,
+                );
+            }
+
+            let scopes_after = ctx.scopes.0.split_off(scopes_index);
+            let o_after = ctx.o.split_off(o_index);
+            ctx.o.push_str("// begin specialized generic func\n");
+            def.gen(ctx)?;
+            ctx.o.push('\n');
+            ctx.o.push_str("// end specialized generic func\n");
+            ctx.scopes.0.extend(scopes_after);
+            ctx.o.push_str(&o_after);
+
+            Ok(ret_type)
+        } else {
+            err(
+                format!(
+                    "could not find {}",
+                    Symbol::Func {
+                        ty: Default::default(),
+                        name: self.name,
+                        arg_types: call_arg_types
+                    }
+                ),
+                self.span,
+            )
+        }
     }
 }
 
 impl<'i> Scopes<'i> {
     /// find a generic func fuzzily
-    pub fn find_generic_func(&self, symbol: &Symbol<'i>) -> Option<Symbol<'i>> {
-        if let Symbol::Func {
-            name: name1,
-            arg_types: arg_types1,
-            ..
-        } = symbol
-        {
-            if let Some(symbol) = self.0[0].symbols.iter().find(|&s| {
-                if let Symbol::GenericFunc {
-                    name: name2,
-                    _arg_types: arg_types2,
-                    ..
-                } = s
-                {
-                    if name1 != name2 {
+    pub fn get_generic_func(
+        &self,
+        name: InternedStr<'i>,
+        arg_types: impl AsRef<[Type<'i>]>,
+    ) -> Option<Symbol<'i>> {
+        let name1 = &name;
+        let arg_types1 = arg_types.as_ref();
+        if let Some(symbol) = self.0[0].symbols.iter().find(|&s| {
+            if let Symbol::GenericFunc {
+                name: name2,
+                arg_types: arg_types2,
+                ..
+            } = s
+            {
+                if name1 != name2 {
+                    return false;
+                }
+                for (&ty1, &ty2) in arg_types1.iter().zip(arg_types2.iter()) {
+                    if let Type::GenericPlaceholder(_) = ty2 {
+                        // generic ty2 will always match ty1, so don't return false
+                    } else if ty1 != ty2 {
                         return false;
                     }
-                    for (&ty1, &ty2) in arg_types1.iter().zip(arg_types2.iter()) {
-                        if let Type::GenericPlaceholder(_) = ty2 {
-                            // generic ty2 will always match ty1, so don't return false
-                        } else if ty1 != ty2 {
-                            return false;
-                        }
-                    }
-                    true
-                } else {
-                    false
                 }
-            }) {
-                Some(symbol.clone())
+                true
             } else {
-                None
+                false
             }
+        }) {
+            Some(symbol.clone())
         } else {
-            unreachable!()
+            None
         }
     }
 }

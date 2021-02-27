@@ -9,6 +9,10 @@ generic T template_func<generic T>(generic T a) {
 //void template_func<generic T>(generic T a, generic T b) {}
 void template_func(i32 a) {}
 
+generic T `+`<generic T>(generic T a, generic T b) {
+    return a + b
+}
+
 struct baba_booey {
     f32 hello
 }
@@ -38,7 +42,7 @@ f32 kill_yourself(struct baba_booey this, i32 a, f32 b, bool c, char d) {
 
     template_func<f32>(1 as f32)
     // fixme?: this will just find the previously-generated template_func(f32)
-    template_func<i32>(1 as f32)
+    template_func<i8>(1 as i8)
 
     return 11565 as f32
 }
@@ -98,6 +102,11 @@ i32 main() {
 
     template_func<f32>(1 as f32)
     template_func<f32>(1 as f32)
+
+    struct im im
+    `+`<struct im>(im, im)
+//    `+`(im, im)
+//    im + im
 
     <{puts("you are a poopy head")}>
 //    <{

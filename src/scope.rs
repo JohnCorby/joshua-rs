@@ -30,8 +30,8 @@ pub enum Symbol<'i> {
     GenericPlaceholderType(InternedStr<'i>),
     GenericFunc {
         // cached for faster access on eq/hash
-        _ty: Type<'i>,
-        _arg_types: Vec<Type<'i>>,
+        ty: Type<'i>,
+        arg_types: Vec<Type<'i>>,
 
         // copied from func define
         span: Span<'i>,
@@ -40,13 +40,17 @@ pub enum Symbol<'i> {
         generic_placeholders: Vec<InternedStr<'i>>,
         args: Vec<VarDefine<'i>>,
         body: Block<'i>,
+
+        // codegen info
+        scopes_index: usize,
+        o_index: usize,
     },
 }
 impl<'i> Symbol<'i> {
     pub fn ty(&self) -> Type<'i> {
         use Symbol::*;
         match self {
-            Func { ty, .. } | Var { ty, .. } | GenericFunc { _ty: ty, .. } => *ty,
+            Func { ty, .. } | Var { ty, .. } | GenericFunc { ty, .. } => *ty,
             StructType { name, .. } => Type::Struct(*name),
             GenericPlaceholderType(name) => Type::GenericPlaceholder(*name),
         }
@@ -61,9 +65,7 @@ impl Hash for Symbol<'_> {
                 name, arg_types, ..
             }
             | GenericFunc {
-                name,
-                _arg_types: arg_types,
-                ..
+                name, arg_types, ..
             } => {
                 name.hash(state);
                 arg_types.hash(state);
@@ -93,12 +95,12 @@ impl PartialEq for Symbol<'_> {
             | (
                 GenericFunc {
                     name: name1,
-                    _arg_types: arg_types1,
+                    arg_types: arg_types1,
                     ..
                 },
                 GenericFunc {
                     name: name2,
-                    _arg_types: arg_types2,
+                    arg_types: arg_types2,
                     ..
                 },
             ) => name1 == name2 && arg_types1 == arg_types2,
@@ -132,7 +134,9 @@ impl Display for Symbol<'_> {
             StructType { name, .. } => write!(f, "struct type symbol `{}`", name),
             GenericPlaceholderType(name) => write!(f, "generic placeholder type symbol `{}`", name),
             GenericFunc {
-                name, _arg_types, ..
+                name,
+                arg_types: _arg_types,
+                ..
             } => write!(
                 f,
                 "generic func symbol `{}` and arg types ({})",
@@ -262,20 +266,20 @@ impl<'i> Scopes<'i> {
             span,
         )
     }
-    /// note: can return normal or generic func
     pub fn get_func(
         &self,
         name: InternedStr<'i>,
         arg_types: impl AsRef<[Type<'i>]>,
         span: impl Into<Option<Span<'i>>> + Copy,
     ) -> Res<'i, Symbol<'i>> {
-        let symbol = &Symbol::Func {
-            ty: Default::default(),
-            name,
-            arg_types: arg_types.as_ref().into(),
-        };
-        self.find(symbol, span)
-            .or_else(|e| self.find_generic_func(symbol).ok_or(e))
+        self.find(
+            &Symbol::Func {
+                ty: Default::default(),
+                name,
+                arg_types: arg_types.as_ref().into(),
+            },
+            span,
+        )
     }
     pub fn get_struct(
         &self,
@@ -290,7 +294,7 @@ impl<'i> Scopes<'i> {
             span,
         )
     }
-    pub fn get_generic(
+    pub fn get_generic_type(
         &self,
         name: InternedStr<'i>,
         span: impl Into<Option<Span<'i>>>,
