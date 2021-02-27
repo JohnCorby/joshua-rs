@@ -49,10 +49,10 @@ impl Debug for Err<'_> {
 }
 
 pub trait IntoErr {
-    fn into_err<'i>(self, span: impl Into<Option<Span<'i>>>) -> Err<'i>;
+    fn into_err(self, span: Option<Span<'_>>) -> Err<'_>;
 }
 impl<T: ToString> IntoErr for T {
-    fn into_err<'i>(self, span: impl Into<Option<Span<'i>>>) -> Err<'i> {
+    fn into_err(self, span: Option<Span<'_>>) -> Err<'_> {
         Err {
             message: self.to_string(),
             span: span.into(),
@@ -61,16 +61,16 @@ impl<T: ToString> IntoErr for T {
     }
 }
 
-pub fn err<'i, T>(str: impl AsRef<str>, span: impl Into<Option<Span<'i>>>) -> Res<'i, T> {
-    Err(str.as_ref().into_err(span))
+pub fn err<'i, T>(str: &str, span: Option<Span<'i>>) -> Res<'i, T> {
+    Err(str.into_err(span))
 }
 #[allow(dead_code)]
-pub fn warn<'i>(str: impl AsRef<str>, span: impl Into<Option<Span<'i>>>) {
-    eprintln!("Warning: {}", (str.as_ref().into_err(span)));
+pub fn warn(str: &str, span: Option<Span<'_>>) {
+    eprintln!("Warning: {}", str.into_err(span));
 }
 #[allow(dead_code)]
-pub fn warn_internal<'i>(str: impl AsRef<str>, span: impl Into<Option<Span<'i>>>) {
-    eprintln!("Internal Warning: {}", (str.as_ref().into_err(span)));
+pub fn warn_internal(str: &str, span: Option<Span<'_>>) {
+    eprintln!("Internal Warning: {}", str.into_err(span));
 }
 
 pub fn unexpected_kind(node: Node<'_>) -> ! {

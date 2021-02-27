@@ -150,11 +150,13 @@ impl<'i> Expr<'i> {
                     Binary { left, op, right } => {
                         let left = left.init_ty(ctx)?;
                         let right = right.init_ty(ctx)?;
-                        ctx.scopes.get_func(*op, [left, right], self.span)?.ty()
+                        ctx.scopes
+                            .get_func(*op, [left, right], Some(self.span))?
+                            .ty()
                     }
                     Unary { op, thing } => {
                         let thing = thing.init_ty(ctx)?;
-                        ctx.scopes.get_func(*op, [thing], self.span)?.ty()
+                        ctx.scopes.get_func(*op, [thing], Some(self.span))?.ty()
                     }
                     Cast { thing, ty_node } => {
                         // fixme literals are hacky as shit
@@ -163,7 +165,7 @@ impl<'i> Expr<'i> {
                         } else {
                             let name = format!("as {}", ty_node.init_ty(ctx)?.name()).intern(ctx);
                             let thing = thing.init_ty(ctx)?;
-                            ctx.scopes.get_func(name, [thing], self.span)?.ty()
+                            ctx.scopes.get_func(name, [thing], Some(self.span))?.ty()
                         }
                     }
 
@@ -179,7 +181,7 @@ impl<'i> Expr<'i> {
                         arg_types.insert(0, receiver.init_ty(ctx)?);
 
                         ctx.scopes
-                            .get_func(func_call.name, arg_types, self.span)?
+                            .get_func(func_call.name, arg_types, Some(self.span))?
                             .ty()
                     }
                     Field { receiver, var } => {
@@ -187,12 +189,12 @@ impl<'i> Expr<'i> {
                             Type::Struct(struct_name) => struct_name,
                             ty => {
                                 return err(
-                                    format!("expected struct type, but got {}", ty),
-                                    self.span,
+                                    &format!("expected struct type, but got {}", ty),
+                                    Some(self.span),
                                 )
                             }
                         };
-                        let symbol = ctx.scopes.get_struct(struct_name, self.span)?;
+                        let symbol = ctx.scopes.get_struct(struct_name, Some(self.span))?;
                         let field_types = match &symbol {
                             Symbol::StructType { field_types, .. } => field_types,
                             _ => unreachable!(),
@@ -201,8 +203,8 @@ impl<'i> Expr<'i> {
                             Some(&field_type) => field_type,
                             None => {
                                 return err(
-                                    format!("no field named {} in {}", var, symbol),
-                                    self.span,
+                                    &format!("no field named {} in {}", var, symbol),
+                                    Some(self.span),
                                 )
                             }
                         }
@@ -210,7 +212,7 @@ impl<'i> Expr<'i> {
 
                     Literal(literal) => literal.ty(),
                     FuncCall(func_call) => func_call.init_ty(ctx)?,
-                    Var(name) => ctx.scopes.get_var(*name, self.span)?.ty(),
+                    Var(name) => ctx.scopes.get_var(*name, Some(self.span))?.ty(),
 
                     CCode(c_code) => c_code.ty(),
                 })
@@ -218,7 +220,7 @@ impl<'i> Expr<'i> {
             .copied()
     }
 
-    pub fn check_assignable(&self, span: impl Into<Option<Span<'i>>>) -> Res<'i, ()> {
+    pub fn check_assignable(&self, span: Option<Span<'i>>) -> Res<'i, ()> {
         use ExprKind::*;
         let is_assignable = matches!(self.kind, Field { .. } | Var(_));
 
@@ -347,7 +349,7 @@ impl<'i> FuncCall<'i> {
                         .iter()
                         .map(|it| it.init_ty(ctx))
                         .collect::<Res<'_, Vec<_>>>()?;
-                    ctx.scopes.get_func(self.name, arg_types, self.span)?.ty()
+                    ctx.scopes.get_func(self.name, arg_types, Some(self.span))?.ty()
                 })
             })
             .copied()

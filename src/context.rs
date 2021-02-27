@@ -35,17 +35,16 @@ impl<'i> Ctx<'i> {
     pub fn gen_prelude(&mut self) {
         let mut i = String::new();
 
-        fn op_funcs<Str: AsRef<str>>(
+        fn op_funcs(
             i: &mut String,
-            ops: impl AsRef<[Str]>,
+            ops: &[&str],
             num_args: usize,
-            arg_tys: impl AsRef<[PrimitiveType]>,
-            ret_tys: impl Into<Option<PrimitiveType>> + Copy,
+            arg_tys: &[PrimitiveType],
+            ret_ty: Option<PrimitiveType>,
         ) {
-            for op in ops.as_ref() {
-                let op = op.as_ref();
-                for &arg_ty in arg_tys.as_ref() {
-                    let ret_ty = ret_tys.into().unwrap_or(arg_ty);
+            for &op in ops {
+                for &arg_ty in arg_tys {
+                    let ret_ty = ret_ty.unwrap_or(arg_ty);
                     i.push_str(&match num_args {
                         1 => format!(
                             "{} `{}`({} a) return <{{ {} ${{ a }} }}> as {}\n",
@@ -62,27 +61,27 @@ impl<'i> Ctx<'i> {
         }
 
         use PrimitiveType::*;
-        let num_prims = [I8, U8, I16, U16, I32, U32, I64, U64, F32, F64];
+        let num_prims = &[I8, U8, I16, U16, I32, U32, I64, U64, F32, F64];
 
         // binary
-        op_funcs(&mut i, ["+", "-", "*", "/"], 2, num_prims, None);
+        op_funcs(&mut i, &["+", "-", "*", "/"], 2, num_prims, None);
         op_funcs(
             &mut i,
-            ["%"],
+            &["%"],
             2,
-            [I8, U8, I16, U16, I32, U32, I64, U64],
+            &[I8, U8, I16, U16, I32, U32, I64, U64],
             None,
         );
-        op_funcs(&mut i, ["<", "<=", ">", ">="], 2, num_prims, Bool);
-        op_funcs(&mut i, ["==", "!="], 2, [Bool], Bool);
+        op_funcs(&mut i, &["<", "<=", ">", ">="], 2, num_prims, Some(Bool));
+        op_funcs(&mut i, &["==", "!="], 2, &[Bool], Some(Bool));
 
         // unary
-        op_funcs(&mut i, ["-"], 1, num_prims, None);
-        op_funcs(&mut i, ["!"], 1, [Bool], Bool);
+        op_funcs(&mut i, &["-"], 1, num_prims, None);
+        op_funcs(&mut i, &["!"], 1, &[Bool], Some(Bool));
 
         // cast
-        for &ret_ty in &num_prims {
-            for &arg_ty in &num_prims {
+        for &ret_ty in num_prims {
+            for &arg_ty in num_prims {
                 i.push_str(&format!(
                     "{} `as {}`({} a) return <{{ ({}) ${{ a }} }}> as {}\n",
                     ret_ty,

@@ -131,7 +131,7 @@ impl<'i> Define<'i> {
                             field_types
                         },
                     },
-                    self.span,
+                    Some(self.span),
                 )?;
 
                 ctx.o.push_str("struct ");
@@ -176,10 +176,10 @@ impl<'i> Define<'i> {
                             name,
                             arg_types,
                         },
-                        self.span,
+                        Some(self.span),
                     )?;
 
-                    ctx.scopes.push(false, ty_node.init_ty(ctx)?);
+                    ctx.scopes.push(false, Some(ty_node.init_ty(ctx)?));
                     ty_node.gen(ctx)?;
                     ctx.o.push(' ');
                     ctx.o.push_str(&name_mangled);
@@ -194,7 +194,7 @@ impl<'i> Define<'i> {
                     }
                     ctx.o.push_str(") ");
                     body.gen(ctx)?;
-                    ctx.scopes.check_return_called(self.span)?;
+                    ctx.scopes.check_return_called(Some(self.span))?;
                     ctx.scopes.pop();
                 }
             }
@@ -238,14 +238,14 @@ impl<'i> VarDefine<'i> {
                 ty: self.ty_node.init_ty(ctx)?,
                 name: self.name,
             },
-            self.span,
+            Some(self.span),
         )?;
 
         // type check
         if let Some(value) = &self.value {
             value
                 .init_ty(ctx)?
-                .check(self.ty_node.init_ty(ctx)?, self.span)?;
+                .check(self.ty_node.init_ty(ctx)?, Some(self.span))?;
         }
 
         self.ty_node.gen(ctx)?;

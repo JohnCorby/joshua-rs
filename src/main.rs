@@ -29,6 +29,7 @@ use crate::parse::{Kind, Node};
 use crate::pass::compile_program;
 use crate::pass::define::Program;
 use std::env::args;
+use std::path::PathBuf;
 
 mod context;
 mod error;
@@ -46,7 +47,8 @@ fn main() {
     let ctx = &mut Ctx::new(is);
 
     let path = args().nth(1).unwrap();
-    let program = std::fs::read_to_string(&path).unwrap();
+    let path = &PathBuf::from(path);
+    let program = std::fs::read_to_string(path).unwrap();
 
     let result: Res<'_, ()> = try {
         println!("parsing");
@@ -60,5 +62,5 @@ fn main() {
         return eprintln!("Error: {}", err);
     }
 
-    compile_program(&ctx.o, &path)
+    compile_program(&ctx.o, path)
 }

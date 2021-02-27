@@ -1,8 +1,8 @@
 use crate::context::Ctx;
 use crate::error::{err, unexpected_kind, Res};
-use crate::util::interned_string::InternedStr;
 use crate::parse::{Kind, Node};
 use crate::span::Span;
+use crate::util::interned_string::InternedStr;
 use crate::util::Visit;
 use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
@@ -43,10 +43,10 @@ impl<'i> TypeNode<'i> {
             .get_or_try_init(|| {
                 match self.ty {
                     Type::Struct(name) => {
-                        ctx.scopes.get_struct(name, self.span)?;
+                        ctx.scopes.get_struct(name, Some(self.span))?;
                     }
                     Type::GenericPlaceholder(name) => {
-                        ctx.scopes.get_generic_type(name, self.span)?;
+                        ctx.scopes.get_generic_type(name, Some(self.span))?;
                     }
                     _ => {}
                 }
@@ -77,15 +77,12 @@ pub enum Type<'i> {
     Literal(LiteralType),
 }
 impl<'i> Type<'i> {
-    pub fn check(self, expected: Self, span: impl Into<Option<Span<'i>>>) -> Res<'i, ()> {
+    pub fn check(self, expected: Self, span: Option<Span<'i>>) -> Res<'i, ()> {
         let actual = self;
         if expected == actual {
             Ok(())
         } else {
-            err(
-                format!("expected {}, but got {}", expected, actual),
-                span.into(),
-            )
+            err(&format!("expected {}, but got {}", expected, actual), span)
         }
     }
 

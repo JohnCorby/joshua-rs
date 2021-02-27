@@ -40,10 +40,10 @@ impl Debug for Span<'_> {
 }
 
 impl Span<'_> {
-    pub fn make_error(self, message: impl AsRef<str>) -> String {
+    pub fn make_error(self, message: &str) -> String {
         Error::<Kind>::new_from_span(
             CustomError {
-                message: message.as_ref().to_string(),
+                message: message.to_string(),
             },
             self.into(),
         )

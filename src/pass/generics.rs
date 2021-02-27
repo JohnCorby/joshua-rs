@@ -33,7 +33,7 @@ impl<'i> Define<'i> {
             ctx.scopes.push(false, None);
             for &placeholder in &generic_placeholders {
                 ctx.scopes
-                    .add(Symbol::GenericPlaceholderType(placeholder), span)?;
+                    .add(Symbol::GenericPlaceholderType(placeholder), Some(span))?;
             }
             let _ty = ty_node.init_ty(ctx)?;
             let _arg_types = args
@@ -57,7 +57,7 @@ impl<'i> Define<'i> {
                     scopes_index: ctx.scopes.0.len(),
                     o_index: ctx.o.len(),
                 },
-                span,
+                Some(span),
             )
         } else {
             unreachable!()
@@ -80,7 +80,7 @@ impl<'i> FuncCall<'i> {
             .collect::<Res<'i, Vec<_>>>()?;
 
         if let Ok(Symbol::Func { ty: ret_type, .. }) =
-            ctx.scopes.get_func(self.name, &call_arg_types, self.span)
+            ctx.scopes.get_func(self.name, &call_arg_types, Some(self.span))
         {
             // we're actually calling a normal func, so just use that one
             // and don't do any other special generic stuff
@@ -102,12 +102,12 @@ impl<'i> FuncCall<'i> {
             let generic_map = {
                 if generic_placeholders.len() != self.generic_replacements.len() {
                     return err(
-                        format!(
+                        &format!(
                             "expected {} generic parameters, but got {}",
                             generic_placeholders.len(),
                             self.generic_replacements.len()
                         ),
-                        self.span,
+                        Some(self.span),
                     );
                 }
 
@@ -146,7 +146,7 @@ impl<'i> FuncCall<'i> {
             // check that specialization matches with func call
             if arg_types != call_arg_types {
                 return err(
-                    format!(
+                    &format!(
                         "specialized generic func args ({}) doesn't match with func call args ({})",
                         arg_types
                             .iter()
@@ -159,7 +159,7 @@ impl<'i> FuncCall<'i> {
                             .collect::<Vec<_>>()
                             .join(", "),
                     ),
-                    self.span,
+                    Some(self.span),
                 );
             }
 
@@ -175,15 +175,15 @@ impl<'i> FuncCall<'i> {
             Ok(ret_type)
         } else {
             err(
-                format!(
+                &format!(
                     "could not find {}",
                     Symbol::Func {
                         ty: Default::default(),
                         name: self.name,
-                        arg_types: call_arg_types
+                        arg_types: call_arg_types,
                     }
                 ),
-                self.span,
+                Some(self.span),
             )
         }
     }
@@ -194,7 +194,7 @@ impl<'i> Scopes<'i> {
     pub fn get_generic_func(
         &self,
         name: InternedStr<'i>,
-        arg_types: impl AsRef<[Type<'i>]>,
+        arg_types: &[Type<'i>],
     ) -> Option<Symbol<'i>> {
         let name1 = &name;
         let arg_types1 = arg_types.as_ref();

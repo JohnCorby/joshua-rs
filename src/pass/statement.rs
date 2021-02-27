@@ -107,7 +107,7 @@ impl<'i> Statement<'i> {
                     .map(|value| value.init_ty(ctx))
                     .transpose()?
                     .unwrap_or_else(|| PrimitiveType::Void.ty())
-                    .check(ctx.scopes.func_return_type(), self.span)?;
+                    .check(ctx.scopes.func_return_type(), Some(self.span))?;
 
                 ctx.o.push_str("return");
                 if let Some(value) = value {
@@ -118,13 +118,13 @@ impl<'i> Statement<'i> {
             }
             Break => {
                 if !ctx.scopes.in_loop() {
-                    return err("break can't be used outside of loops", self.span);
+                    return err("break can't be used outside of loops", Some(self.span));
                 }
                 ctx.o.push_str("break;")
             }
             Continue => {
                 if !ctx.scopes.in_loop() {
-                    return err("continue can't be used outside of loops", self.span);
+                    return err("continue can't be used outside of loops", Some(self.span));
                 }
                 ctx.o.push_str("continue;")
             }
@@ -135,7 +135,7 @@ impl<'i> Statement<'i> {
             } => {
                 // type check
                 cond.init_ty(ctx)?
-                    .check(PrimitiveType::Bool.ty(), self.span)?;
+                    .check(PrimitiveType::Bool.ty(), Some(self.span))?;
 
                 ctx.o.push_str("if (");
                 cond.gen(ctx)?;
@@ -152,7 +152,7 @@ impl<'i> Statement<'i> {
             Until { cond, block } => {
                 // type check
                 cond.init_ty(ctx)?
-                    .check(PrimitiveType::Bool.ty(), self.span)?;
+                    .check(PrimitiveType::Bool.ty(), Some(self.span))?;
 
                 ctx.o.push_str("while (!(");
                 cond.gen(ctx)?;
@@ -174,7 +174,7 @@ impl<'i> Statement<'i> {
 
                 // type check
                 cond.init_ty(ctx)?
-                    .check(PrimitiveType::Bool.ty(), self.span)?;
+                    .check(PrimitiveType::Bool.ty(), Some(self.span))?;
 
                 cond.gen(ctx)?;
                 ctx.o.push_str("; ");
@@ -186,10 +186,10 @@ impl<'i> Statement<'i> {
             }
             ExprAssign { lvalue, rvalue } => {
                 // type check
-                lvalue.check_assignable(self.span)?;
+                lvalue.check_assignable(Some(self.span))?;
                 rvalue
                     .init_ty(ctx)?
-                    .check(lvalue.init_ty(ctx)?, self.span)?;
+                    .check(lvalue.init_ty(ctx)?, Some(self.span))?;
 
                 lvalue.gen(ctx)?;
                 ctx.o.push_str(" = ");

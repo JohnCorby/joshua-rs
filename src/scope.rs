@@ -165,10 +165,10 @@ impl Default for Scopes<'_> {
 }
 
 impl<'i> Scopes<'i> {
-    pub fn push(&mut self, in_loop: bool, func_return_type: impl Into<Option<Type<'i>>>) {
+    pub fn push(&mut self, in_loop: bool, func_return_type: Option<Type<'i>>) {
         self.0.push(Scope {
             in_loop,
-            func_return_type: func_return_type.into(),
+            func_return_type,
             return_called: false,
 
             symbols: Default::default(),
@@ -222,7 +222,7 @@ impl<'i> Scopes<'i> {
         }
     }
     /// note: only checks one current scope and outer ones
-    pub fn check_return_called(&self, span: impl Into<Option<Span<'i>>>) -> Res<'i, ()> {
+    pub fn check_return_called(&self, span: Option<Span<'i>>) -> Res<'i, ()> {
         let return_called = self.0.last().unwrap().return_called;
         let is_void = self.func_return_type() == Type::Primitive(PrimitiveType::Void);
 
@@ -235,29 +235,25 @@ impl<'i> Scopes<'i> {
 }
 
 impl<'i> Scopes<'i> {
-    pub fn add(&mut self, symbol: Symbol<'i>, span: impl Into<Option<Span<'i>>>) -> Res<'i, ()> {
+    pub fn add(&mut self, symbol: Symbol<'i>, span: Option<Span<'i>>) -> Res<'i, ()> {
         let scope = self.0.last_mut().unwrap();
         if let Some(symbol) = scope.symbols.get(&symbol) {
-            return err(format!("{} already defined", symbol), span);
+            return err(&format!("{} already defined", symbol), span);
         }
         scope.symbols.insert(symbol);
         Ok(())
     }
 
-    fn find(&self, symbol: &Symbol<'i>, span: impl Into<Option<Span<'i>>>) -> Res<'i, Symbol<'i>> {
+    fn find(&self, symbol: &Symbol<'i>, span: Option<Span<'i>>) -> Res<'i, Symbol<'i>> {
         for scope in self.0.iter().rev() {
             if let Some(symbol) = scope.symbols.get(symbol) {
                 return Ok(symbol.clone());
             }
         }
-        err(format!("could not find {}", symbol), span)
+        err(&format!("could not find {}", symbol), span)
     }
 
-    pub fn get_var(
-        &self,
-        name: InternedStr<'i>,
-        span: impl Into<Option<Span<'i>>>,
-    ) -> Res<'i, Symbol<'i>> {
+    pub fn get_var(&self, name: InternedStr<'i>, span: Option<Span<'i>>) -> Res<'i, Symbol<'i>> {
         self.find(
             &Symbol::Var {
                 ty: Default::default(),
@@ -270,7 +266,7 @@ impl<'i> Scopes<'i> {
         &self,
         name: InternedStr<'i>,
         arg_types: impl AsRef<[Type<'i>]>,
-        span: impl Into<Option<Span<'i>>> + Copy,
+        span: Option<Span<'i>>,
     ) -> Res<'i, Symbol<'i>> {
         self.find(
             &Symbol::Func {
@@ -281,11 +277,7 @@ impl<'i> Scopes<'i> {
             span,
         )
     }
-    pub fn get_struct(
-        &self,
-        name: InternedStr<'i>,
-        span: impl Into<Option<Span<'i>>>,
-    ) -> Res<'i, Symbol<'i>> {
+    pub fn get_struct(&self, name: InternedStr<'i>, span: Option<Span<'i>>) -> Res<'i, Symbol<'i>> {
         self.find(
             &Symbol::StructType {
                 name,
@@ -297,7 +289,7 @@ impl<'i> Scopes<'i> {
     pub fn get_generic_type(
         &self,
         name: InternedStr<'i>,
-        span: impl Into<Option<Span<'i>>>,
+        span: Option<Span<'i>>,
     ) -> Res<'i, Symbol<'i>> {
         self.find(&Symbol::GenericPlaceholderType(name), span)
     }

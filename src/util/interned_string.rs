@@ -27,7 +27,7 @@ impl<'i> Intern<'i> for String {
     fn intern(self, ctx: &mut Ctx<'i>) -> InternedStr<'i> {
         if ctx.interner.get(&self).is_some() {
             // fixme
-            warn_internal(format!("interning string {:?} creates a new i in ctx even though it already exists in the interner :(", self), None);
+            warn_internal(&format!("interning string {:?} creates a new i in ctx even though it already exists in the interner :(", self), None);
         }
         ctx.new_i(self).intern(ctx)
     }
