@@ -63,5 +63,9 @@ fn main() {
         return eprintln!("Error: {}", err);
     }
 
-    compile_program(&ctx.o, path)
+    println!("compiling");
+    let status = compile_program(&ctx.o, path);
+    if !status.success() {
+        quit::with_code(status.code().unwrap())
+    }
 }

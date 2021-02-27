@@ -9,14 +9,14 @@ pub trait Visit<'i>: Sized {
     fn visit(node: Node<'i>, ctx: &mut Ctx<'i>) -> Self;
 }
 impl<'i> Node<'i> {
-    pub fn visit<T: Visit<'i>>(self, ctx: &mut Ctx<'i>) -> T {
-        T::visit(self, ctx)
+    pub fn visit<V: Visit<'i>>(self, ctx: &mut Ctx<'i>) -> V {
+        V::visit(self, ctx)
     }
 }
 impl<'i> Nodes<'i> {
     /// visits any not iterated nodes,
     /// short circuiting if any of them error
-    pub fn visit_rest<T: Visit<'i>>(self, ctx: &mut Ctx<'i>) -> Vec<T> {
+    pub fn visit_rest<V: Visit<'i>>(self, ctx: &mut Ctx<'i>) -> Vec<V> {
         self.map(|node| node.visit(ctx)).collect()
     }
 }
