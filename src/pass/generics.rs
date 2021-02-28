@@ -171,8 +171,7 @@ impl<'i> FuncCall<'i> {
             ctx.o.push('\n');
             ctx.o.push_str("// end specialized generic func\n");
             let generated_o = std::mem::replace(&mut ctx.o, current_o);
-            let idx = *o_index.borrow();
-            ctx.o.insert_str(idx, &generated_o);
+            ctx.o.insert_str(o_index, &generated_o);
             ctx.scopes.0.extend(scopes_after);
 
             Ok(ret_type)

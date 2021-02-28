@@ -9,10 +9,6 @@ generic T template_func<generic T>(generic T a) {
 //void template_func<generic T>(generic T a, generic T b) {}
 void template_func(i32 a) {}
 
-generic T `+`<generic T>(generic T a, generic T b) {
-    return a + b
-}
-
 struct baba_booey {
     f32 hello
 }
@@ -34,6 +30,10 @@ struct im gimme_im() {
     struct im im
     im.pain.hello = 23 as f32
     return im
+}
+
+generic T `+`<generic T>(generic T a, generic T b) {
+return a + b
 }
 
 /// pretend this is a method of baba_booey

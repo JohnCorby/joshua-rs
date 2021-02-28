@@ -35,7 +35,8 @@ impl IndexString {
 
         self.string.pop()
     }
-    pub fn insert_str(&mut self, idx: usize, string: &str) {
+    pub fn insert_str(&mut self, idx: Rc<RefCell<usize>>, string: &str) {
+        let idx = *idx.borrow();
         self.string.insert_str(idx, string);
 
         for index in &self.indexes {
