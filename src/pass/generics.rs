@@ -166,10 +166,11 @@ impl<'i> FuncCall<'i> {
 
             let scopes_after = ctx.scopes.0.split_off(scopes_index);
             let current_o = std::mem::take(&mut ctx.o);
-            ctx.o.push_str("// begin specialized generic func\n");
+            ctx.o.push_str("#pragma region specialized generic func\n");
             def.gen(ctx)?;
             ctx.o.push('\n');
-            ctx.o.push_str("// end specialized generic func\n");
+            ctx.o
+                .push_str("#pragma endregion specialized generic func\n");
             let generated_o = std::mem::replace(&mut ctx.o, current_o);
             ctx.o.insert_str(o_index, &generated_o);
             ctx.scopes.0.extend(scopes_after);
@@ -208,10 +209,13 @@ impl<'i> Scopes<'i> {
                 if &name != other_name {
                     return false;
                 }
-                for (&ty1, &ty2) in arg_types.iter().zip(other_arg_types.iter()) {
-                    if let Type::GenericPlaceholder(_) = ty2 {
-                        // generic ty2 will always match ty1, so don't return false
-                    } else if ty1 != ty2 {
+                if arg_types.len() != other_arg_types.len() {
+                    return false;
+                }
+                for (&ty, &other_ty) in arg_types.iter().zip(other_arg_types.iter()) {
+                    if let Type::GenericPlaceholder(_) = other_ty {
+                        // generic other_ty will always match ty, so don't return false
+                    } else if ty != other_ty {
                         return false;
                     }
                 }
@@ -227,6 +231,7 @@ impl<'i> Scopes<'i> {
     }
 }
 
+// impl replace generics
 impl<'i> Define<'i> {
     fn replace_generics(&mut self, generic_map: &GenericMap<'i>) {
         use crate::pass::define::DefineKind::*;

@@ -25,7 +25,7 @@ statement = _{
 block = { statement | "{" ~ statement* ~ "}" }
 
 func_define = { ty ~ ident ~ func_define_generics ~ "(" ~ (var_define ~ ("," ~ var_define)*)? ~ ")" ~ block }
-func_define_generics = { ("<" ~ "generic" ~ ident ~ ("," ~ "generic" ~ ident)* ~ ">")? }
+func_define_generics = { ("<" ~ ident ~ ("," ~ ident)* ~ ">")? }
 func_call = { ident ~ func_call_generics ~ "(" ~ (expr ~ ("," ~ expr)*)? ~ ")" }
 func_call_generics = { ("<" ~ (ty ~ ("," ~ ty)*)~ ">")? }
 
@@ -41,9 +41,9 @@ until = { "until" ~ "(" ~ expr ~ ")" ~ block }
 forr = { "for" ~ "(" ~ var_define ~ ";" ~ expr ~ ";" ~ statement ~ ")" ~ block }
 
 
-ret = { "return" ~ expr? }
+ret = { "ret" ~ expr? }
 brk = { "break" }
-cont = { "continue" }
+cont = { "cont" }
 
 
 
@@ -67,8 +67,8 @@ primitive = {
     | "char"
     | "void"
 }
-struct_ty = { "struct" ~ ident }
-generic_ty = { "generic" ~ ident }
+struct_ty = { "s" ~ "(" ~ ident ~ ")" }
+generic_ty = { "g" ~ "(" ~ ident ~ ")" }
 
 
 expr = !{ equality_expr }

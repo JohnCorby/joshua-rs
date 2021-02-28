@@ -1,22 +1,29 @@
-<{
-#include <stdio.h>
-}>
+<{#include <stdio.h>}>
 
-generic T template_func<generic T>(generic T a) {
-    return a + a
+
+
+
+g(T) template_func<T>(g(T) a) {
+    ret a + a
 }
 // fixme this will be found when doing `template_func<f32>(1 as f32)`
 //void template_func<generic T>(generic T a, generic T b) {}
 void template_func(i32 a) {}
 
+
+
+
 struct baba_booey {
     f32 hello
 }
 struct im {
-    struct baba_booey pain
+    s(baba_booey) pain
 
 //    void fuck() {}
 }
+
+
+
 
 void `raw ident`(i32 what) {
 }
@@ -26,38 +33,55 @@ void `raw`() {}
 //    return a + b
 //}
 
-struct im gimme_im() {
-    struct im im
+
+
+
+s(im) gimme_im() {
+    s(im) im
     im.pain.hello = 23 as f32
-    return im
+    ret im
 }
 
-generic T `+`<generic T>(generic T a, generic T b) {
-return a + b
+g(T) `+`<T>(g(T) a, g(T) b) {
+    ret a + b
 }
+
+
+
 
 /// pretend this is a method of baba_booey
-f32 kill_yourself(struct baba_booey this, i32 a, f32 b, bool c, char d) {
+f32 kill_yourself(s(baba_booey) this, i32 a, f32 b, bool c, char d) {
     <{puts("woah! this is the method kill_yourself of baba_booey")}>
 
     template_func<f32>(1 as f32)
     // fixme?: this will just find the previously-generated template_func(f32)
     template_func<i8>(1 as i8)
 
-    return 11565 as f32
+    ret 11565 as f32
 }
-f32 kill_yourself(struct baba_booey this, i32 a, f32 b) {
+f32 kill_yourself(s(baba_booey) this, i32 a, f32 b) {
     <{puts("woah! this is the method kill_yourself but the other one of baba_booey")}>
-    return 4915.95010 as f32
+    ret 4915.95010 as f32
 }
-f32 `+`(struct baba_booey a, struct baba_booey b)
-    return a.hello + b.hello
+
+
+
+f32 `+`(s(baba_booey) a, s(baba_booey) b)
+    ret a.hello + b.hello
+
+
+
 
 i32 ok = 2 as i32
+
+
+
 
 i32 main() {
     for (u8 i = 0 as u8; i < 10 as u8; i = i + 1 as u8)
         break
+
+
 
     if (true) {
         i8 t0
@@ -75,11 +99,15 @@ i32 main() {
 //        void t12
     }
 
+
+
     f32 i = 1 as f32
     f32 e = 1 as f32 + i as f32 / 2 as f32
     u8 bruh = (1 as u8 + 1 as u8 + 1 as u8) + (2 as u8 + 2 as u8)
 
-    struct baba_booey ok
+
+
+    s(baba_booey) ok
     f32 woah = ok.hello
     f32 woah2 = gimme_im().pain.hello
     <{printf("woah2 is %f\n", ${woah2})}>
@@ -100,11 +128,15 @@ i32 main() {
     u32 test = ((1 as u16) + (2 as u16)) as u32 + <{&${ok}}> as u32
     f32 test2 = (1 as f32) + (2 as f32)
 
+
+
     template_func<f32>(1 as f32)
     template_func<f32>(1 as f32)
 
-    struct im im
-    `+`<struct im>(im, im)
+
+
+    s(im) im
+    `+`<s(im)>(im, im)
 //    `+`(im, im)
 //    im + im
 
@@ -115,5 +147,5 @@ i32 main() {
 //    }>
 //    main()
 
-    return 1337 as i32
+    ret 1337 as i32
 }

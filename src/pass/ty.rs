@@ -3,7 +3,7 @@ use crate::error::{err, unexpected_kind, Res};
 use crate::parse::{Kind, Node};
 use crate::span::Span;
 use crate::util::interned_string::InternedStr;
-use crate::util::Visit;
+use crate::util::{Mangle, Visit};
 use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::lazy::OnceCell;
@@ -61,7 +61,7 @@ impl<'i> TypeNode<'i> {
             Primitive(ty) => ctx.o.push_str(ty.c_type()),
             Struct(name) => {
                 ctx.o.push_str("struct ");
-                ctx.o.push_str(&name)
+                ctx.o.push_str(&name.mangle())
             }
             ty => panic!("tried to gen {}", ty),
         }
@@ -90,8 +90,8 @@ impl<'i> Type<'i> {
         use Type::*;
         match self {
             Primitive(ty) => ty.to_string(),
-            Struct(name) => format!("struct {}", name),
-            GenericPlaceholder(name) => format!("generic {}", name),
+            Struct(name) => format!("s({})", name),
+            GenericPlaceholder(name) => format!("g({})", name),
             Literal(ty) => ty.to_string(),
         }
     }

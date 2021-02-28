@@ -135,13 +135,15 @@ impl<'i> Define<'i> {
                 )?;
 
                 ctx.o.push_str("struct ");
-                ctx.o.push_str(&name);
+                ctx.o.push_str(&name.mangle());
                 ctx.o.push_str(" {\n");
+                // not really a scope, but makes it so these symbols don't show up
+                ctx.scopes.push(false, None);
                 for define in body {
-                    // fixme this will put these as defines in the same scope that this struct is in
                     define.gen(ctx)?;
                     ctx.o.push('\n')
                 }
+                ctx.scopes.pop();
                 ctx.o.push_str("};");
             }
             Func {

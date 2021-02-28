@@ -12,8 +12,9 @@ pub struct IndexString {
 impl IndexString {
     /// note: do not mutate returned value
     pub fn make_index(&mut self, index: usize) -> Rc<RefCell<usize>> {
-        self.indexes.push(Rc::new(RefCell::new(index)));
-        self.indexes.last().unwrap().clone()
+        let index = Rc::new(RefCell::new(index));
+        self.indexes.push(index.clone());
+        index
     }
 
     pub fn push(&mut self, ch: char) {
@@ -60,11 +61,12 @@ impl Deref for IndexString {
 fn tests() {
     let mut s = IndexString::default();
     s.push_str("hello world!");
-    let index = s.make_index(s.len());
-    assert_eq!(*index.borrow(), 12);
+    let i1 = s.make_index(s.len());
+    assert_eq!(*i1.borrow(), 12);
 
     s.push_str(" here's another part!");
-    assert_eq!(*index.borrow(), 12);
-    s.insert_str(0, "this part is before! ");
-    assert_eq!(*index.borrow(), 21 + 12);
+    assert_eq!(*i1.borrow(), 12);
+    let i2 = s.make_index(0);
+    s.insert_str(i2, "this part is before! ");
+    assert_eq!(*i1.borrow(), 21 + 12);
 }

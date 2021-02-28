@@ -159,7 +159,7 @@ impl<'i> Expr<'i> {
                         ctx.scopes.get_func(*op, [thing], Some(self.span))?.ty()
                     }
                     Cast { thing, ty_node } => {
-                        // fixme literals are hacky as shit
+                        // fixme literal casting is hacky as shit
                         if let Type::Literal(_) = thing.init_ty(ctx)? {
                             ty_node.init_ty(ctx)?
                         } else {
@@ -235,17 +235,10 @@ impl<'i> Expr<'i> {
         use ExprKind::*;
         match self.kind {
             Binary { left, op, right } => {
-                // c_code.push('(');
-                // left.gen(c_code)?;
-                // c_code.push(' ');
-                // c_code.push_str(&op.to_string());
-                // c_code.push(' ');
-                // right.gen(c_code)?;
-                // c_code.push(')');
                 let func_call = self::FuncCall {
                     span: self.span,
                     name: op,
-                    generic_replacements: vec![], // todo
+                    generic_replacements: vec![],
                     args: vec![*left, *right],
                     _ty: Default::default(),
                 };
@@ -253,12 +246,10 @@ impl<'i> Expr<'i> {
                 func_call.gen(ctx)?;
             }
             Unary { op, thing } => {
-                // c_code.push_str(&op.to_string());
-                // thing.gen(c_code)?;
                 let func_call = self::FuncCall {
                     span: self.span,
                     name: op,
-                    generic_replacements: vec![], // todo
+                    generic_replacements: vec![],
                     args: vec![*thing],
                     _ty: Default::default(),
                 };
@@ -266,7 +257,7 @@ impl<'i> Expr<'i> {
                 func_call.gen(ctx)?;
             }
             Cast { thing, ty_node } => {
-                // fixme literals are hacky as shit
+                // fixme literal casting is hacky as shit
                 if let Type::Literal(_) = thing.init_ty(ctx)? {
                     ctx.o.push('(');
                     ty_node.gen(ctx)?;
@@ -276,7 +267,7 @@ impl<'i> Expr<'i> {
                     let func_call = self::FuncCall {
                         span: self.span,
                         name: format!("as {}", ty_node.init_ty(ctx)?.name()).intern(ctx),
-                        generic_replacements: vec![], // todo
+                        generic_replacements: vec![],
                         args: vec![*thing],
                         _ty: Default::default(),
                     };
@@ -349,7 +340,9 @@ impl<'i> FuncCall<'i> {
                         .iter()
                         .map(|it| it.init_ty(ctx))
                         .collect::<Res<'_, Vec<_>>>()?;
-                    ctx.scopes.get_func(self.name, arg_types, Some(self.span))?.ty()
+                    ctx.scopes
+                        .get_func(self.name, arg_types, Some(self.span))?
+                        .ty()
                 })
             })
             .copied()

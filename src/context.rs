@@ -13,9 +13,6 @@ pub struct Ctx<'i> {
     pub o: IndexString,
     pub scopes: Scopes<'i>,
     pub interner: StringInterner,
-
-    // ugly internal used for generic codegen
-    pub prelude_end_index: usize,
 }
 
 impl<'i> Ctx<'i> {
@@ -25,7 +22,6 @@ impl<'i> Ctx<'i> {
             o: Default::default(),
             scopes: Default::default(),
             interner: Default::default(),
-            prelude_end_index: 0,
         };
         ctx.gen_prelude();
         ctx
@@ -52,11 +48,11 @@ impl<'i> Ctx<'i> {
                     let ret_ty = ret_ty.unwrap_or(arg_ty);
                     i.push_str(&match num_args {
                         1 => format!(
-                            "{} `{}`({} a) return <{{ {} ${{ a }} }}> as {}\n",
+                            "{} `{}`({} a) ret <{{ {} ${{ a }} }}> as {}\n",
                             ret_ty, op, arg_ty, op, ret_ty
                         ),
                         2 => format!(
-                            "{} `{}`({} a, {} b) return <{{ ${{ a }} {} ${{ b }} }}> as {}\n",
+                            "{} `{}`({} a, {} b) ret <{{ ${{ a }} {} ${{ b }} }}> as {}\n",
                             ret_ty, op, arg_ty, arg_ty, op, ret_ty
                         ),
                         _ => unreachable!(),
@@ -88,21 +84,19 @@ impl<'i> Ctx<'i> {
         for &ret_ty in num_prims {
             for &arg_ty in num_prims {
                 i.push_str(&format!(
-                    "{} `as {}`({} a) return <{{ ${{ a }} }}> as {}\n",
+                    "{} `as {}`({} a) ret <{{ ${{ a }} }}> as {}\n",
                     ret_ty, ret_ty, arg_ty, ret_ty,
                 ));
             }
         }
 
-        self.o.push_str("// begin prelude\n");
+        self.o.push_str("#pragma region prelude\n");
         Node::parse(self.new_i(i), Kind::program)
             .unwrap()
             .visit::<Program<'i>>(self)
             .gen(self)
             .unwrap();
         self.o.push('\n');
-        self.o.push_str("// end prelude\n");
-
-        self.prelude_end_index = self.o.len();
+        self.o.push_str("#pragma endregion prelude\n");
     }
 }

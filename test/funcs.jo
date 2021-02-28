@@ -1,7 +1,31 @@
-void f1(i8 a, i8 b) {}
+void f(i8 a) {}
+void f(i8 a, i8 b) {}
+
+void f<T>(g(T) a) {}
+void f<T>(g(T) a, g(T) b) {}
+
+
+
+struct S {
+    i32 n
+}
+
+g(T) `+`<T>(g(T) a, g(T) b) {
+    g(T) c
+    c.n = a.n + b.n
+    ret c
+}
+
 
 i32 main() {
-    f1(1 as i8, 2 as i8)
+    f(1 as i8)
+    f(1 as i8, 2 as i8)
 
-    return 0 as i32
+    f<i16>(1 as i16)
+    f<i16>(1 as i16, 2 as i16)
+
+    s(S) s
+    `+`<s(S)>(s, s)
+
+    ret 0 as i32
 }
