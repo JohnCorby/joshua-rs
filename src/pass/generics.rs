@@ -7,7 +7,7 @@ use crate::pass::expr::{Expr, FuncCall};
 use crate::pass::statement::{Block, Statement};
 use crate::pass::ty::{Type, TypeNode};
 use crate::scope::{Scopes, Symbol};
-use crate::util::interned_string::InternedStr;
+use crate::util::interned_str::InternedStr;
 use std::collections::HashMap;
 
 type GenericMap<'i> = HashMap<InternedStr<'i>, Type<'i>>;

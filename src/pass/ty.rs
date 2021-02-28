@@ -2,7 +2,7 @@ use crate::context::Ctx;
 use crate::error::{err, unexpected_kind, Res};
 use crate::parse::{Kind, Node};
 use crate::span::Span;
-use crate::util::interned_string::InternedStr;
+use crate::util::interned_str::InternedStr;
 use crate::util::{Mangle, Visit};
 use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};

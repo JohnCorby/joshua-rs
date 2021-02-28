@@ -4,7 +4,7 @@ use crate::pass::ty::Type;
 
 pub mod frozen_vec;
 pub mod index_string;
-pub mod interned_string;
+pub mod interned_str;
 
 pub trait Visit<'i>: Sized {
     fn visit(node: Node<'i>, ctx: &mut Ctx<'i>) -> Self;

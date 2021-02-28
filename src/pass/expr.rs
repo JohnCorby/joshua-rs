@@ -7,7 +7,7 @@ use crate::pass::statement::CCode;
 use crate::pass::ty::{LiteralType, PrimitiveType, Type, TypeNode};
 use crate::scope::Symbol;
 use crate::span::Span;
-use crate::util::interned_string::{Intern, InternedStr};
+use crate::util::interned_str::{Intern, InternedStr};
 use crate::util::{Mangle, Visit};
 use std::lazy::OnceCell;
 

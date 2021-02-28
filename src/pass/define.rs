@@ -6,7 +6,7 @@ use crate::pass::statement::{Block, CCode};
 use crate::pass::ty::TypeNode;
 use crate::scope::Symbol;
 use crate::span::Span;
-use crate::util::interned_string::InternedStr;
+use crate::util::interned_str::InternedStr;
 use crate::util::{Mangle, Visit};
 use std::collections::HashMap;
 

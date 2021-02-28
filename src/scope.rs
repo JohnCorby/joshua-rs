@@ -7,12 +7,11 @@ use crate::pass::define::VarDefine;
 use crate::pass::statement::Block;
 use crate::pass::ty::{PrimitiveType, Type, TypeNode};
 use crate::span::Span;
-use crate::util::interned_string::InternedStr;
-use std::cell::RefCell;
+use crate::util::index_string::IndexStringIndex;
+use crate::util::interned_str::InternedStr;
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
-use std::rc::Rc;
 
 #[derive(Debug, Clone)]
 pub enum Symbol<'i> {
@@ -45,7 +44,7 @@ pub enum Symbol<'i> {
 
         // codegen info
         scopes_index: usize,
-        o_index: Rc<RefCell<usize>>,
+        o_index: IndexStringIndex,
     },
 }
 impl<'i> Symbol<'i> {

@@ -1,5 +1,10 @@
 //!todo
-//! - use elsa to append input while still holding references
+//! - interned string: a tiny bit more refactoring?
+//! - types: don't require g<...> or s<...>, and also merge types and type symbols
+//! - generics: make a different thing (i.e. can't call normal func w generic func call and vice versa)
+//! - generics inference
+//! - generics: `add` function duplication
+//! - generics: ...and much more. just remember it, will ya?
 //! - TESTS
 //! - "mir" thingy for c, might make replacement easier; or at least just a way to gen funcs/structs outside of where we are lol
 //!todo
@@ -7,8 +12,7 @@
 //! - get literals to actually work, you might just have to brute force it, or not idk. you might be able to use generics for this instead :)
 //! - pointers (array type can come from this)
 //!todo
-//! - generics. the lazy replacement way first. constraints way later. thisll require generating methods outside of where we are
-//! - functions and structs and stuff inside functions. thisll also require generating methods outside of where we are
+//! - functions and structs and stuff inside functions. this'll also require generating methods outside of where we are
 //!todo
 //! - polymorphism??? inheritance???????
 //! - ownership? borrowing? lifetimes? oh goodness

@@ -4,15 +4,13 @@ use crate::pass::ty::PrimitiveType;
 use crate::scope::Scopes;
 use crate::util::frozen_vec::FrozenVec;
 use crate::util::index_string::IndexString;
-use string_interner::StringInterner;
 
 /// stores general program context
 #[derive(Debug)]
 pub struct Ctx<'i> {
-    is: &'i FrozenVec<String>,
+    pub is: &'i FrozenVec<String>,
     pub o: IndexString,
     pub scopes: Scopes<'i>,
-    pub interner: StringInterner,
 }
 
 impl<'i> Ctx<'i> {
@@ -21,7 +19,6 @@ impl<'i> Ctx<'i> {
             is,
             o: Default::default(),
             scopes: Default::default(),
-            interner: Default::default(),
         };
         ctx.gen_prelude();
         ctx
