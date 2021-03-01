@@ -24,7 +24,12 @@ impl<'i> Visit<'i> for TypeNode<'i> {
         use TypeKind::*;
         let ty = match node.kind() {
             Kind::primitive => Primitive(node.str().parse().unwrap()),
-            Kind::ptr => Ptr(TypeNode::into(node.visit::<TypeNode<'i>>(ctx))),
+            Kind::ptr => Ptr(node
+                .children()
+                .next()
+                .unwrap()
+                .visit::<TypeNode<'i>>(ctx)
+                .into()),
             Kind::ident => Named(node.visit_ident(ctx)),
 
             _ => unexpected_kind(node),
@@ -39,7 +44,7 @@ impl<'i> Visit<'i> for TypeNode<'i> {
 }
 
 impl<'i> TypeNode<'i> {
-    pub fn gen(self, ctx: &mut Ctx<'i>) -> Res<'i, ()> {
+    pub fn gen(self, ctx: &mut Ctx<'i>) {
         use Type::*;
         match *self.ty {
             Primitive(ty) => ctx.o.push_str(ty.c_type()),
@@ -49,7 +54,6 @@ impl<'i> TypeNode<'i> {
             }
             ty => panic!("tried to gen {}", ty),
         }
-        Ok(())
     }
 }
 

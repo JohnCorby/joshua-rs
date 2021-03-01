@@ -152,7 +152,7 @@ impl<'i> Expr<'i> {
         }
     }
 
-    pub fn gen(self, ctx: &mut Ctx<'i>) -> Res<'i, ()> {
+    pub fn gen(self, ctx: &mut Ctx<'i>) {
         use ExprKind::*;
         match self.kind {
             Binary { left, op, right } => {
@@ -163,7 +163,7 @@ impl<'i> Expr<'i> {
                     args: vec![*left, *right],
                     ty: Default::default(),
                 }
-                .gen(ctx)?;
+                .gen(ctx);
             }
             Unary { op, thing } => {
                 self::FuncCall {
@@ -173,15 +173,15 @@ impl<'i> Expr<'i> {
                     args: vec![*thing],
                     ty: Default::default(),
                 }
-                .gen(ctx)?;
+                .gen(ctx);
             }
             Cast { thing, ty_node } => {
                 // fixme literal casting is hacky as shit
                 if let Type::Literal(_) = *thing.ty {
                     ctx.o.push('(');
-                    ty_node.gen(ctx)?;
+                    ty_node.gen(ctx);
                     ctx.o.push_str(") ");
-                    thing.gen(ctx)?;
+                    thing.gen(ctx);
                 } else {
                     self::FuncCall {
                         span: self.span,
@@ -190,7 +190,7 @@ impl<'i> Expr<'i> {
                         args: vec![*thing],
                         ty: Default::default(),
                     }
-                    .gen(ctx)?;
+                    .gen(ctx);
                 }
             }
 
@@ -199,21 +199,20 @@ impl<'i> Expr<'i> {
                 mut func_call,
             } => {
                 func_call.args.insert(0, *receiver);
-                func_call.gen(ctx)?
+                func_call.gen(ctx)
             }
             Field { receiver, var } => {
-                receiver.gen(ctx)?;
+                receiver.gen(ctx);
                 ctx.o.push('.');
                 ctx.o.push_str(&var.mangle());
             }
 
             Literal(literal) => literal.gen(ctx),
-            FuncCall(func_call) => func_call.gen(ctx)?,
+            FuncCall(func_call) => func_call.gen(ctx),
             Var(name) => ctx.o.push_str(&name.mangle()),
 
-            CCode(c_code) => c_code.gen(ctx)?,
+            CCode(c_code) => c_code.gen(ctx),
         }
-        Ok(())
     }
 }
 
@@ -247,7 +246,7 @@ impl<'i> Visit<'i> for FuncCall<'i> {
 }
 
 impl<'i> FuncCall<'i> {
-    pub fn gen(self, ctx: &mut Ctx<'i>) -> Res<'i, ()> {
+    pub fn gen(self, ctx: &mut Ctx<'i>) {
         ctx.o.push_str(
             &self
                 .name
@@ -255,7 +254,7 @@ impl<'i> FuncCall<'i> {
         );
         ctx.o.push('(');
         for arg in self.args {
-            arg.gen(ctx)?;
+            arg.gen(ctx);
             ctx.o.push_str(", ")
         }
         if ctx.o.ends_with(", ") {
@@ -263,7 +262,6 @@ impl<'i> FuncCall<'i> {
             ctx.o.pop();
         }
         ctx.o.push(')');
-        Ok(())
     }
 }
 

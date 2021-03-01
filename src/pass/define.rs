@@ -1,5 +1,5 @@
 use crate::context::Ctx;
-use crate::error::{unexpected_kind, Res};
+use crate::error::unexpected_kind;
 use crate::parse::{Kind, Node};
 use crate::pass::expr::Expr;
 use crate::pass::statement::{Block, CCode};
@@ -25,15 +25,14 @@ impl<'i> Visit<'i> for Program<'i> {
 }
 
 impl<'i> Program<'i> {
-    pub fn gen(self, ctx: &mut Ctx<'i>) -> Res<'i, ()> {
+    pub fn gen(self, ctx: &mut Ctx<'i>) {
         for define in self.0 {
-            define.gen(ctx)?;
+            define.gen(ctx);
             ctx.o.push('\n')
         }
         if ctx.o.ends_with('\n') {
             ctx.o.pop();
         }
-        Ok(())
     }
 }
 
@@ -110,20 +109,17 @@ impl<'i> Visit<'i> for Define<'i> {
 }
 
 impl<'i> Define<'i> {
-    pub fn gen(self, ctx: &mut Ctx<'i>) -> Res<'i, ()> {
+    pub fn gen(self, ctx: &mut Ctx<'i>) {
         use DefineKind::*;
         match self.kind {
             Struct { name, body } => {
                 ctx.o.push_str("struct ");
                 ctx.o.push_str(&name.mangle());
                 ctx.o.push_str(" {\n");
-                // not really a scope, but makes it so these symbols don't show up
-                ctx.scopes.push(false, None);
                 for define in body {
-                    define.gen(ctx)?;
+                    define.gen(ctx);
                     ctx.o.push('\n')
                 }
-                ctx.scopes.pop();
                 ctx.o.push_str("};");
             }
             Func {
@@ -147,14 +143,14 @@ impl<'i> Define<'i> {
                 //     .gen_generic(ctx)?
                 // } else {
                 // todo generics
-                ty_node.gen(ctx)?;
+                ty_node.gen(ctx);
                 ctx.o.push(' ');
                 ctx.o.push_str(
                     &name.mangle_func(&args.iter().map(|it| *it.ty_node.ty).collect::<Vec<_>>()),
                 );
                 ctx.o.push('(');
                 for arg in args {
-                    arg.gen(ctx)?;
+                    arg.gen(ctx);
                     ctx.o.push_str(", ")
                 }
                 if ctx.o.ends_with(", ") {
@@ -162,17 +158,16 @@ impl<'i> Define<'i> {
                     ctx.o.pop();
                 }
                 ctx.o.push_str(") ");
-                body.gen(ctx)?;
+                body.gen(ctx);
                 // }
             }
             Var(var_define) => {
-                var_define.gen(ctx)?;
+                var_define.gen(ctx);
                 ctx.o.push(';')
             }
 
-            CCode(c_code) => c_code.gen(ctx)?,
+            CCode(c_code) => c_code.gen(ctx),
         }
-        Ok(())
     }
 }
 
@@ -199,15 +194,13 @@ impl<'i> Visit<'i> for VarDefine<'i> {
 }
 
 impl<'i> VarDefine<'i> {
-    pub fn gen(self, ctx: &mut Ctx<'i>) -> Res<'i, ()> {
-        self.ty_node.gen(ctx)?;
+    pub fn gen(self, ctx: &mut Ctx<'i>) {
+        self.ty_node.gen(ctx);
         ctx.o.push(' ');
         ctx.o.push_str(&self.name.mangle());
         if let Some(value) = self.value {
             ctx.o.push_str(" = ");
-            value.gen(ctx)?
+            value.gen(ctx)
         }
-
-        Ok(())
     }
 }

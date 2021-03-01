@@ -92,7 +92,7 @@ impl<'i> Ctx<'i> {
             .unwrap()
             .visit::<Program<'i>>(self);
         program.type_check(self).unwrap();
-        program.gen(self).unwrap();
+        program.gen(self);
         self.o.push('\n');
         self.o.push_str("#pragma endregion prelude\n");
     }

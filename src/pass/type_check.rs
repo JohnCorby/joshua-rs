@@ -5,7 +5,7 @@ use crate::context::Ctx;
 use crate::error::{err, Res};
 use crate::pass::define::{Define, DefineKind, Program, VarDefine};
 use crate::pass::expr::{Expr, ExprKind, FuncCall};
-use crate::pass::statement::{Block, Statement, StatementKind};
+use crate::pass::statement::{Block, CCode, CCodePart, Statement, StatementKind};
 use crate::pass::ty::{PrimitiveType, Type, TypeKind, TypeNode};
 use crate::scope::Symbol;
 use crate::util::interned_str::Intern;
@@ -77,7 +77,7 @@ impl<'i> Define<'i> {
                 )?;
             }
             Var(var_define) => var_define.type_check(ctx)?,
-            CCode(_) => {}
+            CCode(c_code) => c_code.type_check(ctx)?,
         }
         Ok(())
     }
@@ -200,6 +200,20 @@ impl<'i> Block<'i> {
     }
 }
 
+impl<'i> CCode<'i> {
+    pub fn type_check(&self, ctx: &mut Ctx<'i>) -> Res<'i, ()> {
+        for part in &self.0 {
+            match part {
+                CCodePart::String(_) => {}
+                CCodePart::Expr(expr) => {
+                    expr.type_check(ctx)?;
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
 impl<'i> Expr<'i> {
     pub fn type_check(&self, ctx: &mut Ctx<'i>) -> Res<'i, ()> {
         use ExprKind::*;
@@ -287,7 +301,10 @@ impl<'i> Expr<'i> {
                 // symbol check
                 ctx.scopes.get_var(*name, Some(self.span))?.ty()
             }
-            CCode(c_code) => c_code.ty(),
+            CCode(c_code) => {
+                c_code.type_check(ctx)?;
+                c_code.ty()
+            }
         });
         Ok(())
     }
@@ -319,11 +336,11 @@ impl<'i> FuncCall<'i> {
 }
 
 impl<'i> TypeNode<'i> {
-    pub fn type_check(&self, ctx: &mut Ctx<'i>) -> Res<'i, ()> {
+    pub fn type_check(&self, ctx: &Ctx<'i>) -> Res<'i, ()> {
         use TypeKind::*;
         self.ty.init(match &self.kind {
             Primitive(ty) => Type::Primitive(*ty),
-            Ptr(ty) => todo!("TypeNode::init_ty for TypeKind::Ptr"),
+            Ptr(ty) => todo!("TypeNode::type_check for TypeKind::Ptr"),
             Named(name) => {
                 // symbol check
                 ctx.scopes
@@ -331,7 +348,7 @@ impl<'i> TypeNode<'i> {
                     .or_else(|_| ctx.scopes.get_generic_type(*name, Some(self.span)))
                     .or_else(|_| {
                         err(
-                            &format!("could not find symbol for named type {}", name),
+                            &format!("could not find type symbol `{}`", name),
                             Some(self.span),
                         )
                     })?

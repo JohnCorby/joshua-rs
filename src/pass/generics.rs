@@ -166,7 +166,7 @@ impl<'i> FuncCall<'i> {
             let scopes_after = ctx.scopes.0.split_off(scopes_index);
             let current_o = std::mem::take(&mut ctx.o);
             ctx.o.push_str("#pragma region specialized generic func\n");
-            def.gen(ctx)?;
+            def.gen(ctx);
             ctx.o.push('\n');
             ctx.o
                 .push_str("#pragma endregion specialized generic func\n");

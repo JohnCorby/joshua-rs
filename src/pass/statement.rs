@@ -1,5 +1,5 @@
 use crate::context::Ctx;
-use crate::error::{err, unexpected_kind, Res};
+use crate::error::unexpected_kind;
 use crate::parse::{Kind, Node};
 use crate::pass::define::VarDefine;
 use crate::pass::expr::Expr;
@@ -95,47 +95,37 @@ impl<'i> Visit<'i> for Statement<'i> {
 }
 
 impl<'i> Statement<'i> {
-    pub fn gen(self, ctx: &mut Ctx<'i>) -> Res<'i, ()> {
+    pub fn gen(self, ctx: &mut Ctx<'i>) {
         use StatementKind::*;
         match self.kind {
             Return(value) => {
                 ctx.o.push_str("return");
                 if let Some(value) = value {
                     ctx.o.push(' ');
-                    value.gen(ctx)?
+                    value.gen(ctx)
                 }
                 ctx.o.push(';');
             }
-            Break => {
-                if !ctx.scopes.in_loop() {
-                    return err("break can't be used outside of loops", Some(self.span));
-                }
-                ctx.o.push_str("break;")
-            }
-            Continue => {
-                if !ctx.scopes.in_loop() {
-                    return err("continue can't be used outside of loops", Some(self.span));
-                }
-                ctx.o.push_str("continue;")
-            }
+            Break => ctx.o.push_str("break;"),
+            Continue => ctx.o.push_str("continue;"),
             If {
                 cond,
                 then,
                 otherwise,
             } => {
                 ctx.o.push_str("if (");
-                cond.gen(ctx)?;
+                cond.gen(ctx);
                 ctx.o.push_str(") ");
-                then.gen(ctx)?;
+                then.gen(ctx);
                 if let Some(otherwise) = otherwise {
-                    otherwise.gen(ctx)?;
+                    otherwise.gen(ctx);
                 }
             }
             Until { cond, block } => {
                 ctx.o.push_str("while (!(");
-                cond.gen(ctx)?;
+                cond.gen(ctx);
                 ctx.o.push_str(")) ");
-                block.gen(ctx)?;
+                block.gen(ctx);
             }
             For {
                 init,
@@ -144,32 +134,31 @@ impl<'i> Statement<'i> {
                 block,
             } => {
                 ctx.o.push_str("for (");
-                init.gen(ctx)?;
+                init.gen(ctx);
                 ctx.o.push_str("; ");
 
-                cond.gen(ctx)?;
+                cond.gen(ctx);
                 ctx.o.push_str("; ");
-                update.gen(ctx)?;
+                update.gen(ctx);
                 ctx.o.pop(); // for update statement's semicolon
                 ctx.o.push_str(") ");
-                block.gen(ctx)?;
+                block.gen(ctx);
             }
             ExprAssign { lvalue, rvalue } => {
-                lvalue.gen(ctx)?;
+                lvalue.gen(ctx);
                 ctx.o.push_str(" = ");
-                rvalue.gen(ctx)?;
+                rvalue.gen(ctx);
                 ctx.o.push(';');
             }
             VarDefine(var_define) => {
-                var_define.gen(ctx)?;
+                var_define.gen(ctx);
                 ctx.o.push(';');
             }
             Expr(expr) => {
-                expr.gen(ctx)?;
+                expr.gen(ctx);
                 ctx.o.push(';');
             }
         }
-        Ok(())
     }
 }
 
@@ -183,21 +172,19 @@ impl<'i> Visit<'i> for Block<'i> {
 }
 
 impl<'i> Block<'i> {
-    pub fn gen(self, ctx: &mut Ctx<'i>) -> Res<'i, ()> {
+    pub fn gen(self, ctx: &mut Ctx<'i>) {
         ctx.o.push_str("{\n");
         for statement in self.0 {
-            statement.gen(ctx)?;
+            statement.gen(ctx);
             ctx.o.push('\n')
         }
         ctx.o.push('}');
-        Ok(())
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct CCode<'i> {
-    parts: Vec<CCodePart<'i>>,
-}
+pub struct CCode<'i>(pub Vec<CCodePart<'i>>);
+
 #[derive(Debug, Clone)]
 pub enum CCodePart<'i> {
     String(&'i str),
@@ -206,9 +193,8 @@ pub enum CCodePart<'i> {
 
 impl<'i> Visit<'i> for CCode<'i> {
     fn visit(node: Node<'i>, ctx: &mut Ctx<'i>) -> Self {
-        Self {
-            parts: node
-                .children_checked(Kind::c_code)
+        Self(
+            node.children_checked(Kind::c_code)
                 .into_iter()
                 .map(|node| match node.kind() {
                     Kind::c_code_str => CCodePart::String(node.str()),
@@ -217,7 +203,7 @@ impl<'i> Visit<'i> for CCode<'i> {
                     _ => unexpected_kind(node),
                 })
                 .collect(),
-        }
+        )
     }
 }
 
@@ -226,15 +212,14 @@ impl<'i> CCode<'i> {
         LiteralType::CCode.ty()
     }
 
-    pub fn gen(self, ctx: &mut Ctx<'i>) -> Res<'i, ()> {
+    pub fn gen(self, ctx: &mut Ctx<'i>) {
         ctx.o.push_str("/*<{*/");
-        for part in self.parts {
+        for part in self.0 {
             match part {
                 CCodePart::String(str) => ctx.o.push_str(str),
-                CCodePart::Expr(expr) => expr.gen(ctx)?,
+                CCodePart::Expr(expr) => expr.gen(ctx),
             }
         }
         ctx.o.push_str("/*}>*/");
-        Ok(())
     }
 }

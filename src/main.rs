@@ -63,7 +63,7 @@ fn main() {
         println!("type checking");
         program.type_check(ctx)?;
         println!("generating");
-        program.gen(ctx)?;
+        program.gen(ctx);
     };
     if let Err(err) = result {
         return eprintln!("Error: {}", err);
