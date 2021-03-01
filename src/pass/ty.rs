@@ -1,19 +1,20 @@
 use crate::context::Ctx;
 use crate::error::{err, unexpected_kind, Res};
 use crate::parse::{Kind, Node};
+use crate::scope::Symbol;
 use crate::span::Span;
 use crate::util::interned_str::InternedStr;
+use crate::util::late_init::LateInit;
 use crate::util::{Mangle, Visit};
 use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
-use std::lazy::OnceCell;
 use std::rc::Rc;
 
 #[derive(Debug, Clone)]
 pub struct TypeNode<'i> {
     pub span: Span<'i>,
-    pub ty: TypeKind<'i>,
-    pub _ty: OnceCell<Type<'i>>,
+    pub kind: TypeKind<'i>,
+    pub ty: LateInit<Type<'i>>,
 }
 
 impl<'i> Visit<'i> for TypeNode<'i> {
@@ -31,20 +32,36 @@ impl<'i> Visit<'i> for TypeNode<'i> {
 
         Self {
             span,
-            ty,
-            _ty: Default::default(),
+            kind: ty,
+            ty: Default::default(),
         }
     }
 }
 
 impl<'i> TypeNode<'i> {
     pub fn init_ty(&self, ctx: &Ctx<'i>) -> Res<'i, Type<'i>> {
-        self._ty
-            .get_or_try_init(|| {
-                // use TypeKind::*;
-                todo!("TypeNode::init_ty")
-            })
-            .copied()
+        if let Some(&ty) = self.ty.get() {
+            return Ok(ty);
+        }
+
+        use TypeKind::*;
+        let ty = match &self.kind {
+            Primitive(ty) => Type::Primitive(*ty),
+            Ptr(ty) => todo!("TypeNode::init_ty for TypeKind::Ptr"),
+            Named(name) => ctx
+                .scopes
+                .get_struct(*name, Some(self.span))
+                .or_else(|_| ctx.scopes.get_generic_type(*name, Some(self.span)))
+                .or_else(|_| {
+                    err(
+                        &format!("could not find symbol for named type {}", name),
+                        Some(self.span),
+                    )
+                })?
+                .ty(),
+        };
+        self.ty.init(ty);
+        Ok(*self.ty)
     }
 
     pub fn gen(self, ctx: &mut Ctx<'i>) -> Res<'i, ()> {
@@ -74,6 +91,7 @@ pub enum Type<'i> {
     Literal(LiteralType),
     Struct(InternedStr<'i>),
     GenericPlaceholder(InternedStr<'i>),
+    // Ptr(Rc<Type<'i>>),
 }
 impl<'i> Type<'i> {
     pub fn check(self, expected: Self, span: Option<Span<'i>>) -> Res<'i, ()> {
@@ -92,6 +110,15 @@ impl<'i> Type<'i> {
             Struct(name) => format!("s({})", name),
             GenericPlaceholder(name) => format!("g({})", name),
             Literal(ty) => ty.to_string(),
+        }
+    }
+
+    pub fn symbol(&self, ctx: &mut Ctx<'i>) -> Symbol<'i> {
+        use Type::*;
+        match self {
+            Struct(name) => ctx.scopes.get_struct(*name, None).unwrap(),
+            GenericPlaceholder(name) => ctx.scopes.get_generic_type(*name, None).unwrap(),
+            ty => panic!("{} doesn't have symbol counterpart", ty),
         }
     }
 }

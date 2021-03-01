@@ -6,7 +6,6 @@ use crate::pass::expr::Expr;
 use crate::pass::ty::{LiteralType, PrimitiveType, Type};
 use crate::span::Span;
 use crate::util::Visit;
-use std::rc::Rc;
 
 #[derive(Debug, Clone)]
 pub struct Statement<'i> {
@@ -31,7 +30,7 @@ pub enum StatementKind<'i> {
     For {
         init: VarDefine<'i>,
         cond: Expr<'i>,
-        update: Rc<Statement<'i>>,
+        update: Box<Statement<'i>>,
         block: Block<'i>,
     },
     ExprAssign {

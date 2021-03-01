@@ -11,7 +11,7 @@ use crate::util::{Mangle, Visit};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
-pub struct Program<'i>(Vec<Define<'i>>);
+pub struct Program<'i>(pub Vec<Define<'i>>);
 
 impl<'i> Visit<'i> for Program<'i> {
     fn visit(node: Node<'i>, ctx: &mut Ctx<'i>) -> Self {

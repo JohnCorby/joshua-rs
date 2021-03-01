@@ -208,7 +208,7 @@ impl<'i> Scopes<'i> {
                 return ty;
             }
         }
-        unreachable!("tried to get func return type when we arent in any func")
+        unreachable!("getting func return type when we aren't in any func")
     }
 
     /// fixme: this doesnt account for branches and stuff (e.g. `if(false) return` works)

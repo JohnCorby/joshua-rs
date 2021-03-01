@@ -6,6 +6,7 @@ pub mod expr;
 pub mod generics;
 pub mod statement;
 pub mod ty;
+pub mod type_check;
 
 /// take c code string, write it to a c file, and compile that file
 pub fn compile_program(c_code: &str, path: &Path) -> ExitStatus {

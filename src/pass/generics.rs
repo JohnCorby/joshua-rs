@@ -3,12 +3,13 @@
 use crate::context::Ctx;
 use crate::error::{err, Res};
 use crate::pass::define::{Define, DefineKind, VarDefine};
-use crate::pass::expr::{Expr, FuncCall};
+use crate::pass::expr::{Expr, FuncCall, ExprKind};
 use crate::pass::statement::{Block, Statement};
-use crate::pass::ty::{Type, TypeNode};
+use crate::pass::ty::{Type, TypeKind, TypeNode};
 use crate::scope::{Scopes, Symbol};
 use crate::util::interned_str::InternedStr;
 use std::collections::HashMap;
+use std::ops::Deref;
 
 type GenericMap<'i> = HashMap<InternedStr<'i>, Type<'i>>;
 
@@ -132,14 +133,16 @@ impl<'i> FuncCall<'i> {
                     name,
                     generic_placeholders,
                     args,
-                    body: *body,
+                    body: body.deref().clone(),
                 },
             };
             def.replace_generics(&generic_map);
             let (ret_type, arg_types) = match &def.kind {
                 DefineKind::Func { ty_node, args, .. } => (
-                    ty_node.ty,
-                    args.iter().map(|it| it.ty_node.ty).collect::<Vec<_>>(),
+                    ty_node.init_ty(ctx)?,
+                    args.iter()
+                        .map(|it| it.ty_node.init_ty(ctx))
+                        .collect::<Res<'i, Vec<_>>>()?,
                 ),
                 _ => unreachable!(),
             };
@@ -199,42 +202,42 @@ impl<'i> Scopes<'i> {
         name: InternedStr<'i>,
         arg_types: &[Type<'i>],
     ) -> Option<Symbol<'i>> {
-        if let Some(symbol) = self.0[0].symbols.iter().find(|&s| {
-            if let Symbol::GenericFunc {
-                name: other_name,
-                arg_types: other_arg_types,
-                ..
-            } = s
-            {
-                if &name != other_name {
-                    return false;
-                }
-                if arg_types.len() != other_arg_types.len() {
-                    return false;
-                }
-                for (&ty, &other_ty) in arg_types.iter().zip(other_arg_types.iter()) {
-                    if let Type::GenericPlaceholder(_) = other_ty {
-                        // generic other_ty will always match ty, so don't return false
-                    } else if ty != other_ty {
+        self.0[0]
+            .symbols
+            .iter()
+            .find(|&s| {
+                if let Symbol::GenericFunc {
+                    name: other_name,
+                    arg_types: other_arg_types,
+                    ..
+                } = s
+                {
+                    if &name != other_name {
                         return false;
                     }
+                    if arg_types.len() != other_arg_types.len() {
+                        return false;
+                    }
+                    for (&ty, &other_ty) in arg_types.iter().zip(other_arg_types.iter()) {
+                        if let Type::GenericPlaceholder(_) = other_ty {
+                            // generic other_ty will always match ty, so don't return false
+                        } else if ty != other_ty {
+                            return false;
+                        }
+                    }
+                    true
+                } else {
+                    false
                 }
-                true
-            } else {
-                false
-            }
-        }) {
-            Some(symbol.clone())
-        } else {
-            None
-        }
+            })
+            .cloned()
     }
 }
 
 // impl replace generics
 impl<'i> Define<'i> {
     fn replace_generics(&mut self, generic_map: &GenericMap<'i>) {
-        use crate::pass::define::DefineKind::*;
+        use DefineKind::*;
         match &mut self.kind {
             Struct { body, .. } => {
                 for define in body {
@@ -323,7 +326,7 @@ impl<'i> Block<'i> {
 }
 impl<'i> Expr<'i> {
     fn replace_generics(&mut self, generic_map: &GenericMap<'i>) {
-        use crate::pass::expr::ExprKind::*;
+        use ExprKind::*;
         match &mut self.kind {
             Binary { left, right, .. } => {
                 left.replace_generics(generic_map);
@@ -347,7 +350,7 @@ impl<'i> Expr<'i> {
             Var(_) => {}
             CCode(_) => {}
         }
-        self._ty = Default::default()
+        self.ty = Default::default()
     }
 }
 impl<'i> FuncCall<'i> {
@@ -358,14 +361,18 @@ impl<'i> FuncCall<'i> {
         for arg in &mut self.args {
             arg.replace_generics(generic_map)
         }
-        self._ty = Default::default()
+        self.ty = Default::default()
     }
 }
 impl<'i> TypeNode<'i> {
     fn replace_generics(&mut self, generic_map: &GenericMap<'i>) {
-        if let Type::GenericPlaceholder(name) = self.ty {
-            self.ty = generic_map[&name];
-            self._ty = Default::default()
+        if let Type::GenericPlaceholder(name) = *self.ty {
+            self.kind = match generic_map[&name] {
+                Type::Primitive(ty) => TypeKind::Primitive(ty),
+                Type::Struct(name) => TypeKind::Named(name),
+                ty => unreachable!("replacing generic with {}", ty),
+            };
+            self.ty = Default::default()
         }
     }
 }

@@ -10,36 +10,35 @@ use crate::span::Span;
 use crate::util::interned_str::{Intern, InternedStr};
 use crate::util::{Mangle, Visit};
 use std::lazy::OnceCell;
-use std::rc::Rc;
 
 #[derive(Debug, Clone)]
 pub struct Expr<'i> {
     pub span: Span<'i>,
     pub kind: ExprKind<'i>,
-    pub _ty: OnceCell<Type<'i>>,
+    pub ty: OnceCell<Type<'i>>,
 }
 #[derive(Debug, Clone)]
 pub enum ExprKind<'i> {
     Binary {
-        left: Rc<Expr<'i>>,
+        left: Box<Expr<'i>>,
         op: InternedStr<'i>,
-        right: Rc<Expr<'i>>,
+        right: Box<Expr<'i>>,
     },
     Unary {
         op: InternedStr<'i>,
-        thing: Rc<Expr<'i>>,
+        thing: Box<Expr<'i>>,
     },
     Cast {
-        thing: Rc<Expr<'i>>,
+        thing: Box<Expr<'i>>,
         ty_node: TypeNode<'i>,
     },
 
     MethodCall {
-        receiver: Rc<Expr<'i>>,
+        receiver: Box<Expr<'i>>,
         func_call: FuncCall<'i>,
     },
     Field {
-        receiver: Rc<Expr<'i>>,
+        receiver: Box<Expr<'i>>,
         var: InternedStr<'i>,
     },
 
@@ -137,14 +136,14 @@ impl<'i> Visit<'i> for Expr<'i> {
         Self {
             span,
             kind,
-            _ty: Default::default(),
+            ty: Default::default(),
         }
     }
 }
 
 impl<'i> Expr<'i> {
     pub fn init_ty(&self, ctx: &mut Ctx<'i>) -> Res<'i, Type<'i>> {
-        self._ty
+        self.ty
             .get_or_try_init(|| {
                 use ExprKind::*;
                 Ok(match &self.kind {
@@ -241,7 +240,7 @@ impl<'i> Expr<'i> {
                     name: op,
                     generic_replacements: vec![],
                     args: vec![*left, *right],
-                    _ty: Default::default(),
+                    ty: Default::default(),
                 };
                 func_call.init_ty(ctx)?;
                 func_call.gen(ctx)?;
@@ -252,7 +251,7 @@ impl<'i> Expr<'i> {
                     name: op,
                     generic_replacements: vec![],
                     args: vec![*thing],
-                    _ty: Default::default(),
+                    ty: Default::default(),
                 };
                 func_call.init_ty(ctx)?;
                 func_call.gen(ctx)?;
@@ -270,7 +269,7 @@ impl<'i> Expr<'i> {
                         name: format!("as {}", ty_node.init_ty(ctx)?.name()).intern(ctx),
                         generic_replacements: vec![],
                         args: vec![*thing],
-                        _ty: Default::default(),
+                        ty: Default::default(),
                     };
                     func_call.init_ty(ctx)?;
                     func_call.gen(ctx)?;
@@ -306,7 +305,7 @@ pub struct FuncCall<'i> {
     pub name: InternedStr<'i>,
     pub generic_replacements: Vec<TypeNode<'i>>,
     pub args: Vec<Expr<'i>>,
-    pub _ty: OnceCell<Type<'i>>,
+    pub ty: OnceCell<Type<'i>>,
 }
 
 impl<'i> Visit<'i> for FuncCall<'i> {
@@ -324,14 +323,14 @@ impl<'i> Visit<'i> for FuncCall<'i> {
                 .map(|node| node.visit(ctx))
                 .collect(),
             args: nodes.visit_rest(ctx),
-            _ty: Default::default(),
+            ty: Default::default(),
         }
     }
 }
 
 impl<'i> FuncCall<'i> {
     pub fn init_ty(&self, ctx: &mut Ctx<'i>) -> Res<'i, Type<'i>> {
-        self._ty
+        self.ty
             .get_or_try_init(|| {
                 Ok(if !self.generic_replacements.is_empty() {
                     self.init_ty_generic(ctx)?
