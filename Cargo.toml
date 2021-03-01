@@ -14,6 +14,8 @@ console = "*"
 strum = { version = "*", features = ["derive"] }
 quit = "*"
 stable_deref_trait = "*"
+derivative = "*"
+derive-new = "*"
 
 [dev-dependencies]
 unindent = "*"

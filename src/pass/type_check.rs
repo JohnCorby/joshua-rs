@@ -224,7 +224,10 @@ impl<'i> Expr<'i> {
 
                 // symbol check
                 ctx.scopes
-                    .get_func(*op, &[*left.ty, *right.ty], Some(self.span))?
+                    .find(
+                        &Symbol::new_func(*op, [*left.ty, *right.ty].into()),
+                        Some(self.span),
+                    )?
                     .ty()
             }
             Unary { op, thing } => {
@@ -232,7 +235,7 @@ impl<'i> Expr<'i> {
 
                 // symbol check
                 ctx.scopes
-                    .get_func(*op, &[*thing.ty], Some(self.span))?
+                    .find(&Symbol::new_func(*op, [*thing.ty].into()), Some(self.span))?
                     .ty()
             }
             Cast { thing, ty_node } => {
@@ -247,7 +250,7 @@ impl<'i> Expr<'i> {
                 } else {
                     let name = format!("as {}", ty_node.ty.name()).intern(ctx);
                     ctx.scopes
-                        .get_func(name, &[*thing.ty], Some(self.span))?
+                        .find(&Symbol::new_func(name, [*thing.ty].into()), Some(self.span))?
                         .ty()
                 }
             }
@@ -277,7 +280,9 @@ impl<'i> Expr<'i> {
                         )
                     }
                 };
-                let symbol = ctx.scopes.get_struct(struct_name, Some(self.span))?;
+                let symbol = ctx
+                    .scopes
+                    .find(&Symbol::new_struct_type(struct_name), Some(self.span))?;
                 let field_types = match &symbol {
                     Symbol::StructType { field_types, .. } => field_types,
                     _ => unreachable!(),
@@ -299,7 +304,9 @@ impl<'i> Expr<'i> {
             }
             Var(name) => {
                 // symbol check
-                ctx.scopes.get_var(*name, Some(self.span))?.ty()
+                ctx.scopes
+                    .find(&Symbol::new_var(*name), Some(self.span))?
+                    .ty()
             }
             CCode(c_code) => {
                 c_code.type_check(ctx)?;
@@ -323,9 +330,8 @@ impl<'i> FuncCall<'i> {
         self.ty.init(
             // symbol check
             ctx.scopes
-                .get_func(
-                    self.name,
-                    &self.args.iter().map(|it| *it.ty).collect::<Vec<_>>(),
+                .find(
+                    &Symbol::new_func(self.name, self.args.iter().map(|it| *it.ty).collect()),
                     Some(self.span),
                 )?
                 .ty(),
@@ -344,8 +350,13 @@ impl<'i> TypeNode<'i> {
             Named(name) => {
                 // symbol check
                 ctx.scopes
-                    .get_struct(*name, Some(self.span))
-                    .or_else(|_| ctx.scopes.get_generic_type(*name, Some(self.span)))
+                    .find(&Symbol::new_struct_type(*name), Some(self.span))
+                    .or_else(|_| {
+                        ctx.scopes.find(
+                            &Symbol::new_generic_placeholder_type(*name),
+                            Some(self.span),
+                        )
+                    })
                     .or_else(|_| {
                         err(
                             &format!("could not find type symbol `{}`", name),

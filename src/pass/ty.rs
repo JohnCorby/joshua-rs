@@ -7,7 +7,7 @@ use crate::util::interned_str::InternedStr;
 use crate::util::late_init::LateInit;
 use crate::util::{Mangle, Visit};
 use std::fmt::{Display, Formatter};
-use std::hash::{Hash, Hasher};
+// use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
 #[derive(Debug, Clone)]
@@ -64,7 +64,7 @@ pub enum TypeKind<'i> {
     Named(InternedStr<'i>),
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Hash, PartialEq)]
 pub enum Type<'i> {
     Primitive(PrimitiveType),
     Literal(LiteralType),
@@ -92,11 +92,17 @@ impl<'i> Type<'i> {
         }
     }
 
-    pub fn symbol(&self, ctx: &mut Ctx<'i>) -> Symbol<'i> {
+    pub fn symbol<'c>(&self, ctx: &'c mut Ctx<'i>) -> &'c Symbol<'i> {
         use Type::*;
         match self {
-            Struct(name) => ctx.scopes.get_struct(*name, None).unwrap(),
-            GenericPlaceholder(name) => ctx.scopes.get_generic_type(*name, None).unwrap(),
+            Struct(name) => ctx
+                .scopes
+                .find(&Symbol::new_struct_type(*name), None)
+                .unwrap(),
+            GenericPlaceholder(name) => ctx
+                .scopes
+                .find(&Symbol::new_generic_placeholder_type(*name), None)
+                .unwrap(),
             ty => panic!("{} doesn't have symbol counterpart", ty),
         }
     }
@@ -104,30 +110,6 @@ impl<'i> Type<'i> {
 impl Default for Type<'_> {
     fn default() -> Self {
         Self::Primitive(PrimitiveType::Void)
-    }
-}
-
-impl Hash for Type<'_> {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        use Type::*;
-        match self {
-            Primitive(ty) => ty.hash(state),
-            Struct(name) | GenericPlaceholder(name) => name.hash(state),
-            Literal(ty) => ty.hash(state),
-        }
-    }
-}
-impl PartialEq for Type<'_> {
-    fn eq(&self, other: &Self) -> bool {
-        use Type::*;
-        match (self, other) {
-            (Primitive(ty1), Primitive(ty2)) => ty1 == ty2,
-            (Struct(name1), Struct(name2))
-            | (GenericPlaceholder(name1), GenericPlaceholder(name2)) => name1 == name2,
-            (Literal(ty1), Literal(ty2)) => ty1 == ty2,
-
-            _ => false,
-        }
     }
 }
 

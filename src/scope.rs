@@ -11,40 +11,59 @@ use crate::util::index_string::IndexStringIndex;
 use crate::util::interned_str::InternedStr;
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Display, Formatter};
-use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, derivative::Derivative, derive_new::new)]
+#[derivative(Hash, PartialEq)]
 pub enum Symbol<'i> {
     Func {
+        #[derivative(Hash = "ignore", PartialEq = "ignore")]
+        #[new(default)]
         ty: Type<'i>,
         name: InternedStr<'i>,
         arg_types: Vec<Type<'i>>,
     },
     Var {
+        #[derivative(Hash = "ignore", PartialEq = "ignore")]
+        #[new(default)]
         ty: Type<'i>,
         name: InternedStr<'i>,
     },
     StructType {
         name: InternedStr<'i>,
+        #[derivative(Hash = "ignore", PartialEq = "ignore")]
+        #[new(default)]
         field_types: HashMap<InternedStr<'i>, Type<'i>>,
     },
     GenericPlaceholderType(InternedStr<'i>),
     GenericFunc {
         // cached for faster access on eq/hash
+        #[derivative(Hash = "ignore", PartialEq = "ignore")]
+        #[new(default)]
         ty: Type<'i>,
         arg_types: Vec<Type<'i>>,
 
         // copied from func define
+        #[derivative(Hash = "ignore", PartialEq = "ignore")]
         span: Span<'i>,
+        #[derivative(Hash = "ignore", PartialEq = "ignore")]
         ty_node: TypeNode<'i>,
         name: InternedStr<'i>,
+        #[derivative(Hash = "ignore", PartialEq = "ignore")]
+        #[new(default)]
         generic_placeholders: Vec<InternedStr<'i>>,
+        #[derivative(Hash = "ignore", PartialEq = "ignore")]
+        #[new(default)]
         args: Vec<VarDefine<'i>>,
+        #[derivative(Hash = "ignore", PartialEq = "ignore")]
         body: Rc<Block<'i>>,
 
         // codegen info
+        #[derivative(Hash = "ignore", PartialEq = "ignore")]
+        #[new(default)]
         scopes_index: usize,
+        #[derivative(Hash = "ignore", PartialEq = "ignore")]
+        #[new(default)]
         o_index: IndexStringIndex,
     },
 }
@@ -55,62 +74,6 @@ impl<'i> Symbol<'i> {
             Func { ty, .. } | Var { ty, .. } | GenericFunc { ty, .. } => *ty,
             StructType { name, .. } => Type::Struct(*name),
             GenericPlaceholderType(name) => Type::GenericPlaceholder(*name),
-        }
-    }
-}
-
-impl Hash for Symbol<'_> {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        use Symbol::*;
-        match self {
-            Func {
-                name, arg_types, ..
-            }
-            | GenericFunc {
-                name, arg_types, ..
-            } => {
-                name.hash(state);
-                arg_types.hash(state);
-            }
-            Var { name, .. } | StructType { name, .. } | GenericPlaceholderType(name) => {
-                name.hash(state)
-            }
-        }
-    }
-}
-impl PartialEq for Symbol<'_> {
-    fn eq(&self, other: &Self) -> bool {
-        use Symbol::*;
-        match (self, other) {
-            (
-                Func {
-                    name: name1,
-                    arg_types: arg_types1,
-                    ..
-                },
-                Func {
-                    name: name2,
-                    arg_types: arg_types2,
-                    ..
-                },
-            )
-            | (
-                GenericFunc {
-                    name: name1,
-                    arg_types: arg_types1,
-                    ..
-                },
-                GenericFunc {
-                    name: name2,
-                    arg_types: arg_types2,
-                    ..
-                },
-            ) => name1 == name2 && arg_types1 == arg_types2,
-            (Var { name: name1, .. }, Var { name: name2, .. })
-            | (StructType { name: name1, .. }, StructType { name: name2, .. })
-            | (GenericPlaceholderType(name1), GenericPlaceholderType(name2)) => name1 == name2,
-
-            _ => false,
         }
     }
 }
@@ -244,53 +207,12 @@ impl<'i> Scopes<'i> {
         Ok(())
     }
 
-    fn find(&self, symbol: &Symbol<'i>, span: Option<Span<'i>>) -> Res<'i, Symbol<'i>> {
+    pub fn find(&self, symbol: &Symbol<'i>, span: Option<Span<'i>>) -> Res<'i, &Symbol<'i>> {
         for scope in self.0.iter().rev() {
             if let Some(symbol) = scope.symbols.get(symbol) {
-                return Ok(symbol.clone());
+                return Ok(symbol);
             }
         }
         err(&format!("could not find {}", symbol), span)
-    }
-
-    pub fn get_var(&self, name: InternedStr<'i>, span: Option<Span<'i>>) -> Res<'i, Symbol<'i>> {
-        self.find(
-            &Symbol::Var {
-                ty: Default::default(),
-                name,
-            },
-            span,
-        )
-    }
-    pub fn get_func(
-        &self,
-        name: InternedStr<'i>,
-        arg_types: &[Type<'i>],
-        span: Option<Span<'i>>,
-    ) -> Res<'i, Symbol<'i>> {
-        self.find(
-            &Symbol::Func {
-                ty: Default::default(),
-                name,
-                arg_types: arg_types.into(),
-            },
-            span,
-        )
-    }
-    pub fn get_struct(&self, name: InternedStr<'i>, span: Option<Span<'i>>) -> Res<'i, Symbol<'i>> {
-        self.find(
-            &Symbol::StructType {
-                name,
-                field_types: Default::default(),
-            },
-            span,
-        )
-    }
-    pub fn get_generic_type(
-        &self,
-        name: InternedStr<'i>,
-        span: Option<Span<'i>>,
-    ) -> Res<'i, Symbol<'i>> {
-        self.find(&Symbol::GenericPlaceholderType(name), span)
     }
 }

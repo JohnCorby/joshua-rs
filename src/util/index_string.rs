@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::ops::Deref;
 use std::rc::Rc;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct IndexStringIndex(Rc<RefCell<usize>>);
 
 /// string that can give indexes that will move with inserts and stuff
