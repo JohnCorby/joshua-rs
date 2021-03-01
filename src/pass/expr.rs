@@ -10,6 +10,7 @@ use crate::span::Span;
 use crate::util::interned_str::{Intern, InternedStr};
 use crate::util::{Mangle, Visit};
 use std::lazy::OnceCell;
+use std::rc::Rc;
 
 #[derive(Debug, Clone)]
 pub struct Expr<'i> {
@@ -20,25 +21,25 @@ pub struct Expr<'i> {
 #[derive(Debug, Clone)]
 pub enum ExprKind<'i> {
     Binary {
-        left: Box<Expr<'i>>,
+        left: Rc<Expr<'i>>,
         op: InternedStr<'i>,
-        right: Box<Expr<'i>>,
+        right: Rc<Expr<'i>>,
     },
     Unary {
         op: InternedStr<'i>,
-        thing: Box<Expr<'i>>,
+        thing: Rc<Expr<'i>>,
     },
     Cast {
-        thing: Box<Expr<'i>>,
+        thing: Rc<Expr<'i>>,
         ty_node: TypeNode<'i>,
     },
 
     MethodCall {
-        receiver: Box<Expr<'i>>,
+        receiver: Rc<Expr<'i>>,
         func_call: FuncCall<'i>,
     },
     Field {
-        receiver: Box<Expr<'i>>,
+        receiver: Rc<Expr<'i>>,
         var: InternedStr<'i>,
     },
 

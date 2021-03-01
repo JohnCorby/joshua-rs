@@ -7,11 +7,12 @@ use crate::util::{Mangle, Visit};
 use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::lazy::OnceCell;
+use std::rc::Rc;
 
 #[derive(Debug, Clone)]
 pub struct TypeNode<'i> {
     pub span: Span<'i>,
-    pub ty: Type<'i>,
+    pub ty: TypeKind<'i>,
     pub _ty: OnceCell<Type<'i>>,
 }
 
@@ -19,12 +20,11 @@ impl<'i> Visit<'i> for TypeNode<'i> {
     fn visit(node: Node<'i>, ctx: &mut Ctx<'i>) -> Self {
         let node = node.children_checked(Kind::ty).next().unwrap();
         let span = node.span();
+        use TypeKind::*;
         let ty = match node.kind() {
-            Kind::primitive => Type::Primitive(node.str().parse().unwrap()),
-            Kind::struct_ty => Type::Struct(node.children().next().unwrap().visit_ident(ctx)),
-            Kind::generic_ty => {
-                Type::GenericPlaceholder(node.children().next().unwrap().visit_ident(ctx))
-            }
+            Kind::primitive => Primitive(node.str().parse().unwrap()),
+            Kind::ptr => Ptr(TypeNode::into(node.visit::<TypeNode<'i>>(ctx))),
+            Kind::ident => Named(node.visit_ident(ctx)),
 
             _ => unexpected_kind(node),
         };
@@ -41,23 +41,15 @@ impl<'i> TypeNode<'i> {
     pub fn init_ty(&self, ctx: &Ctx<'i>) -> Res<'i, Type<'i>> {
         self._ty
             .get_or_try_init(|| {
-                match self.ty {
-                    Type::Struct(name) => {
-                        ctx.scopes.get_struct(name, Some(self.span))?;
-                    }
-                    Type::GenericPlaceholder(name) => {
-                        ctx.scopes.get_generic_type(name, Some(self.span))?;
-                    }
-                    _ => {}
-                }
-                Ok(self.ty)
+                // use TypeKind::*;
+                todo!("TypeNode::init_ty")
             })
             .copied()
     }
 
     pub fn gen(self, ctx: &mut Ctx<'i>) -> Res<'i, ()> {
         use Type::*;
-        match self.ty {
+        match self.init_ty(ctx)? {
             Primitive(ty) => ctx.o.push_str(ty.c_type()),
             Struct(name) => {
                 ctx.o.push_str("struct ");
@@ -69,12 +61,19 @@ impl<'i> TypeNode<'i> {
     }
 }
 
+#[derive(Debug, Clone)]
+pub enum TypeKind<'i> {
+    Primitive(PrimitiveType),
+    Ptr(Rc<TypeNode<'i>>),
+    Named(InternedStr<'i>),
+}
+
 #[derive(Debug, Copy, Clone)]
 pub enum Type<'i> {
     Primitive(PrimitiveType),
+    Literal(LiteralType),
     Struct(InternedStr<'i>),
     GenericPlaceholder(InternedStr<'i>),
-    Literal(LiteralType),
 }
 impl<'i> Type<'i> {
     pub fn check(self, expected: Self, span: Option<Span<'i>>) -> Res<'i, ()> {

@@ -47,11 +47,8 @@ cont = { "cont" }
 
 
 
-ty = {
-    primitive
-    | struct_ty
-    | generic_ty
-}
+ty = { primitive | ptr | ident }
+ptr = { "ptr" ~ "<" ~ ty ~ ">" }
 primitive = {
     "i8"
     | "u8"
@@ -67,8 +64,6 @@ primitive = {
     | "char"
     | "void"
 }
-struct_ty = { "s" ~ "(" ~ ident ~ ")" }
-generic_ty = { "g" ~ "(" ~ ident ~ ")" }
 
 
 expr = !{ equality_expr }

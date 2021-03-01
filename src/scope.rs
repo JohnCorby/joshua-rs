@@ -12,6 +12,7 @@ use crate::util::interned_str::InternedStr;
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
+use std::rc::Rc;
 
 #[derive(Debug, Clone)]
 pub enum Symbol<'i> {
@@ -40,7 +41,7 @@ pub enum Symbol<'i> {
         name: InternedStr<'i>,
         generic_placeholders: Vec<InternedStr<'i>>,
         args: Vec<VarDefine<'i>>,
-        body: Box<Block<'i>>,
+        body: Rc<Block<'i>>,
 
         // codegen info
         scopes_index: usize,
