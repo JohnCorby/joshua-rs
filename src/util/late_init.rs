@@ -12,18 +12,14 @@ impl<T> Default for LateInit<T> {
 }
 
 impl<T> LateInit<T> {
-    pub fn get(&self) -> Option<&T> {
-        self.0.get()
-    }
-
     pub fn init(&self, value: T) {
-        assert!(self.0.set(value).is_ok(), "LateInit already initialized");
+        assert!(self.0.set(value).is_ok(), "LateInit already initialized")
     }
 }
 
 impl<T> Deref for LateInit<T> {
     type Target = T;
     fn deref(&self) -> &Self::Target {
-        self.get().expect("LateInit not initialized")
+        self.0.get().expect("LateInit not initialized")
     }
 }

@@ -5,17 +5,16 @@ use crate::error::{err, unexpected_kind, Res};
 use crate::parse::{Kind, Node};
 use crate::pass::statement::CCode;
 use crate::pass::ty::{LiteralType, PrimitiveType, Type, TypeNode};
-use crate::scope::Symbol;
 use crate::span::Span;
 use crate::util::interned_str::{Intern, InternedStr};
+use crate::util::late_init::LateInit;
 use crate::util::{Mangle, Visit};
-use std::lazy::OnceCell;
 
 #[derive(Debug, Clone)]
 pub struct Expr<'i> {
     pub span: Span<'i>,
     pub kind: ExprKind<'i>,
-    pub ty: OnceCell<Type<'i>>,
+    pub ty: LateInit<Type<'i>>,
 }
 #[derive(Debug, Clone)]
 pub enum ExprKind<'i> {
@@ -142,84 +141,6 @@ impl<'i> Visit<'i> for Expr<'i> {
 }
 
 impl<'i> Expr<'i> {
-    pub fn init_ty(&self, ctx: &mut Ctx<'i>) -> Res<'i, Type<'i>> {
-        self.ty
-            .get_or_try_init(|| {
-                use ExprKind::*;
-                Ok(match &self.kind {
-                    Binary { left, op, right } => {
-                        let left = left.init_ty(ctx)?;
-                        let right = right.init_ty(ctx)?;
-                        ctx.scopes
-                            .get_func(*op, [left, right], Some(self.span))?
-                            .ty()
-                    }
-                    Unary { op, thing } => {
-                        let thing = thing.init_ty(ctx)?;
-                        ctx.scopes.get_func(*op, [thing], Some(self.span))?.ty()
-                    }
-                    Cast { thing, ty_node } => {
-                        // fixme literal casting is hacky as shit
-                        if let Type::Literal(_) = thing.init_ty(ctx)? {
-                            ty_node.init_ty(ctx)?
-                        } else {
-                            let name = format!("as {}", ty_node.init_ty(ctx)?.name()).intern(ctx);
-                            let thing = thing.init_ty(ctx)?;
-                            ctx.scopes.get_func(name, [thing], Some(self.span))?.ty()
-                        }
-                    }
-
-                    MethodCall {
-                        receiver,
-                        func_call,
-                    } => {
-                        let mut arg_types = func_call
-                            .args
-                            .iter()
-                            .map(|arg| arg.init_ty(ctx))
-                            .collect::<Res<'i, Vec<_>>>()?;
-                        arg_types.insert(0, receiver.init_ty(ctx)?);
-
-                        ctx.scopes
-                            .get_func(func_call.name, arg_types, Some(self.span))?
-                            .ty()
-                    }
-                    Field { receiver, var } => {
-                        let struct_name = match receiver.init_ty(ctx)? {
-                            Type::Struct(struct_name) => struct_name,
-                            ty => {
-                                return err(
-                                    &format!("expected struct type, but got {}", ty),
-                                    Some(self.span),
-                                )
-                            }
-                        };
-                        let symbol = ctx.scopes.get_struct(struct_name, Some(self.span))?;
-                        let field_types = match &symbol {
-                            Symbol::StructType { field_types, .. } => field_types,
-                            _ => unreachable!(),
-                        };
-                        match field_types.get(&var) {
-                            Some(&field_type) => field_type,
-                            None => {
-                                return err(
-                                    &format!("no field named {} in {}", var, symbol),
-                                    Some(self.span),
-                                )
-                            }
-                        }
-                    }
-
-                    Literal(literal) => literal.ty(),
-                    FuncCall(func_call) => func_call.init_ty(ctx)?,
-                    Var(name) => ctx.scopes.get_var(*name, Some(self.span))?.ty(),
-
-                    CCode(c_code) => c_code.ty(),
-                })
-            })
-            .copied()
-    }
-
     pub fn check_assignable(&self, span: Option<Span<'i>>) -> Res<'i, ()> {
         use ExprKind::*;
         let is_assignable = matches!(self.kind, Field { .. } | Var(_));
@@ -235,44 +156,41 @@ impl<'i> Expr<'i> {
         use ExprKind::*;
         match self.kind {
             Binary { left, op, right } => {
-                let func_call = self::FuncCall {
+                self::FuncCall {
                     span: self.span,
                     name: op,
                     generic_replacements: vec![],
                     args: vec![*left, *right],
                     ty: Default::default(),
-                };
-                func_call.init_ty(ctx)?;
-                func_call.gen(ctx)?;
+                }
+                .gen(ctx)?;
             }
             Unary { op, thing } => {
-                let func_call = self::FuncCall {
+                self::FuncCall {
                     span: self.span,
                     name: op,
                     generic_replacements: vec![],
                     args: vec![*thing],
                     ty: Default::default(),
-                };
-                func_call.init_ty(ctx)?;
-                func_call.gen(ctx)?;
+                }
+                .gen(ctx)?;
             }
             Cast { thing, ty_node } => {
                 // fixme literal casting is hacky as shit
-                if let Type::Literal(_) = thing.init_ty(ctx)? {
+                if let Type::Literal(_) = *thing.ty {
                     ctx.o.push('(');
                     ty_node.gen(ctx)?;
                     ctx.o.push_str(") ");
                     thing.gen(ctx)?;
                 } else {
-                    let func_call = self::FuncCall {
+                    self::FuncCall {
                         span: self.span,
-                        name: format!("as {}", ty_node.init_ty(ctx)?.name()).intern(ctx),
+                        name: format!("as {}", ty_node.ty.name()).intern(ctx),
                         generic_replacements: vec![],
                         args: vec![*thing],
                         ty: Default::default(),
-                    };
-                    func_call.init_ty(ctx)?;
-                    func_call.gen(ctx)?;
+                    }
+                    .gen(ctx)?;
                 }
             }
 
@@ -305,7 +223,7 @@ pub struct FuncCall<'i> {
     pub name: InternedStr<'i>,
     pub generic_replacements: Vec<TypeNode<'i>>,
     pub args: Vec<Expr<'i>>,
-    pub ty: OnceCell<Type<'i>>,
+    pub ty: LateInit<Type<'i>>,
 }
 
 impl<'i> Visit<'i> for FuncCall<'i> {
@@ -329,34 +247,12 @@ impl<'i> Visit<'i> for FuncCall<'i> {
 }
 
 impl<'i> FuncCall<'i> {
-    pub fn init_ty(&self, ctx: &mut Ctx<'i>) -> Res<'i, Type<'i>> {
-        self.ty
-            .get_or_try_init(|| {
-                Ok(if !self.generic_replacements.is_empty() {
-                    self.init_ty_generic(ctx)?
-                } else {
-                    let arg_types = self
-                        .args
-                        .iter()
-                        .map(|it| it.init_ty(ctx))
-                        .collect::<Res<'_, Vec<_>>>()?;
-                    ctx.scopes
-                        .get_func(self.name, arg_types, Some(self.span))?
-                        .ty()
-                })
-            })
-            .copied()
-    }
-
     pub fn gen(self, ctx: &mut Ctx<'i>) -> Res<'i, ()> {
-        let arg_types = self
-            .args
-            .iter()
-            .map(|arg| arg.init_ty(ctx))
-            .collect::<Res<'i, Vec<_>>>()?;
-        let name_mangled = self.name.mangle_func(&arg_types);
-
-        ctx.o.push_str(&name_mangled);
+        ctx.o.push_str(
+            &self
+                .name
+                .mangle_func(&self.args.iter().map(|it| *it.ty).collect::<Vec<_>>()),
+        );
         ctx.o.push('(');
         for arg in self.args {
             arg.gen(ctx)?;

@@ -265,14 +265,14 @@ impl<'i> Scopes<'i> {
     pub fn get_func(
         &self,
         name: InternedStr<'i>,
-        arg_types: impl AsRef<[Type<'i>]>,
+        arg_types: &[Type<'i>],
         span: Option<Span<'i>>,
     ) -> Res<'i, Symbol<'i>> {
         self.find(
             &Symbol::Func {
                 ty: Default::default(),
                 name,
-                arg_types: arg_types.as_ref().into(),
+                arg_types: arg_types.into(),
             },
             span,
         )

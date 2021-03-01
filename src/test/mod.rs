@@ -14,11 +14,11 @@ fn check(i: &str) {
 
     let is = &Default::default();
     let ctx = &mut Ctx::new(is);
-    Node::parse(i, Kind::program)
+    let program = Node::parse(i, Kind::program)
         .unwrap()
-        .visit::<Program<'_>>(ctx)
-        .gen(ctx)
-        .unwrap();
+        .visit::<Program<'_>>(ctx);
+    program.type_check(ctx);
+    program.gen(ctx).unwrap();
     println!("\no = \n{}", ctx.o.unindent());
 
     let file = thread_rng()

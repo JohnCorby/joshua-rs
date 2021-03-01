@@ -39,34 +39,9 @@ impl<'i> Visit<'i> for TypeNode<'i> {
 }
 
 impl<'i> TypeNode<'i> {
-    pub fn init_ty(&self, ctx: &Ctx<'i>) -> Res<'i, Type<'i>> {
-        if let Some(&ty) = self.ty.get() {
-            return Ok(ty);
-        }
-
-        use TypeKind::*;
-        let ty = match &self.kind {
-            Primitive(ty) => Type::Primitive(*ty),
-            Ptr(ty) => todo!("TypeNode::init_ty for TypeKind::Ptr"),
-            Named(name) => ctx
-                .scopes
-                .get_struct(*name, Some(self.span))
-                .or_else(|_| ctx.scopes.get_generic_type(*name, Some(self.span)))
-                .or_else(|_| {
-                    err(
-                        &format!("could not find symbol for named type {}", name),
-                        Some(self.span),
-                    )
-                })?
-                .ty(),
-        };
-        self.ty.init(ty);
-        Ok(*self.ty)
-    }
-
     pub fn gen(self, ctx: &mut Ctx<'i>) -> Res<'i, ()> {
         use Type::*;
-        match self.init_ty(ctx)? {
+        match *self.ty {
             Primitive(ty) => ctx.o.push_str(ty.c_type()),
             Struct(name) => {
                 ctx.o.push_str("struct ");

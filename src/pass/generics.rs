@@ -1,10 +1,10 @@
-//! helper stuff for generic handling
+/*//! helper stuff for generic handling
 
 use crate::context::Ctx;
 use crate::error::{err, Res};
 use crate::pass::define::{Define, DefineKind, VarDefine};
-use crate::pass::expr::{Expr, FuncCall, ExprKind};
-use crate::pass::statement::{Block, Statement};
+use crate::pass::expr::{Expr, ExprKind, FuncCall};
+use crate::pass::statement::{Block, Statement, StatementKind};
 use crate::pass::ty::{Type, TypeKind, TypeNode};
 use crate::scope::{Scopes, Symbol};
 use crate::util::interned_str::InternedStr;
@@ -36,11 +36,11 @@ impl<'i> Define<'i> {
                 ctx.scopes
                     .add(Symbol::GenericPlaceholderType(placeholder), Some(span))?;
             }
-            let ty = ty_node.init_ty(ctx)?;
+            let ty = *ty_node.ty;
             let arg_types = args
                 .iter()
-                .map(|var_define| var_define.ty_node.init_ty(ctx))
-                .collect::<Res<'i, Vec<_>>>()?;
+                .map(|var_define| *var_define.ty_node.ty)
+                .collect::<Vec<_>>();
             ctx.scopes.pop();
 
             ctx.scopes.add(
@@ -74,11 +74,7 @@ impl<'i> FuncCall<'i> {
         assert!(!self.generic_replacements.is_empty());
 
         // already-specialized arg types from the func call
-        let call_arg_types = self
-            .args
-            .iter()
-            .map(|it| it.init_ty(ctx))
-            .collect::<Res<'i, Vec<_>>>()?;
+        let call_arg_types = self.args.iter().map(|it| *it.ty).collect::<Vec<_>>();
 
         if let Ok(Symbol::Func { ty: ret_type, .. }) =
             ctx.scopes
@@ -273,7 +269,7 @@ impl<'i> VarDefine<'i> {
 }
 impl<'i> Statement<'i> {
     fn replace_generics(&mut self, generic_map: &GenericMap<'i>) {
-        use crate::pass::statement::StatementKind::*;
+        use StatementKind::*;
         match &mut self.kind {
             Return(value) => {
                 if let Some(value) = value {
@@ -376,3 +372,4 @@ impl<'i> TypeNode<'i> {
         }
     }
 }
+*/

@@ -4,11 +4,9 @@ use crate::parse::{Kind, Node};
 use crate::pass::expr::Expr;
 use crate::pass::statement::{Block, CCode};
 use crate::pass::ty::TypeNode;
-use crate::scope::Symbol;
 use crate::span::Span;
 use crate::util::interned_str::InternedStr;
 use crate::util::{Mangle, Visit};
-use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
 pub struct Program<'i>(pub Vec<Define<'i>>);
@@ -116,24 +114,6 @@ impl<'i> Define<'i> {
         use DefineKind::*;
         match self.kind {
             Struct { name, body } => {
-                ctx.scopes.add(
-                    Symbol::StructType {
-                        name,
-                        field_types: {
-                            let mut field_types = HashMap::new();
-                            for define in &body {
-                                if let Var(VarDefine { name, ty_node, .. }) = &define.kind {
-                                    field_types
-                                        .insert(*name, ty_node.init_ty(ctx)?)
-                                        .unwrap_none();
-                                }
-                            }
-                            field_types
-                        },
-                    },
-                    Some(self.span),
-                )?;
-
                 ctx.o.push_str("struct ");
                 ctx.o.push_str(&name.mangle());
                 ctx.o.push_str(" {\n");
@@ -153,52 +133,37 @@ impl<'i> Define<'i> {
                 args,
                 body,
             } => {
-                if !generic_placeholders.is_empty() {
-                    Self {
-                        span: self.span,
-                        kind: Func {
-                            ty_node,
-                            name,
-                            generic_placeholders,
-                            args,
-                            body,
-                        },
-                    }
-                    .gen_generic(ctx)?
-                } else {
-                    let arg_types = args
-                        .iter()
-                        .map(|arg| arg.ty_node.init_ty(ctx))
-                        .collect::<Res<'i, Vec<_>>>()?;
-                    let name_mangled = name.mangle_func(&arg_types);
-
-                    ctx.scopes.add(
-                        Symbol::Func {
-                            ty: ty_node.init_ty(ctx)?,
-                            name,
-                            arg_types,
-                        },
-                        Some(self.span),
-                    )?;
-
-                    ctx.scopes.push(false, Some(ty_node.init_ty(ctx)?));
-                    ty_node.gen(ctx)?;
-                    ctx.o.push(' ');
-                    ctx.o.push_str(&name_mangled);
-                    ctx.o.push('(');
-                    for arg in args {
-                        arg.gen(ctx)?;
-                        ctx.o.push_str(", ")
-                    }
-                    if ctx.o.ends_with(", ") {
-                        ctx.o.pop();
-                        ctx.o.pop();
-                    }
-                    ctx.o.push_str(") ");
-                    body.gen(ctx)?;
-                    ctx.scopes.check_return_called(Some(self.span))?;
-                    ctx.scopes.pop();
+                // if !generic_placeholders.is_empty() {
+                //     Self {
+                //         span: self.span,
+                //         kind: Func {
+                //             ty_node,
+                //             name,
+                //             generic_placeholders,
+                //             args,
+                //             body,
+                //         },
+                //     }
+                //     .gen_generic(ctx)?
+                // } else {
+                // todo generics
+                ty_node.gen(ctx)?;
+                ctx.o.push(' ');
+                ctx.o.push_str(
+                    &name.mangle_func(&args.iter().map(|it| *it.ty_node.ty).collect::<Vec<_>>()),
+                );
+                ctx.o.push('(');
+                for arg in args {
+                    arg.gen(ctx)?;
+                    ctx.o.push_str(", ")
                 }
+                if ctx.o.ends_with(", ") {
+                    ctx.o.pop();
+                    ctx.o.pop();
+                }
+                ctx.o.push_str(") ");
+                body.gen(ctx)?;
+                // }
             }
             Var(var_define) => {
                 var_define.gen(ctx)?;
@@ -235,21 +200,6 @@ impl<'i> Visit<'i> for VarDefine<'i> {
 
 impl<'i> VarDefine<'i> {
     pub fn gen(self, ctx: &mut Ctx<'i>) -> Res<'i, ()> {
-        ctx.scopes.add(
-            Symbol::Var {
-                ty: self.ty_node.init_ty(ctx)?,
-                name: self.name,
-            },
-            Some(self.span),
-        )?;
-
-        // type check
-        if let Some(value) = &self.value {
-            value
-                .init_ty(ctx)?
-                .check(self.ty_node.init_ty(ctx)?, Some(self.span))?;
-        }
-
         self.ty_node.gen(ctx)?;
         ctx.o.push(' ');
         ctx.o.push_str(&self.name.mangle());

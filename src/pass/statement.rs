@@ -3,7 +3,7 @@ use crate::error::{err, unexpected_kind, Res};
 use crate::parse::{Kind, Node};
 use crate::pass::define::VarDefine;
 use crate::pass::expr::Expr;
-use crate::pass::ty::{LiteralType, PrimitiveType, Type};
+use crate::pass::ty::{LiteralType, Type};
 use crate::span::Span;
 use crate::util::Visit;
 
@@ -98,17 +98,7 @@ impl<'i> Statement<'i> {
     pub fn gen(self, ctx: &mut Ctx<'i>) -> Res<'i, ()> {
         use StatementKind::*;
         match self.kind {
-            Return(mut value) => {
-                ctx.scopes.return_called();
-
-                // type check
-                value
-                    .as_mut()
-                    .map(|value| value.init_ty(ctx))
-                    .transpose()?
-                    .unwrap_or_else(|| PrimitiveType::Void.ty())
-                    .check(ctx.scopes.func_return_type(), Some(self.span))?;
-
+            Return(value) => {
                 ctx.o.push_str("return");
                 if let Some(value) = value {
                     ctx.o.push(' ');
@@ -133,33 +123,19 @@ impl<'i> Statement<'i> {
                 then,
                 otherwise,
             } => {
-                // type check
-                cond.init_ty(ctx)?
-                    .check(PrimitiveType::Bool.ty(), Some(self.span))?;
-
                 ctx.o.push_str("if (");
                 cond.gen(ctx)?;
                 ctx.o.push_str(") ");
-                ctx.scopes.push(false, None);
                 then.gen(ctx)?;
-                ctx.scopes.pop();
                 if let Some(otherwise) = otherwise {
-                    ctx.scopes.push(false, None);
                     otherwise.gen(ctx)?;
-                    ctx.scopes.pop();
                 }
             }
             Until { cond, block } => {
-                // type check
-                cond.init_ty(ctx)?
-                    .check(PrimitiveType::Bool.ty(), Some(self.span))?;
-
                 ctx.o.push_str("while (!(");
                 cond.gen(ctx)?;
                 ctx.o.push_str(")) ");
-                ctx.scopes.push(true, None);
                 block.gen(ctx)?;
-                ctx.scopes.pop();
             }
             For {
                 init,
@@ -167,14 +143,9 @@ impl<'i> Statement<'i> {
                 update,
                 block,
             } => {
-                ctx.scopes.push(true, None);
                 ctx.o.push_str("for (");
                 init.gen(ctx)?;
                 ctx.o.push_str("; ");
-
-                // type check
-                cond.init_ty(ctx)?
-                    .check(PrimitiveType::Bool.ty(), Some(self.span))?;
 
                 cond.gen(ctx)?;
                 ctx.o.push_str("; ");
@@ -182,15 +153,8 @@ impl<'i> Statement<'i> {
                 ctx.o.pop(); // for update statement's semicolon
                 ctx.o.push_str(") ");
                 block.gen(ctx)?;
-                ctx.scopes.pop();
             }
             ExprAssign { lvalue, rvalue } => {
-                // type check
-                lvalue.check_assignable(Some(self.span))?;
-                rvalue
-                    .init_ty(ctx)?
-                    .check(lvalue.init_ty(ctx)?, Some(self.span))?;
-
                 lvalue.gen(ctx)?;
                 ctx.o.push_str(" = ");
                 rvalue.gen(ctx)?;
@@ -201,8 +165,6 @@ impl<'i> Statement<'i> {
                 ctx.o.push(';');
             }
             Expr(expr) => {
-                // type check
-                expr.init_ty(ctx)?;
                 expr.gen(ctx)?;
                 ctx.o.push(';');
             }
@@ -269,11 +231,7 @@ impl<'i> CCode<'i> {
         for part in self.parts {
             match part {
                 CCodePart::String(str) => ctx.o.push_str(str),
-                CCodePart::Expr(expr) => {
-                    // type check
-                    expr.init_ty(ctx)?;
-                    expr.gen(ctx)?
-                }
+                CCodePart::Expr(expr) => expr.gen(ctx)?,
             }
         }
         ctx.o.push_str("/*}>*/");

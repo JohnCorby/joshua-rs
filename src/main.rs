@@ -60,6 +60,8 @@ fn main() {
         let node = Node::parse(ctx.new_i(program), Kind::program)?;
         println!("visiting");
         let program = node.visit::<Program<'_>>(ctx);
+        println!("type checking");
+        program.type_check(ctx)?;
         println!("generating");
         program.gen(ctx)?;
     };

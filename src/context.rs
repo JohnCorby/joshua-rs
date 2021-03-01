@@ -88,11 +88,11 @@ impl<'i> Ctx<'i> {
         }
 
         self.o.push_str("#pragma region prelude\n");
-        Node::parse(self.new_i(i), Kind::program)
+        let program = Node::parse(self.new_i(i), Kind::program)
             .unwrap()
-            .visit::<Program<'i>>(self)
-            .gen(self)
-            .unwrap();
+            .visit::<Program<'i>>(self);
+        program.type_check(self).unwrap();
+        program.gen(self).unwrap();
         self.o.push('\n');
         self.o.push_str("#pragma endregion prelude\n");
     }
