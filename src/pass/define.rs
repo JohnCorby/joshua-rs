@@ -7,6 +7,7 @@ use crate::pass::ty::TypeNode;
 use crate::span::Span;
 use crate::util::interned_str::InternedStr;
 use crate::util::{Mangle, Visit};
+use std::ops::Deref;
 
 #[derive(Debug, Clone)]
 pub struct Program<'i>(pub Vec<Define<'i>>);
@@ -129,37 +130,30 @@ impl<'i> Define<'i> {
                 args,
                 body,
             } => {
-                // if !generic_placeholders.is_empty() {
-                //     Self {
-                //         span: self.span,
-                //         kind: Func {
-                //             ty_node,
-                //             name,
-                //             generic_placeholders,
-                //             args,
-                //             body,
-                //         },
-                //     }
-                //     .gen_generic(ctx)?
-                // } else {
-                // todo generics
-                ty_node.gen(ctx);
-                ctx.o.push(' ');
-                ctx.o.push_str(
-                    &name.mangle_func(&args.iter().map(|it| *it.ty_node.ty).collect::<Vec<_>>()),
-                );
-                ctx.o.push('(');
-                for arg in args {
-                    arg.gen(ctx);
-                    ctx.o.push_str(", ")
+                // only gen non-generic func
+                if generic_placeholders.is_empty() {
+                    ty_node.gen(ctx);
+                    ctx.o.push(' ');
+                    ctx.o.push_str(
+                        &name.mangle_func(
+                            &args
+                                .iter()
+                                .map(|it| it.ty_node.ty.deref())
+                                .collect::<Vec<_>>(),
+                        ),
+                    );
+                    ctx.o.push('(');
+                    for arg in args {
+                        arg.gen(ctx);
+                        ctx.o.push_str(", ")
+                    }
+                    if ctx.o.ends_with(", ") {
+                        ctx.o.pop();
+                        ctx.o.pop();
+                    }
+                    ctx.o.push_str(") ");
+                    body.gen(ctx);
                 }
-                if ctx.o.ends_with(", ") {
-                    ctx.o.pop();
-                    ctx.o.pop();
-                }
-                ctx.o.push_str(") ");
-                body.gen(ctx);
-                // }
             }
             Var(var_define) => {
                 var_define.gen(ctx);

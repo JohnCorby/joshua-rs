@@ -9,6 +9,7 @@ use crate::span::Span;
 use crate::util::interned_str::{Intern, InternedStr};
 use crate::util::late_init::LateInit;
 use crate::util::{Mangle, Visit};
+use std::ops::Deref;
 
 #[derive(Debug, Clone)]
 pub struct Expr<'i> {
@@ -250,7 +251,7 @@ impl<'i> FuncCall<'i> {
         ctx.o.push_str(
             &self
                 .name
-                .mangle_func(&self.args.iter().map(|it| *it.ty).collect::<Vec<_>>()),
+                .mangle_func(&self.args.iter().map(|it| it.ty.deref()).collect::<Vec<_>>()),
         );
         ctx.o.push('(');
         for arg in self.args {

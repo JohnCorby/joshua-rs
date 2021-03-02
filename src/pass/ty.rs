@@ -8,6 +8,7 @@ use crate::util::late_init::LateInit;
 use crate::util::{Mangle, Visit};
 use std::fmt::{Display, Formatter};
 // use std::hash::{Hash, Hasher};
+use std::ops::Deref;
 use std::rc::Rc;
 
 #[derive(Debug, Clone)]
@@ -46,7 +47,7 @@ impl<'i> Visit<'i> for TypeNode<'i> {
 impl<'i> TypeNode<'i> {
     pub fn gen(self, ctx: &mut Ctx<'i>) {
         use Type::*;
-        match *self.ty {
+        match self.ty.deref() {
             Primitive(ty) => ctx.o.push_str(ty.c_type()),
             Struct(name) => {
                 ctx.o.push_str("struct ");
@@ -64,16 +65,17 @@ pub enum TypeKind<'i> {
     Named(InternedStr<'i>),
 }
 
-#[derive(Debug, Copy, Clone, Hash, PartialEq)]
+/// note: cloning is okay and cheap because it's Rc::clone
+#[derive(Debug, Clone, Hash, PartialEq)]
 pub enum Type<'i> {
     Primitive(PrimitiveType),
     Literal(LiteralType),
     Struct(InternedStr<'i>),
     GenericPlaceholder(InternedStr<'i>),
-    // Ptr(Rc<Type<'i>>),
+    Ptr(Rc<Type<'i>>),
 }
 impl<'i> Type<'i> {
-    pub fn check(self, expected: Self, span: Option<Span<'i>>) -> Res<'i, ()> {
+    pub fn check(&self, expected: &Self, span: Option<Span<'i>>) -> Res<'i, ()> {
         let actual = self;
         if expected == actual {
             Ok(())
@@ -82,13 +84,14 @@ impl<'i> Type<'i> {
         }
     }
 
-    pub fn name(self) -> String {
+    pub fn name(&self) -> String {
         use Type::*;
         match self {
             Primitive(ty) => ty.to_string(),
-            Struct(name) => format!("s({})", name),
-            GenericPlaceholder(name) => format!("g({})", name),
+            Struct(name) => name.to_string(),
+            GenericPlaceholder(name) => name.to_string(),
             Literal(ty) => ty.to_string(),
+            Ptr(ty) => format!("ptr<{}>", ty.name()),
         }
     }
 
@@ -121,6 +124,7 @@ impl Display for Type<'_> {
             Struct(name) => write!(f, "struct type `{}`", name),
             GenericPlaceholder(name) => write!(f, "generic placeholder type `{}`", name),
             Literal(ty) => write!(f, "literal type {}", ty),
+            Ptr(ty) => write!(f, "pointer type to {}", ty),
         }
     }
 }

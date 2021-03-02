@@ -1,4 +1,4 @@
-/*//! helper stuff for generic handling
+//! helper stuff for generic handling
 
 use crate::context::Ctx;
 use crate::error::{err, Res};
@@ -13,64 +13,11 @@ use std::ops::Deref;
 
 type GenericMap<'i> = HashMap<InternedStr<'i>, Type<'i>>;
 
-impl<'i> Define<'i> {
-    /// create a template for a generic func using a func_define
-    pub fn gen_generic(self, ctx: &mut Ctx<'i>) -> Res<'i, ()> {
-        if let Self {
-            span,
-            kind:
-                DefineKind::Func {
-                    ty_node,
-                    name,
-                    generic_placeholders,
-                    args,
-                    body,
-                },
-        } = self
-        {
-            assert!(!generic_placeholders.is_empty());
-
-            // hack so generic types resolve in args and ret type
-            ctx.scopes.push(false, None);
-            for &placeholder in &generic_placeholders {
-                ctx.scopes
-                    .add(Symbol::GenericPlaceholderType(placeholder), Some(span))?;
-            }
-            let ty = *ty_node.ty;
-            let arg_types = args
-                .iter()
-                .map(|var_define| *var_define.ty_node.ty)
-                .collect::<Vec<_>>();
-            ctx.scopes.pop();
-
-            ctx.scopes.add(
-                Symbol::GenericFunc {
-                    ty,
-                    arg_types,
-
-                    span,
-                    ty_node,
-                    name,
-                    generic_placeholders,
-                    args,
-                    body: body.into(),
-
-                    scopes_index: ctx.scopes.0.len(),
-                    o_index: ctx.o.make_index(ctx.o.len()),
-                },
-                Some(span),
-            )
-        } else {
-            unreachable!()
-        }
-    }
-}
-
-impl<'i> FuncCall<'i> {
+/*impl<'i> FuncCall<'i> {
     /// use a func call to find a generic (or normal) function
     /// then specializes it using the func_call's replacements
     /// returns specialized ret type and arg types
-    pub fn init_ty_generic(&self, ctx: &mut Ctx<'i>) -> Res<'i, Type<'i>> {
+    pub fn type_check_generic(&self, ctx: &mut Ctx<'i>) -> Res<'i, Type<'i>> {
         assert!(!self.generic_replacements.is_empty());
 
         // already-specialized arg types from the func call
@@ -94,7 +41,7 @@ impl<'i> FuncCall<'i> {
             scopes_index,
             o_index,
             ..
-        }) = ctx.scopes.get_generic_func(self.name, &call_arg_types)
+        }) = ctx.scopes.find_generic_func(self.name, &call_arg_types)
         {
             // get mapping from placeholder names to replacement types
             let generic_map = {
@@ -112,8 +59,8 @@ impl<'i> FuncCall<'i> {
                 let replacement_types = self
                     .generic_replacements
                     .iter()
-                    .map(|it| it.init_ty(ctx))
-                    .collect::<Res<'i, Vec<_>>>()?;
+                    .map(|it| *it.ty)
+                    .collect::<Vec<_>>();
                 generic_placeholders
                     .iter()
                     .copied()
@@ -193,7 +140,7 @@ impl<'i> FuncCall<'i> {
 
 impl<'i> Scopes<'i> {
     /// find a generic func fuzzily
-    pub fn get_generic_func(
+    pub fn find_generic_func(
         &self,
         name: InternedStr<'i>,
         arg_types: &[Type<'i>],
@@ -228,7 +175,7 @@ impl<'i> Scopes<'i> {
             })
             .cloned()
     }
-}
+}*/
 
 // impl replace generics
 impl<'i> Define<'i> {
@@ -363,13 +310,12 @@ impl<'i> FuncCall<'i> {
 impl<'i> TypeNode<'i> {
     fn replace_generics(&mut self, generic_map: &GenericMap<'i>) {
         if let Type::GenericPlaceholder(name) = *self.ty {
-            self.kind = match generic_map[&name] {
-                Type::Primitive(ty) => TypeKind::Primitive(ty),
-                Type::Struct(name) => TypeKind::Named(name),
+            self.kind = match &generic_map[&name] {
+                Type::Primitive(ty) => TypeKind::Primitive(*ty),
+                Type::Struct(name) => TypeKind::Named(*name),
                 ty => unreachable!("replacing generic with {}", ty),
             };
             self.ty = Default::default()
         }
     }
 }
-*/

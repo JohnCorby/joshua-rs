@@ -10,6 +10,8 @@ use crate::pass::ty::{PrimitiveType, Type, TypeKind, TypeNode};
 use crate::scope::Symbol;
 use crate::util::interned_str::Intern;
 use std::collections::HashMap;
+use std::ops::Deref;
+use std::rc::Rc;
 
 impl<'i> Program<'i> {
     pub fn type_check(&self, ctx: &mut Ctx<'i>) -> Res<'i, ()> {
@@ -40,7 +42,9 @@ impl<'i> Define<'i> {
                             let mut field_types = HashMap::new();
                             for define in body {
                                 if let Var(VarDefine { name, ty_node, .. }) = &define.kind {
-                                    field_types.insert(*name, *ty_node.ty).unwrap_none();
+                                    field_types
+                                        .insert(*name, ty_node.ty.deref().clone())
+                                        .unwrap_none();
                                 }
                             }
                             field_types
@@ -56,9 +60,14 @@ impl<'i> Define<'i> {
                 args,
                 body,
             } => {
-                // todo generics
                 ty_node.type_check(ctx)?;
-                ctx.scopes.push(false, Some(*ty_node.ty));
+                ctx.scopes.push(false, Some(ty_node.ty.deref().clone()));
+                for placeholder in generic_placeholders {
+                    ctx.scopes.add(
+                        Symbol::GenericPlaceholderType(*placeholder),
+                        Some(self.span),
+                    )?
+                }
                 for arg in args {
                     arg.type_check(ctx)?
                 }
@@ -68,10 +77,33 @@ impl<'i> Define<'i> {
 
                 // add symbol
                 ctx.scopes.add(
-                    Symbol::Func {
-                        ty: *ty_node.ty,
-                        name: *name,
-                        arg_types: args.iter().map(|it| *it.ty_node.ty).collect(),
+                    if generic_placeholders.is_empty() {
+                        Symbol::Func {
+                            ty: ty_node.ty.deref().clone(),
+                            name: *name,
+                            arg_types: args
+                                .iter()
+                                .map(|it| it.ty_node.ty.deref().clone())
+                                .collect(),
+                        }
+                    } else {
+                        Symbol::GenericFunc {
+                            ty: ty_node.ty.deref().clone(),
+                            arg_types: args
+                                .iter()
+                                .map(|it| it.ty_node.ty.deref().clone())
+                                .collect(),
+
+                            span: self.span,
+                            ty_node: ty_node.clone(),
+                            name: *name,
+                            generic_placeholders: generic_placeholders.clone(),
+                            args: args.clone(),
+                            body: body.clone().into(),
+
+                            scopes_index: ctx.scopes.0.len(),
+                            o_index: ctx.o.make_index(ctx.o.len()),
+                        }
                     },
                     Some(self.span),
                 )?;
@@ -90,13 +122,13 @@ impl<'i> VarDefine<'i> {
             value.type_check(ctx)?;
 
             // check matching
-            value.ty.check(*self.ty_node.ty, Some(self.span))?;
+            value.ty.check(self.ty_node.ty.deref(), Some(self.span))?;
         }
 
         // add symbol
         ctx.scopes.add(
             Symbol::Var {
-                ty: *self.ty_node.ty,
+                ty: self.ty_node.ty.deref().clone(),
                 name: self.name,
             },
             Some(self.span),
@@ -119,8 +151,8 @@ impl<'i> Statement<'i> {
                 ctx.scopes.return_called();
                 value
                     .as_ref()
-                    .map(|it| *it.ty)
-                    .unwrap_or_default()
+                    .map(|it| &*it.ty)
+                    .unwrap_or(&Type::Primitive(PrimitiveType::Void))
                     .check(ctx.scopes.func_return_type(), Some(self.span))?;
             }
             Break => {
@@ -149,7 +181,7 @@ impl<'i> Statement<'i> {
                 }
 
                 // check condition
-                cond.ty.check(PrimitiveType::Bool.ty(), Some(self.span))?;
+                cond.ty.check(&PrimitiveType::Bool.ty(), Some(self.span))?;
             }
             Until { cond, block } => {
                 cond.type_check(ctx)?;
@@ -158,7 +190,7 @@ impl<'i> Statement<'i> {
                 ctx.scopes.pop();
 
                 // check condition
-                cond.ty.check(PrimitiveType::Bool.ty(), Some(self.span))?;
+                cond.ty.check(&PrimitiveType::Bool.ty(), Some(self.span))?;
             }
             For {
                 init,
@@ -174,7 +206,7 @@ impl<'i> Statement<'i> {
                 ctx.scopes.pop();
 
                 // check condition
-                cond.ty.check(PrimitiveType::Bool.ty(), Some(self.span))?;
+                cond.ty.check(&PrimitiveType::Bool.ty(), Some(self.span))?;
             }
             ExprAssign { lvalue, rvalue } => {
                 lvalue.type_check(ctx)?;
@@ -182,7 +214,7 @@ impl<'i> Statement<'i> {
 
                 // check matching
                 lvalue.check_assignable(Some(self.span))?;
-                rvalue.ty.check(*lvalue.ty, Some(self.span))?;
+                rvalue.ty.check(&lvalue.ty, Some(self.span))?;
             }
             VarDefine(var_define) => var_define.type_check(ctx)?,
             Expr(expr) => expr.type_check(ctx)?,
@@ -225,7 +257,10 @@ impl<'i> Expr<'i> {
                 // symbol check
                 ctx.scopes
                     .find(
-                        &Symbol::new_func(*op, [*left.ty, *right.ty].into()),
+                        &Symbol::new_func(
+                            *op,
+                            [left.ty.deref().clone(), right.ty.deref().clone()].into(),
+                        ),
                         Some(self.span),
                     )?
                     .ty()
@@ -235,7 +270,10 @@ impl<'i> Expr<'i> {
 
                 // symbol check
                 ctx.scopes
-                    .find(&Symbol::new_func(*op, [*thing.ty].into()), Some(self.span))?
+                    .find(
+                        &Symbol::new_func(*op, [thing.ty.deref().clone()].into()),
+                        Some(self.span),
+                    )?
                     .ty()
             }
             Cast { thing, ty_node } => {
@@ -246,11 +284,14 @@ impl<'i> Expr<'i> {
                 // fixme literal casting is hacky as shit
                 if let Type::Literal(_) = *thing.ty {
                     // casting will always work for literals
-                    *ty_node.ty
+                    ty_node.ty.deref().clone()
                 } else {
                     let name = format!("as {}", ty_node.ty.name()).intern(ctx);
                     ctx.scopes
-                        .find(&Symbol::new_func(name, [*thing.ty].into()), Some(self.span))?
+                        .find(
+                            &Symbol::new_func(name, [thing.ty.deref().clone()].into()),
+                            Some(self.span),
+                        )?
                         .ty()
                 }
             }
@@ -265,13 +306,13 @@ impl<'i> Expr<'i> {
                 let mut real_func_call = func_call.clone();
                 real_func_call.args.insert(0, *receiver.clone());
                 real_func_call.type_check(ctx)?;
-                *real_func_call.ty
+                real_func_call.ty.deref().clone()
             }
             Field { receiver, var } => {
                 receiver.type_check(ctx)?;
 
                 // field check
-                let struct_name = match *receiver.ty {
+                let struct_name = *match receiver.ty.deref() {
                     Type::Struct(struct_name) => struct_name,
                     ty => {
                         return err(
@@ -288,7 +329,7 @@ impl<'i> Expr<'i> {
                     _ => unreachable!(),
                 };
                 match field_types.get(&var) {
-                    Some(&field_type) => field_type,
+                    Some(field_type) => field_type.clone(),
                     None => {
                         return err(
                             &format!("no field named {} in {}", var, symbol),
@@ -300,7 +341,7 @@ impl<'i> Expr<'i> {
             Literal(literal) => literal.ty(),
             FuncCall(func_call) => {
                 func_call.type_check(ctx)?;
-                *func_call.ty
+                func_call.ty.deref().clone()
             }
             Var(name) => {
                 // symbol check
@@ -331,7 +372,10 @@ impl<'i> FuncCall<'i> {
             // symbol check
             ctx.scopes
                 .find(
-                    &Symbol::new_func(self.name, self.args.iter().map(|it| *it.ty).collect()),
+                    &Symbol::new_func(
+                        self.name,
+                        self.args.iter().map(|it| it.ty.deref().clone()).collect(),
+                    ),
                     Some(self.span),
                 )?
                 .ty(),
@@ -346,7 +390,10 @@ impl<'i> TypeNode<'i> {
         use TypeKind::*;
         self.ty.init(match &self.kind {
             Primitive(ty) => Type::Primitive(*ty),
-            Ptr(ty) => todo!("TypeNode::type_check for TypeKind::Ptr"),
+            Ptr(ty) => {
+                ty.type_check(ctx)?;
+                Type::Ptr(ty.deref().clone().ty.deref().clone().into())
+            }
             Named(name) => {
                 // symbol check
                 ctx.scopes

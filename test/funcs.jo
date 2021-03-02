@@ -1,8 +1,8 @@
 void f(i8 a) {}
 void f(i8 a, i8 b) {}
 
-//void f<T>(T a) {}
-//void f<T>(T a, T b) {}
+void f<T>(T a) {}
+void f<T>(T a, T b) {}
 
 
 

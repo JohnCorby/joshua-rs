@@ -11,6 +11,7 @@ use crate::util::index_string::IndexStringIndex;
 use crate::util::interned_str::InternedStr;
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Display, Formatter};
+use std::ops::Deref;
 use std::rc::Rc;
 
 #[derive(Debug, Clone, derivative::Derivative, derive_new::new)]
@@ -37,7 +38,7 @@ pub enum Symbol<'i> {
     },
     GenericPlaceholderType(InternedStr<'i>),
     GenericFunc {
-        // cached for faster access on eq/hash
+        // cached for faster access
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         #[new(default)]
         ty: Type<'i>,
@@ -71,7 +72,7 @@ impl<'i> Symbol<'i> {
     pub fn ty(&self) -> Type<'i> {
         use Symbol::*;
         match self {
-            Func { ty, .. } | Var { ty, .. } | GenericFunc { ty, .. } => *ty,
+            Func { ty, .. } | Var { ty, .. } | GenericFunc { ty, .. } => ty.deref().clone(),
             StructType { name, .. } => Type::Struct(*name),
             GenericPlaceholderType(name) => Type::GenericPlaceholder(*name),
         }
@@ -165,9 +166,9 @@ impl<'i> Scopes<'i> {
         }
         false
     }
-    pub fn func_return_type(&self) -> Type<'i> {
+    pub fn func_return_type(&self) -> &Type<'i> {
         for scope in self.0.iter().rev() {
-            if let Some(ty) = scope.func_return_type {
+            if let Some(ty) = &scope.func_return_type {
                 return ty;
             }
         }
@@ -187,7 +188,7 @@ impl<'i> Scopes<'i> {
     /// note: only checks one current scope and outer ones
     pub fn check_return_called(&self, span: Option<Span<'i>>) -> Res<'i, ()> {
         let return_called = self.0.last().unwrap().return_called;
-        let is_void = self.func_return_type() == Type::Primitive(PrimitiveType::Void);
+        let is_void = self.func_return_type() == &Type::Primitive(PrimitiveType::Void);
 
         if !return_called && !is_void {
             err("return was never called for non-void func", span)
