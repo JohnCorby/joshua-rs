@@ -41,7 +41,7 @@ pub enum StatementKind<'i> {
     Expr(Expr<'i>),
 }
 
-impl<'i> Visit<'i> for Statement<'i> {
+impl Visit<'i> for Statement<'i> {
     fn visit(node: Node<'i>, ctx: &mut Ctx<'i>) -> Self {
         let span = node.span();
         use StatementKind::*;
@@ -94,7 +94,7 @@ impl<'i> Visit<'i> for Statement<'i> {
     }
 }
 
-impl<'i> Statement<'i> {
+impl Statement<'i> {
     pub fn gen(self, ctx: &mut Ctx<'i>) {
         use StatementKind::*;
         match self.kind {
@@ -165,13 +165,13 @@ impl<'i> Statement<'i> {
 #[derive(Debug, Clone)]
 pub struct Block<'i>(pub Vec<Statement<'i>>);
 
-impl<'i> Visit<'i> for Block<'i> {
+impl Visit<'i> for Block<'i> {
     fn visit(node: Node<'i>, ctx: &mut Ctx<'i>) -> Self {
         Self(node.children_checked(Kind::block).visit_rest(ctx))
     }
 }
 
-impl<'i> Block<'i> {
+impl Block<'i> {
     pub fn gen(self, ctx: &mut Ctx<'i>) {
         ctx.o.push_str("{\n");
         for statement in self.0 {
@@ -191,7 +191,7 @@ pub enum CCodePart<'i> {
     Expr(Expr<'i>),
 }
 
-impl<'i> Visit<'i> for CCode<'i> {
+impl Visit<'i> for CCode<'i> {
     fn visit(node: Node<'i>, ctx: &mut Ctx<'i>) -> Self {
         Self(
             node.children_checked(Kind::c_code)
@@ -207,7 +207,7 @@ impl<'i> Visit<'i> for CCode<'i> {
     }
 }
 
-impl<'i> CCode<'i> {
+impl CCode<'i> {
     pub fn ty(&self) -> Type<'i> {
         LiteralType::CCode.ty()
     }

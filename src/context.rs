@@ -3,20 +3,22 @@ use crate::pass::define::Program;
 use crate::pass::ty::PrimitiveType;
 use crate::scope::Scopes;
 use crate::util::frozen_vec::FrozenVec;
-use crate::util::index_string::IndexString;
+use crate::util::late_init::LateInit;
 
 /// stores general program context
 #[derive(Debug)]
 pub struct Ctx<'i> {
     pub is: &'i FrozenVec<String>,
-    pub o: IndexString,
+    pub program: LateInit<Program<'i>>,
+    pub o: String,
     pub scopes: Scopes<'i>,
 }
 
-impl<'i> Ctx<'i> {
-    pub fn new(is: &'i FrozenVec<std::string::String>) -> Self {
+impl Ctx<'i> {
+    pub fn new(is: &'i FrozenVec<String>) -> Self {
         let mut ctx = Self {
             is,
+            program: Default::default(),
             o: Default::default(),
             scopes: Default::default(),
         };
@@ -29,7 +31,7 @@ impl<'i> Ctx<'i> {
     }
 }
 
-impl<'i> Ctx<'i> {
+impl Ctx<'i> {
     pub fn gen_prelude(&mut self) {
         let mut i = String::new();
 

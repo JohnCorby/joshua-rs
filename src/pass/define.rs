@@ -7,27 +7,31 @@ use crate::pass::ty::TypeNode;
 use crate::span::Span;
 use crate::util::interned_str::InternedStr;
 use crate::util::{Mangle, Visit};
+use std::cell::RefCell;
 use std::ops::Deref;
+use std::rc::Rc;
 
 #[derive(Debug, Clone)]
-pub struct Program<'i>(pub Vec<Define<'i>>);
+pub struct Program<'i>(pub Rc<RefCell<Vec<Define<'i>>>>);
 
-impl<'i> Visit<'i> for Program<'i> {
+impl Visit<'i> for Program<'i> {
     fn visit(node: Node<'i>, ctx: &mut Ctx<'i>) -> Self {
-        Self(
+        Self(Rc::new(RefCell::new(
             node.children_checked(Kind::program)
                 .filter_map(|node| match node.kind() {
                     Kind::EOI => None,
                     _ => Some(node.visit(ctx)),
                 })
                 .collect(),
-        )
+        )))
     }
 }
 
-impl<'i> Program<'i> {
+impl Program<'i> {
     pub fn gen(self, ctx: &mut Ctx<'i>) {
-        for define in self.0 {
+        // assert!(ctx.o.is_empty(), "program already generated");
+        let defines = self.0.borrow().clone();
+        for define in defines {
             define.gen(ctx);
             ctx.o.push('\n')
         }
@@ -60,7 +64,7 @@ pub enum DefineKind<'i> {
     CCode(CCode<'i>),
 }
 
-impl<'i> Visit<'i> for Define<'i> {
+impl Visit<'i> for Define<'i> {
     fn visit(node: Node<'i>, ctx: &mut Ctx<'i>) -> Self {
         let span = node.span();
         use DefineKind::*;
@@ -109,7 +113,7 @@ impl<'i> Visit<'i> for Define<'i> {
     }
 }
 
-impl<'i> Define<'i> {
+impl Define<'i> {
     pub fn gen(self, ctx: &mut Ctx<'i>) {
         use DefineKind::*;
         match self.kind {
@@ -140,6 +144,7 @@ impl<'i> Define<'i> {
                                 .iter()
                                 .map(|it| it.ty_node.ty.deref())
                                 .collect::<Vec<_>>(),
+                            &[],
                         ),
                     );
                     ctx.o.push('(');
@@ -173,7 +178,7 @@ pub struct VarDefine<'i> {
     pub value: Option<Expr<'i>>,
 }
 
-impl<'i> Visit<'i> for VarDefine<'i> {
+impl Visit<'i> for VarDefine<'i> {
     fn visit(node: Node<'i>, ctx: &mut Ctx<'i>) -> Self {
         let span = node.span();
         let mut nodes = node.children_checked(Kind::var_define);
@@ -187,7 +192,7 @@ impl<'i> Visit<'i> for VarDefine<'i> {
     }
 }
 
-impl<'i> VarDefine<'i> {
+impl VarDefine<'i> {
     pub fn gen(self, ctx: &mut Ctx<'i>) {
         self.ty_node.gen(ctx);
         ctx.o.push(' ');

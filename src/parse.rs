@@ -11,12 +11,12 @@ pub type Kind = inner::Rule;
 /// newtype wrapper for pest pair
 #[derive(Clone)]
 pub struct Node<'i>(Pair<'i, Kind>);
-impl<'i> From<Pair<'i, Kind>> for Node<'i> {
+impl From<Pair<'i, Kind>> for Node<'i> {
     fn from(p: Pair<'i, Kind>) -> Self {
         Self(p)
     }
 }
-impl<'i> Node<'i> {
+impl Node<'i> {
     /// parse an input string into a node based on a kind
     pub fn parse(i: &'i str, kind: Kind) -> Res<'i, Self> {
         let result: Result<Pairs<'i, Kind>, Error<Kind>> = inner::Parser::parse(kind, i);
@@ -75,18 +75,18 @@ impl Display for Node<'_> {
 /// newtype wrapper for pest pairs
 #[derive(Clone)]
 pub struct Nodes<'i>(Pairs<'i, Kind>);
-impl<'i> From<Pairs<'i, Kind>> for Nodes<'i> {
+impl From<Pairs<'i, Kind>> for Nodes<'i> {
     fn from(p: Pairs<'i, Kind>) -> Self {
         Self(p)
     }
 }
-impl<'i> Iterator for Nodes<'i> {
+impl Iterator for Nodes<'i> {
     type Item = Node<'i>;
     fn next(&mut self) -> Option<Self::Item> {
         self.0.next().map(Node::from)
     }
 }
-impl<'i> DoubleEndedIterator for Nodes<'i> {
+impl DoubleEndedIterator for Nodes<'i> {
     fn next_back(&mut self) -> Option<Self::Item> {
         self.0.next_back().map(Node::from)
     }

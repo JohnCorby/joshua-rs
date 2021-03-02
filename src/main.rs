@@ -25,6 +25,7 @@
 #![feature(option_unwrap_none)]
 #![feature(result_copied)]
 #![feature(try_blocks)]
+#![feature(in_band_lifetimes)]
 #![warn(elided_lifetimes_in_paths)]
 
 use crate::context::Ctx;
@@ -60,10 +61,11 @@ fn main() {
         let node = Node::parse(ctx.new_i(program), Kind::program)?;
         println!("visiting");
         let program = node.visit::<Program<'_>>(ctx);
+        ctx.program.init(program.clone());
         println!("type checking");
         program.type_check(ctx)?;
         println!("generating");
-        program.gen(ctx);
+        program.clone().gen(ctx);
     };
     if let Err(err) = result {
         return eprintln!("Error: {}", err);

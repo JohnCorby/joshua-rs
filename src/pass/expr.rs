@@ -50,7 +50,7 @@ pub enum ExprKind<'i> {
     CCode(CCode<'i>),
 }
 
-impl<'i> Visit<'i> for Expr<'i> {
+impl Visit<'i> for Expr<'i> {
     fn visit(node: Node<'i>, ctx: &mut Ctx<'i>) -> Self {
         let span = node.span();
         use ExprKind::*;
@@ -141,7 +141,7 @@ impl<'i> Visit<'i> for Expr<'i> {
     }
 }
 
-impl<'i> Expr<'i> {
+impl Expr<'i> {
     pub fn check_assignable(&self, span: Option<Span<'i>>) -> Res<'i, ()> {
         use ExprKind::*;
         let is_assignable = matches!(self.kind, Field { .. } | Var(_));
@@ -226,7 +226,7 @@ pub struct FuncCall<'i> {
     pub ty: LateInit<Type<'i>>,
 }
 
-impl<'i> Visit<'i> for FuncCall<'i> {
+impl Visit<'i> for FuncCall<'i> {
     fn visit(node: Node<'i>, ctx: &mut Ctx<'i>) -> Self {
         let span = node.span();
         let mut nodes = node.children_checked(Kind::func_call);
@@ -246,12 +246,17 @@ impl<'i> Visit<'i> for FuncCall<'i> {
     }
 }
 
-impl<'i> FuncCall<'i> {
+impl FuncCall<'i> {
     pub fn gen(self, ctx: &mut Ctx<'i>) {
         ctx.o.push_str(
-            &self
-                .name
-                .mangle_func(&self.args.iter().map(|it| it.ty.deref()).collect::<Vec<_>>()),
+            &self.name.mangle_func(
+                &self.args.iter().map(|it| it.ty.deref()).collect::<Vec<_>>(),
+                &self
+                    .generic_replacements
+                    .iter()
+                    .map(|it| it.ty.deref())
+                    .collect::<Vec<_>>(),
+            ),
         );
         ctx.o.push('(');
         for arg in self.args {
@@ -275,7 +280,7 @@ pub enum Literal<'i> {
     Str(&'i str),
 }
 
-impl<'i> Visit<'i> for Literal<'i> {
+impl Visit<'i> for Literal<'i> {
     fn visit(node: Node<'i>, _: &mut Ctx<'i>) -> Self {
         use Literal::*;
         match node.kind() {
@@ -290,7 +295,7 @@ impl<'i> Visit<'i> for Literal<'i> {
     }
 }
 
-impl<'i> Literal<'i> {
+impl Literal<'i> {
     pub fn ty(&self) -> Type<'i> {
         use Literal::*;
         match self {
@@ -314,7 +319,7 @@ impl<'i> Literal<'i> {
     }
 }
 
-impl<'i> Node<'i> {
+impl Node<'i> {
     pub fn visit_ident(&self, ctx: &mut Ctx<'i>) -> InternedStr<'i> {
         let str = self.str();
         str.strip_prefix('`')

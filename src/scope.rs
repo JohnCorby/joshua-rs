@@ -7,7 +7,6 @@ use crate::pass::define::VarDefine;
 use crate::pass::statement::Block;
 use crate::pass::ty::{PrimitiveType, Type, TypeNode};
 use crate::span::Span;
-use crate::util::index_string::IndexStringIndex;
 use crate::util::interned_str::InternedStr;
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Display, Formatter};
@@ -63,12 +62,9 @@ pub enum Symbol<'i> {
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         #[new(default)]
         scopes_index: usize,
-        #[derivative(Hash = "ignore", PartialEq = "ignore")]
-        #[new(default)]
-        o_index: IndexStringIndex,
     },
 }
-impl<'i> Symbol<'i> {
+impl Symbol<'i> {
     pub fn ty(&self) -> Type<'i> {
         use Symbol::*;
         match self {
@@ -128,7 +124,7 @@ impl Default for Scopes<'_> {
     }
 }
 
-impl<'i> Scopes<'i> {
+impl Scopes<'i> {
     pub fn push(&mut self, in_loop: bool, func_return_type: Option<Type<'i>>) {
         self.0.push(Scope {
             in_loop,
@@ -153,7 +149,7 @@ pub struct Scope<'i> {
     pub symbols: HashSet<Symbol<'i>>,
 }
 
-impl<'i> Scopes<'i> {
+impl Scopes<'i> {
     pub fn in_loop(&self) -> bool {
         for scope in self.0.iter().rev() {
             // accounts for inner functions
@@ -198,7 +194,7 @@ impl<'i> Scopes<'i> {
     }
 }
 
-impl<'i> Scopes<'i> {
+impl Scopes<'i> {
     pub fn add(&mut self, symbol: Symbol<'i>, span: Option<Span<'i>>) -> Res<'i, ()> {
         let scope = self.0.last_mut().unwrap();
         if let Some(symbol) = scope.symbols.get(&symbol) {

@@ -10,12 +10,12 @@ pub struct InternedStr<'i>(&'i str);
 pub trait Intern<'i> {
     fn intern(self, ctx: &mut Ctx<'i>) -> InternedStr<'i>;
 }
-impl<'i> Intern<'i> for &'i str {
+impl Intern<'i> for &'i str {
     fn intern(self, _: &mut Ctx<'i>) -> InternedStr<'i> {
         InternedStr(self)
     }
 }
-impl<'i> Intern<'i> for String {
+impl Intern<'i> for String {
     fn intern(self, ctx: &mut Ctx<'i>) -> InternedStr<'i> {
         for i in ctx.is {
             if i == self {

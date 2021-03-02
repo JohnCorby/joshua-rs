@@ -1,13 +1,11 @@
 use crate::context::Ctx;
 use crate::error::{err, unexpected_kind, Res};
 use crate::parse::{Kind, Node};
-use crate::scope::Symbol;
 use crate::span::Span;
 use crate::util::interned_str::InternedStr;
 use crate::util::late_init::LateInit;
 use crate::util::{Mangle, Visit};
 use std::fmt::{Display, Formatter};
-// use std::hash::{Hash, Hasher};
 use std::ops::Deref;
 use std::rc::Rc;
 
@@ -18,7 +16,7 @@ pub struct TypeNode<'i> {
     pub ty: LateInit<Type<'i>>,
 }
 
-impl<'i> Visit<'i> for TypeNode<'i> {
+impl Visit<'i> for TypeNode<'i> {
     fn visit(node: Node<'i>, ctx: &mut Ctx<'i>) -> Self {
         let node = node.children_checked(Kind::ty).next().unwrap();
         let span = node.span();
@@ -44,7 +42,7 @@ impl<'i> Visit<'i> for TypeNode<'i> {
     }
 }
 
-impl<'i> TypeNode<'i> {
+impl TypeNode<'i> {
     pub fn gen(self, ctx: &mut Ctx<'i>) {
         use Type::*;
         match self.ty.deref() {
@@ -74,7 +72,7 @@ pub enum Type<'i> {
     GenericPlaceholder(InternedStr<'i>),
     Ptr(Rc<Type<'i>>),
 }
-impl<'i> Type<'i> {
+impl Type<'i> {
     pub fn check(&self, expected: &Self, span: Option<Span<'i>>) -> Res<'i, ()> {
         let actual = self;
         if expected == actual {
@@ -92,21 +90,6 @@ impl<'i> Type<'i> {
             GenericPlaceholder(name) => name.to_string(),
             Literal(ty) => ty.to_string(),
             Ptr(ty) => format!("ptr<{}>", ty.name()),
-        }
-    }
-
-    pub fn symbol<'c>(&self, ctx: &'c mut Ctx<'i>) -> &'c Symbol<'i> {
-        use Type::*;
-        match self {
-            Struct(name) => ctx
-                .scopes
-                .find(&Symbol::new_struct_type(*name), None)
-                .unwrap(),
-            GenericPlaceholder(name) => ctx
-                .scopes
-                .find(&Symbol::new_generic_placeholder_type(*name), None)
-                .unwrap(),
-            ty => panic!("{} doesn't have symbol counterpart", ty),
         }
     }
 }

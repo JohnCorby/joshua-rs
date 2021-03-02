@@ -18,7 +18,7 @@ fn check(i: &str) {
         .unwrap()
         .visit::<Program<'_>>(ctx);
     program.type_check(ctx);
-    program.gen(ctx).unwrap();
+    program.gen(ctx);
     println!("\no = \n{}", ctx.o.unindent());
 
     let file = thread_rng()

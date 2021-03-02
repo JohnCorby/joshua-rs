@@ -61,7 +61,7 @@ impl<T: ToString> IntoErr for T {
     }
 }
 
-pub fn err<'i, T>(str: &str, span: Option<Span<'i>>) -> Res<'i, T> {
+pub fn err<T>(str: &str, span: Option<Span<'i>>) -> Res<'i, T> {
     Err(str.into_err(span))
 }
 #[allow(dead_code)]
