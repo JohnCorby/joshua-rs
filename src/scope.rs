@@ -111,18 +111,8 @@ impl Display for Symbol<'_> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Scopes<'i>(pub Vec<Scope<'i>>);
-impl Default for Scopes<'_> {
-    fn default() -> Self {
-        Scopes(vec![Scope {
-            in_loop: false,
-            func_return_type: None,
-            return_called: false,
-            symbols: Default::default(),
-        }])
-    }
-}
 
 impl Scopes<'i> {
     pub fn push(&mut self, in_loop: bool, func_return_type: Option<Type<'i>>) {

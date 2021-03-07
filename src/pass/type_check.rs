@@ -1,5 +1,4 @@
 //! type init, type checking, scope handling
-//! todo impl
 
 use crate::context::Ctx;
 use crate::error::{err, Res};
@@ -14,13 +13,12 @@ use std::ops::Deref;
 
 impl Program<'i> {
     pub fn type_check(&self, ctx: &mut Ctx<'i>) -> Res<'i, ()> {
-        let num_scopes = ctx.scopes.0.len();
-        let defines = &*self.0.borrow();
-        let defines = defines.as_slice();
-        for define in defines {
+        ctx.scopes.push(false, None);
+        ctx.type_check_prelude();
+        for define in &self.0 {
             define.type_check(ctx)?
         }
-        assert_eq!(ctx.scopes.0.len(), num_scopes);
+        ctx.scopes.pop();
         Ok(())
     }
 }

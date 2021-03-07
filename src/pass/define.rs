@@ -7,31 +7,27 @@ use crate::pass::ty::TypeNode;
 use crate::span::Span;
 use crate::util::interned_str::InternedStr;
 use crate::util::{Mangle, Visit};
-use std::cell::RefCell;
 use std::ops::Deref;
-use std::rc::Rc;
 
 #[derive(Debug, Clone)]
-pub struct Program<'i>(pub Rc<RefCell<Vec<Define<'i>>>>);
+pub struct Program<'i>(pub Vec<Define<'i>>);
 
 impl Visit<'i> for Program<'i> {
     fn visit(node: Node<'i>, ctx: &mut Ctx<'i>) -> Self {
-        Self(Rc::new(RefCell::new(
+        Self(
             node.children_checked(Kind::program)
                 .filter_map(|node| match node.kind() {
                     Kind::EOI => None,
                     _ => Some(node.visit(ctx)),
                 })
                 .collect(),
-        )))
+        )
     }
 }
 
 impl Program<'i> {
     pub fn gen(self, ctx: &mut Ctx<'i>) {
-        // assert!(ctx.o.is_empty(), "program already generated");
-        let defines = self.0.borrow().clone();
-        for define in defines {
+        for define in self.0 {
             define.gen(ctx);
             ctx.o.push('\n')
         }

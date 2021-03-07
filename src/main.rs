@@ -61,10 +61,13 @@ fn main() {
         let node = Node::parse(ctx.new_i(program), Kind::program)?;
         println!("visiting");
         let program = node.visit::<Program<'_>>(ctx);
-        ctx.program.init(program.clone());
         println!("type checking");
         program.type_check(ctx)?;
         println!("generating");
+        for define in std::mem::take(&mut ctx.extra_defines) {
+            define.gen(ctx);
+            ctx.o.push('\n')
+        }
         program.clone().gen(ctx);
     };
     if let Err(err) = result {

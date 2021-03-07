@@ -26,7 +26,7 @@ impl Define<'i> {
                         body,
                     },
             } => {
-                assert!(!generic_placeholders.is_empty());
+                debug_assert!(!generic_placeholders.is_empty());
 
                 ctx.scopes.push(false, None);
                 // add placeholders
@@ -74,7 +74,7 @@ type GenericMap<'i> = HashMap<InternedStr<'i>, Type<'i>>;
 
 impl FuncCall<'i> {
     pub fn type_check_generic(&self, ctx: &mut Ctx<'i>) -> Res<'i, ()> {
-        assert!(!self.generic_replacements.is_empty());
+        debug_assert!(!self.generic_replacements.is_empty());
 
         for replacement in &self.generic_replacements {
             replacement.type_check(ctx)?
@@ -147,27 +147,18 @@ impl FuncCall<'i> {
                 _ => unreachable!(),
             });
 
-            // todo insert into ast
             fn c_code(span: Span<'i>, string: &'i str) -> Define<'i> {
                 Define {
                     span,
                     kind: DefineKind::CCode(CCode(vec![CCodePart::String(string)])),
                 }
             }
-            let new_defines = vec![
+            ctx.extra_defines.extend(vec![
                 c_code(span, "#pragma region specialized generic func"),
                 func_define,
                 c_code(span, "#pragma endregion specialized generic func"),
-            ];
-            let defines = &*ctx.program;
-            dbg!(
-                defines.0.try_borrow().is_ok(),
-                defines.0.try_borrow_mut().is_ok()
-            );
-            let mut defines = defines.0.deref().borrow_mut();
-            defines.splice(0..0, new_defines);
+            ]);
 
-            // todo!("FuncCall::type_check_generic")
             Ok(())
         } else {
             unreachable!()
