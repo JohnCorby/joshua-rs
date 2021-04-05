@@ -1,6 +1,5 @@
 //!todo
 //! - interned string: a tiny bit more refactoring?
-//! - types: don't require g<...> or s<...>, and also merge types and type symbols
 //! - generics: make a different thing (i.e. can't call normal func w generic func call and vice versa)
 //! - generics inference
 //! - generics: `add` function duplication

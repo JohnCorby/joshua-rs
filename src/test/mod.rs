@@ -17,7 +17,7 @@ fn check(i: &str) {
     let program = Node::parse(i, Kind::program)
         .unwrap()
         .visit::<Program<'_>>(ctx);
-    program.type_check(ctx);
+    program.type_check(ctx).unwrap();
     program.gen(ctx);
     println!("\no = \n{}", ctx.o.unindent());
 
@@ -27,9 +27,10 @@ fn check(i: &str) {
         .map(char::from)
         .collect::<String>();
     let file = file.as_ref();
-    assert!(compile_program(&ctx.o, file).success());
+    let success = compile_program(&ctx.o, file).success();
     std::fs::remove_file(file.with_extension("c")).unwrap();
     std::fs::remove_file(file.with_extension("exe")).unwrap();
+    assert!(success);
 }
 
 #[test]

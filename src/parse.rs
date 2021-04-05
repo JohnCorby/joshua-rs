@@ -39,6 +39,7 @@ impl Node<'i> {
     }
 
     /// check that a node matches a kind, and then return its inner nodes
+    #[cfg(debug_assertions)]
     pub fn children_checked(self, expected: Kind) -> Nodes<'i> {
         let actual = self.kind();
         if expected == actual {
@@ -46,6 +47,11 @@ impl Node<'i> {
         } else {
             panic!("expected kind {:?}, but got {:?}", expected, actual)
         }
+    }
+    /// check that a node matches a kind, and then return its inner nodes
+    #[cfg(not(debug_assertions))]
+    pub fn children_checked(self, _expected: Kind) -> Nodes<'i> {
+        self.children()
     }
 }
 impl Debug for Node<'_> {

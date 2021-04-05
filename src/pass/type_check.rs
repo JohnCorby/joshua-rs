@@ -377,7 +377,7 @@ impl TypeNode<'i> {
             Primitive(ty) => Type::Primitive(*ty),
             Ptr(ty) => {
                 ty.type_check(ctx)?;
-                Type::Ptr(ty.deref().clone().ty.deref().clone().into())
+                Type::Ptr(ty.ty.deref().clone().into())
             }
             Named(name) => {
                 // symbol check

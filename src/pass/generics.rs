@@ -213,7 +213,7 @@ impl Scopes<'i> {
         }
         err(
             &format!(
-                "could not find generic func name {} and arg_types ({}) \
+                "could not find generic func name `{}` and arg_types ({}) \
                 that matches generic replacements ({})",
                 name,
                 arg_types
