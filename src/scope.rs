@@ -3,9 +3,9 @@
 //! symbols allow us to check for existence and type of stuff we define
 
 use crate::error::{err, Res};
-use crate::pass::define::VarDefine;
-use crate::pass::statement::Block;
-use crate::pass::ty::{PrimitiveType, Type, TypeNode};
+use crate::pass::ast::VarDefine;
+use crate::pass::ast::{Block, TypeNode};
+use crate::pass::ty::{PrimitiveType, Type};
 use crate::span::Span;
 use crate::util::interned_str::InternedStr;
 use std::collections::{HashMap, HashSet};

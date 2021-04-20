@@ -1,6 +1,5 @@
 use crate::parse::{Kind, Node};
-use crate::pass::define::{Define, DefineKind, Program};
-use crate::pass::statement::{CCode, CCodePart};
+use crate::pass::ast::{CCode, CCodePart, Define, DefineKind, Program};
 use crate::pass::ty::PrimitiveType;
 use crate::scope::Scopes;
 use crate::span::Span;
@@ -9,24 +8,31 @@ use crate::util::frozen_vec::FrozenVec;
 /// stores general program context
 #[derive(Debug)]
 pub struct Ctx<'i> {
-    pub is: &'i FrozenVec<String>,
+    pub inputs: &'i FrozenVec<String>,
+
     pub scopes: Scopes<'i>,
     pub extra_defines: Vec<Define<'i>>,
+
+    pub struct_protos: String,
+    pub func_protos: String,
     pub o: String,
 }
 
 impl Ctx<'i> {
-    pub fn new(is: &'i FrozenVec<String>) -> Self {
+    pub fn new(inputs: &'i FrozenVec<String>) -> Self {
         Self {
-            is,
+            inputs,
             scopes: Default::default(),
             extra_defines: Default::default(),
+
+            struct_protos: Default::default(),
+            func_protos: Default::default(),
             o: Default::default(),
         }
     }
 
     pub fn new_i(&self, i: String) -> &'i str {
-        self.is.push_get(i)
+        self.inputs.push_get(i)
     }
 }
 

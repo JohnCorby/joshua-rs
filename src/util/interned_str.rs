@@ -17,9 +17,9 @@ impl Intern<'i> for &'i str {
 }
 impl Intern<'i> for String {
     fn intern(self, ctx: &mut Ctx<'i>) -> InternedStr<'i> {
-        for i in ctx.is {
-            if i == self {
-                return InternedStr(i);
+        for input in ctx.inputs {
+            if input == self {
+                return InternedStr(input);
             }
         }
         ctx.new_i(self).intern(ctx)

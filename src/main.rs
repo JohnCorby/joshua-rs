@@ -1,4 +1,9 @@
-//!todo
+//!todo immediate
+//! - organize c code so things work (see .txt)
+//! - "type-hint"s via `Option<Type>` passed thru `Expr::type_check`
+//! - refactor each pass to its own file
+//!
+//! todo
 //! - interned string: a tiny bit more refactoring?
 //! - generics: make a different thing (i.e. can't call normal func w generic func call and vice versa)
 //! - generics inference
@@ -31,7 +36,7 @@ use crate::context::Ctx;
 use crate::error::{Err, Res};
 use crate::parse::{Kind, Node};
 use crate::pass::compile_program;
-use crate::pass::define::Program;
+use pass::ast::Program;
 use std::env::args;
 use std::path::PathBuf;
 
@@ -67,7 +72,13 @@ fn main() {
             define.gen(ctx);
             ctx.o.push('\n')
         }
-        program.clone().gen(ctx);
+        program.gen(ctx);
+        ctx.o.insert_str(0, "#pragma endregion func protos\n");
+        ctx.o.insert_str(0, &ctx.func_protos);
+        ctx.o.insert_str(0, "#pragma region func protos\n");
+        ctx.o.insert_str(0, "#pragma endregion struct protos\n");
+        ctx.o.insert_str(0, &ctx.struct_protos);
+        ctx.o.insert_str(0, "#pragma region struct protos\n");
     };
     if let Err(err) = result {
         return eprintln!("Error: {}", err);

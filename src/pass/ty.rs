@@ -1,67 +1,8 @@
-use crate::context::Ctx;
-use crate::error::{err, unexpected_kind, Res};
-use crate::parse::{Kind, Node};
+use crate::error::{err, Res};
 use crate::span::Span;
 use crate::util::interned_str::InternedStr;
-use crate::util::late_init::LateInit;
-use crate::util::{Mangle, Visit};
 use std::fmt::{Display, Formatter};
-use std::ops::Deref;
 use std::rc::Rc;
-
-#[derive(Debug, Clone)]
-pub struct TypeNode<'i> {
-    pub span: Span<'i>,
-    pub kind: TypeKind<'i>,
-    pub ty: LateInit<Type<'i>>,
-}
-
-impl Visit<'i> for TypeNode<'i> {
-    fn visit(node: Node<'i>, ctx: &mut Ctx<'i>) -> Self {
-        let node = node.children_checked(Kind::ty).next().unwrap();
-        let span = node.span();
-        use TypeKind::*;
-        let ty = match node.kind() {
-            Kind::primitive => Primitive(node.str().parse().unwrap()),
-            Kind::ptr => Ptr(node
-                .children()
-                .next()
-                .unwrap()
-                .visit::<TypeNode<'i>>(ctx)
-                .into()),
-            Kind::ident => Named(node.visit_ident(ctx)),
-
-            _ => unexpected_kind(node),
-        };
-
-        Self {
-            span,
-            kind: ty,
-            ty: Default::default(),
-        }
-    }
-}
-
-impl TypeNode<'i> {
-    pub fn gen(self, ctx: &mut Ctx<'i>) {
-        use Type::*;
-        match self.ty.deref() {
-            Primitive(ty) => ctx.o.push_str(ty.c_type()),
-            Struct(name) => {
-                ctx.o.push_str("struct ");
-                ctx.o.push_str(&name.mangle())
-            }
-            ty => panic!("tried to gen {}", ty),
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub enum TypeKind<'i> {
-    Primitive(PrimitiveType),
-    Ptr(Rc<TypeNode<'i>>),
-    Named(InternedStr<'i>),
-}
 
 /// note: cloning is okay and cheap because it's Rc::clone
 #[derive(Debug, Clone, Hash, PartialEq)]

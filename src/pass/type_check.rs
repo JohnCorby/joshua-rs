@@ -2,10 +2,8 @@
 
 use crate::context::Ctx;
 use crate::error::{err, Res};
-use crate::pass::define::{Define, DefineKind, Program, VarDefine};
-use crate::pass::expr::{Expr, ExprKind, FuncCall};
-use crate::pass::statement::{Block, CCode, CCodePart, Statement, StatementKind};
-use crate::pass::ty::{PrimitiveType, Type, TypeKind, TypeNode};
+use crate::pass::ast::*;
+use crate::pass::ty::{PrimitiveType, Type};
 use crate::scope::Symbol;
 use crate::util::interned_str::Intern;
 use std::collections::HashMap;
@@ -25,7 +23,7 @@ impl Program<'i> {
 
 impl Define<'i> {
     pub fn type_check(&self, ctx: &mut Ctx<'i>) -> Res<'i, ()> {
-        use DefineKind::*;
+        use crate::pass::ast::DefineKind::*;
         match &self.kind {
             Struct { name, body } => {
                 ctx.scopes.push(false, None);
@@ -118,7 +116,7 @@ impl VarDefine<'i> {
 
 impl Statement<'i> {
     pub fn type_check(&self, ctx: &mut Ctx<'i>) -> Res<'i, ()> {
-        use StatementKind::*;
+        use crate::pass::ast::StatementKind::*;
         match &self.kind {
             Return(value) => {
                 if let Some(value) = value {
@@ -226,7 +224,7 @@ impl CCode<'i> {
 
 impl Expr<'i> {
     pub fn type_check(&self, ctx: &mut Ctx<'i>) -> Res<'i, ()> {
-        use ExprKind::*;
+        use crate::pass::ast::ExprKind::*;
         self.ty.init(match &self.kind {
             Binary { left, op, right } => {
                 left.type_check(ctx)?;
@@ -372,7 +370,7 @@ impl FuncCall<'i> {
 
 impl TypeNode<'i> {
     pub fn type_check(&self, ctx: &Ctx<'i>) -> Res<'i, ()> {
-        use TypeKind::*;
+        use crate::pass::ast::TypeKind::*;
         self.ty.init(match &self.kind {
             Primitive(ty) => Type::Primitive(*ty),
             Ptr(ty) => {
