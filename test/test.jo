@@ -3,8 +3,9 @@
 
 
 
-g(T) template_func<T>(g(T) a) {
-    ret a + a
+T template_func<T>(T a) {
+//    ret a + a
+    ret `+`<T>(a, a)
 }
 // fixme this will be found when doing `template_func<f32>(1 as f32)`
 //void template_func<generic T>(generic T a, generic T b) {}
@@ -17,7 +18,7 @@ struct baba_booey {
     f32 hello
 }
 struct im {
-    s(baba_booey) pain
+    baba_booey pain
 
 //    void fuck() {}
 }
@@ -36,13 +37,13 @@ void `raw`() {}
 
 
 
-s(im) gimme_im() {
-    s(im) im
+im gimme_im() {
+    im im
     im.pain.hello = 23 as f32
     ret im
 }
 
-g(T) `+`<T>(g(T) a, g(T) b) {
+T `+`<T>(T a, T b) {
     ret a + b
 }
 
@@ -50,7 +51,7 @@ g(T) `+`<T>(g(T) a, g(T) b) {
 
 
 /// pretend this is a method of baba_booey
-f32 kill_yourself(s(baba_booey) this, i32 a, f32 b, bool c, char d) {
+f32 kill_yourself(baba_booey this, i32 a, f32 b, bool c, char d) {
     <{puts("woah! this is the method kill_yourself of baba_booey")}>
 
     template_func<f32>(1 as f32)
@@ -59,14 +60,14 @@ f32 kill_yourself(s(baba_booey) this, i32 a, f32 b, bool c, char d) {
 
     ret 11565 as f32
 }
-f32 kill_yourself(s(baba_booey) this, i32 a, f32 b) {
+f32 kill_yourself(baba_booey this, i32 a, f32 b) {
     <{puts("woah! this is the method kill_yourself but the other one of baba_booey")}>
     ret 4915.95010 as f32
 }
 
 
 
-f32 `+`(s(baba_booey) a, s(baba_booey) b)
+f32 `+`(baba_booey a, baba_booey b)
     ret a.hello + b.hello
 
 
@@ -107,7 +108,7 @@ i32 main() {
 
 
 
-    s(baba_booey) ok
+    baba_booey ok
     f32 woah = ok.hello
     f32 woah2 = gimme_im().pain.hello
     <{printf("woah2 is %f\n", ${woah2})}>
@@ -135,8 +136,8 @@ i32 main() {
 
 
 
-    s(im) im
-    `+`<s(im)>(im, im)
+    im im
+    `+`<im>(im, im)
 //    `+`(im, im)
 //    im + im
 

@@ -230,32 +230,6 @@ impl Expr<'i> {
     pub fn type_check(&self, ctx: &mut Ctx<'i>) -> Res<'i, ()> {
         use ExprKind::*;
         self.ty.init(match &self.kind {
-            Binary { left, op, right } => {
-                left.type_check(ctx)?;
-                right.type_check(ctx)?;
-
-                // symbol check
-                ctx.scopes
-                    .find(
-                        &Symbol::new_func(
-                            *op,
-                            [left.ty.deref().clone(), right.ty.deref().clone()].into(),
-                        ),
-                        Some(self.span),
-                    )?
-                    .ty()
-            }
-            Unary { op, thing } => {
-                thing.type_check(ctx)?;
-
-                // symbol check
-                ctx.scopes
-                    .find(
-                        &Symbol::new_func(*op, [thing.ty.deref().clone()].into()),
-                        Some(self.span),
-                    )?
-                    .ty()
-            }
             Cast { thing, ty_node } => {
                 thing.type_check(ctx)?;
                 ty_node.type_check(ctx)?;
@@ -274,19 +248,6 @@ impl Expr<'i> {
                         )?
                         .ty()
                 }
-            }
-            MethodCall {
-                receiver,
-                func_call,
-            } => {
-                receiver.type_check(ctx)?;
-
-                // desugar into func call and type init
-                // kinda hacky, but should work
-                let mut func_call = func_call.clone();
-                func_call.args.insert(0, *receiver.clone());
-                func_call.type_check(ctx)?;
-                func_call.ty.deref().clone()
             }
             Field { receiver, var } => {
                 receiver.type_check(ctx)?;

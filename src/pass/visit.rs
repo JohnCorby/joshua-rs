@@ -185,11 +185,16 @@ impl Visit<'i> for Expr<'i> {
 
                 let mut left = nodes.next().unwrap().visit::<Expr<'i>>(ctx);
                 while let Some(op) = nodes.next() {
-                    left.kind = Binary {
-                        left: left.clone().into(),
-                        op: op.str().intern(ctx),
-                        right: nodes.next().unwrap().visit::<Expr<'i>>(ctx).into(),
-                    }
+                    let old_left = left.clone();
+                    let op = op.str().intern(ctx);
+                    let right = nodes.next().unwrap().visit::<Expr<'i>>(ctx);
+                    left.kind = FuncCall(self::FuncCall {
+                        span,
+                        name: op,
+                        generic_replacements: vec![],
+                        args: vec![old_left, right],
+                        ty: Default::default(),
+                    })
                 }
 
                 left.kind
@@ -200,10 +205,15 @@ impl Visit<'i> for Expr<'i> {
 
                 let mut thing = rev_nodes.next().unwrap().visit::<Expr<'i>>(ctx);
                 for op in rev_nodes {
-                    thing.kind = Unary {
-                        op: op.str().intern(ctx),
-                        thing: thing.clone().into(),
-                    }
+                    let op = op.str().intern(ctx);
+                    let old_thing = thing.clone();
+                    thing.kind = FuncCall(self::FuncCall {
+                        span,
+                        name: op,
+                        generic_replacements: vec![],
+                        args: vec![old_thing],
+                        ty: Default::default(),
+                    })
                 }
 
                 thing.kind
@@ -230,10 +240,12 @@ impl Visit<'i> for Expr<'i> {
                 let mut left = nodes.next().unwrap().visit::<Expr<'i>>(ctx);
                 for right in nodes {
                     left.kind = match right.kind() {
-                        Kind::func_call => MethodCall {
-                            receiver: left.clone().into(),
-                            func_call: right.visit(ctx),
-                        },
+                        Kind::func_call => {
+                            let receiver = left.clone();
+                            let mut func_call = right.visit::<self::FuncCall<'i>>(ctx);
+                            func_call.args.insert(0, receiver);
+                            FuncCall(func_call)
+                        }
                         Kind::ident => Field {
                             receiver: left.clone().into(),
                             var: right.visit_ident(ctx),

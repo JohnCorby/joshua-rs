@@ -12,17 +12,13 @@ use std::ops::Deref;
 
 impl Define<'i> {
     pub fn type_check_generic(&self, ctx: &mut Ctx<'i>) -> Res<'i, ()> {
-        match self {
-            Self {
-                span,
-                kind:
-                    DefineKind::Func {
-                        ty_node,
-                        name,
-                        generic_placeholders,
-                        args,
-                        body,
-                    },
+        match &self.kind {
+            DefineKind::Func {
+                ty_node,
+                name,
+                generic_placeholders,
+                args,
+                body,
             } => {
                 debug_assert!(!generic_placeholders.is_empty());
 
@@ -30,7 +26,7 @@ impl Define<'i> {
                 // add placeholders
                 for &placeholder in generic_placeholders {
                     ctx.scopes
-                        .add(Symbol::GenericPlaceholderType(placeholder), Some(*span))?;
+                        .add(Symbol::GenericPlaceholderType(placeholder), Some(self.span))?;
                 }
                 ty_node.type_check(ctx)?;
                 ctx.scopes.push(false, Some(ty_node.ty.deref().clone()));
@@ -60,7 +56,7 @@ impl Define<'i> {
 
                         scopes_index: ctx.scopes.0.len(),
                     },
-                    Some(*span),
+                    Some(self.span),
                 )
             }
             _ => unreachable!(),
@@ -316,21 +312,9 @@ impl Expr<'i> {
     fn replace_generics(&mut self, generic_map: &GenericMap<'i>) {
         use ExprKind::*;
         match &mut self.kind {
-            Binary { left, right, .. } => {
-                left.replace_generics(generic_map);
-                right.replace_generics(generic_map);
-            }
-            Unary { thing, .. } => thing.replace_generics(generic_map),
             Cast { thing, ty_node } => {
                 thing.replace_generics(generic_map);
                 ty_node.replace_generics(generic_map);
-            }
-            MethodCall {
-                receiver,
-                func_call,
-            } => {
-                receiver.replace_generics(generic_map);
-                func_call.replace_generics(generic_map);
             }
             Field { receiver, .. } => receiver.replace_generics(generic_map),
             Literal(_) => {}

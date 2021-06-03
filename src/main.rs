@@ -1,8 +1,7 @@
 //!todo immediate
 //! - "type-hint"s via `Option<Type>` passed thru `Expr::type_check`
-//! - refactor each pass to its own file
 //!
-//! todo
+//!todo
 //! - interned string: a tiny bit more refactoring?
 //! - generics: make a different thing (i.e. can't call normal func w generic func call and vice versa)
 //! - generics inference

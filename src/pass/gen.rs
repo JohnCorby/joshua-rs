@@ -198,26 +198,6 @@ impl Expr<'i> {
     pub fn gen(self, ctx: &mut Ctx<'i>) {
         use ExprKind::*;
         match self.kind {
-            Binary { left, op, right } => {
-                crate::pass::ast::FuncCall {
-                    span: self.span,
-                    name: op,
-                    generic_replacements: vec![],
-                    args: vec![*left, *right],
-                    ty: Default::default(),
-                }
-                .gen(ctx);
-            }
-            Unary { op, thing } => {
-                crate::pass::ast::FuncCall {
-                    span: self.span,
-                    name: op,
-                    generic_replacements: vec![],
-                    args: vec![*thing],
-                    ty: Default::default(),
-                }
-                .gen(ctx);
-            }
             Cast { thing, ty_node } => {
                 // fixme literal casting is hacky as shit
                 if let Type::Literal(_) = *thing.ty {
@@ -226,7 +206,7 @@ impl Expr<'i> {
                     ctx.o.push_str(") ");
                     thing.gen(ctx);
                 } else {
-                    crate::pass::ast::FuncCall {
+                    self::FuncCall {
                         span: self.span,
                         name: format!("as {}", ty_node.ty.name()).intern(ctx),
                         generic_replacements: vec![],
@@ -237,13 +217,6 @@ impl Expr<'i> {
                 }
             }
 
-            MethodCall {
-                receiver,
-                mut func_call,
-            } => {
-                func_call.args.insert(0, *receiver);
-                func_call.gen(ctx)
-            }
             Field { receiver, var } => {
                 receiver.gen(ctx);
                 ctx.o.push('.');

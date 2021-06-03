@@ -104,24 +104,11 @@ pub struct Expr<'i> {
 
 #[derive(Debug, Clone)]
 pub enum ExprKind<'i> {
-    Binary {
-        left: Box<Expr<'i>>,
-        op: InternedStr<'i>,
-        right: Box<Expr<'i>>,
-    },
-    Unary {
-        op: InternedStr<'i>,
-        thing: Box<Expr<'i>>,
-    },
     Cast {
         thing: Box<Expr<'i>>,
         ty_node: TypeNode<'i>,
     },
 
-    MethodCall {
-        receiver: Box<Expr<'i>>,
-        func_call: FuncCall<'i>,
-    },
     Field {
         receiver: Box<Expr<'i>>,
         var: InternedStr<'i>,
