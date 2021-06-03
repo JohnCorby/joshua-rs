@@ -26,7 +26,6 @@ impl Define<'i> {
                 ctx.o.push_str(" {\n");
                 for define in body {
                     define.gen(ctx);
-                    ctx.o.push('\n')
                 }
                 ctx.o.push_str("};\n");
 

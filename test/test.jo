@@ -1,14 +1,18 @@
 <{#include <stdio.h>}>
 
 
-
+// fixme recursion does not work. period. cuz symbol is added after entire body is type-checked
+T `+`<T>(T a, T b) {
+//    ret a + b
+    ret `+`<T>(a, b)
+}
 
 T template_func<T>(T a) {
 //    ret a + a
     ret `+`<T>(a, a)
 }
 // fixme this will be found when doing `template_func<f32>(1 as f32)`
-//void template_func<generic T>(generic T a, generic T b) {}
+//void template_func<T>(T a, T b) {}
 void template_func(i32 a) {}
 
 
@@ -43,9 +47,6 @@ im gimme_im() {
     ret im
 }
 
-T `+`<T>(T a, T b) {
-    ret a + b
-}
 
 
 
