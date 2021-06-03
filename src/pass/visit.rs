@@ -2,6 +2,7 @@ use crate::context::Ctx;
 use crate::error::unexpected_kind;
 use crate::parse::{Kind, Node, Nodes};
 use crate::pass::ast::*;
+use crate::util::interned_str::Intern;
 
 pub trait Visit<'i>: Sized {
     fn visit(node: Node<'i>, ctx: &mut Ctx<'i>) -> Self;
@@ -37,7 +38,7 @@ impl Visit<'i> for Program<'i> {
 impl Visit<'i> for Define<'i> {
     fn visit(node: Node<'i>, ctx: &mut Ctx<'i>) -> Self {
         let span = node.span();
-        use crate::pass::ast::DefineKind::*;
+        use DefineKind::*;
         let kind = match node.kind() {
             Kind::struct_define => {
                 let mut nodes = node.children();
@@ -100,7 +101,7 @@ impl Visit<'i> for VarDefine<'i> {
 impl Visit<'i> for Statement<'i> {
     fn visit(node: Node<'i>, ctx: &mut Ctx<'i>) -> Self {
         let span = node.span();
-        use crate::pass::ast::StatementKind::*;
+        use StatementKind::*;
         let kind = match node.kind() {
             Kind::ret => Return(node.children().next().map(|node| node.visit(ctx))),
             Kind::brk => Break,
@@ -175,8 +176,7 @@ impl Visit<'i> for CCode<'i> {
 impl Visit<'i> for Expr<'i> {
     fn visit(node: Node<'i>, ctx: &mut Ctx<'i>) -> Self {
         let span = node.span();
-        use crate::pass::ast::ExprKind::*;
-        use crate::util::interned_str::Intern;
+        use ExprKind::*;
         let kind = match node.kind() {
             Kind::expr => node.children().next().unwrap().visit::<Expr<'i>>(ctx).kind,
             Kind::equality_expr | Kind::compare_expr | Kind::add_expr | Kind::mul_expr => {
@@ -286,7 +286,7 @@ impl Visit<'i> for FuncCall<'i> {
 
 impl Visit<'i> for Literal<'i> {
     fn visit(node: Node<'i>, _: &mut Ctx<'i>) -> Self {
-        use crate::pass::ast::Literal::*;
+        use Literal::*;
         match node.kind() {
             Kind::float_literal => Float(node.str().parse().unwrap()),
             Kind::int_literal => Int(node.str().parse().unwrap()),
@@ -303,7 +303,7 @@ impl Visit<'i> for TypeNode<'i> {
     fn visit(node: Node<'i>, ctx: &mut Ctx<'i>) -> Self {
         let node = node.children_checked(Kind::ty).next().unwrap();
         let span = node.span();
-        use crate::pass::ast::TypeKind::*;
+        use TypeKind::*;
         let ty = match node.kind() {
             Kind::primitive => Primitive(node.str().parse().unwrap()),
             Kind::ptr => Ptr(node

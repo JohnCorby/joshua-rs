@@ -1,5 +1,4 @@
 //!todo immediate
-//! - organize c code so things work (see .txt)
 //! - "type-hint"s via `Option<Type>` passed thru `Expr::type_check`
 //! - refactor each pass to its own file
 //!
@@ -21,13 +20,9 @@
 //! - polymorphism??? inheritance???????
 //! - ownership? borrowing? lifetimes? oh goodness
 
-#![feature(try_trait)]
 #![feature(backtrace)]
 #![feature(once_cell)]
 #![feature(panic_info_message)]
-#![feature(hash_set_entry)]
-#![feature(option_unwrap_none)]
-#![feature(result_copied)]
 #![feature(try_blocks)]
 #![feature(in_band_lifetimes)]
 #![warn(elided_lifetimes_in_paths)]
@@ -70,15 +65,22 @@ fn main() {
         println!("generating");
         for define in std::mem::take(&mut ctx.extra_defines) {
             define.gen(ctx);
-            ctx.o.push('\n')
         }
         program.gen(ctx);
-        ctx.o.insert_str(0, "#pragma endregion func protos\n");
-        ctx.o.insert_str(0, &ctx.func_protos);
-        ctx.o.insert_str(0, "#pragma region func protos\n");
-        ctx.o.insert_str(0, "#pragma endregion struct protos\n");
-        ctx.o.insert_str(0, &ctx.struct_protos);
-        ctx.o.insert_str(0, "#pragma region struct protos\n");
+        debug_assert!(ctx.o.is_empty());
+        ctx.o.clear();
+        ctx.o.push_str("#pragma region structs\n");
+        ctx.o.push_str(&ctx.structs);
+        ctx.o.push_str("#pragma endregion structs\n");
+        ctx.o.push_str("#pragma region global vars\n");
+        ctx.o.push_str(&ctx.global_vars);
+        ctx.o.push_str("#pragma endregion global vars\n");
+        ctx.o.push_str("#pragma region func declares\n");
+        ctx.o.push_str(&ctx.func_declares);
+        ctx.o.push_str("#pragma endregion func declares\n");
+        ctx.o.push_str("#pragma region func defines\n");
+        ctx.o.push_str(&ctx.func_defines);
+        ctx.o.push_str("#pragma endregion func defines");
     };
     if let Err(err) = result {
         return eprintln!("Error: {}", err);

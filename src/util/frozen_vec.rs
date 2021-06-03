@@ -17,7 +17,7 @@ impl<T: StableDeref> FrozenVec<T> {
         }
     }
 }
-impl<'a, T: StableDeref> IntoIterator for &'a FrozenVec<T> {
+impl<T: StableDeref> IntoIterator for &'a FrozenVec<T> {
     type Item = &'a T::Target;
     type IntoIter = Iter<'a, T>;
     fn into_iter(self) -> Self::IntoIter {
@@ -32,7 +32,7 @@ pub struct Iter<'a, T> {
     vec: &'a [T],
     index: usize,
 }
-impl<'a, T: StableDeref> Iterator for Iter<'a, T> {
+impl<T: StableDeref> Iterator for Iter<'a, T> {
     type Item = &'a T::Target;
     fn next(&mut self) -> Option<Self::Item> {
         self.vec.get(self.index).map(|it| {

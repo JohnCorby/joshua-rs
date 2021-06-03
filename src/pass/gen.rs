@@ -1,6 +1,7 @@
 use crate::context::Ctx;
 use crate::pass::ast::*;
 use crate::pass::ty::Type;
+use crate::util::interned_str::Intern;
 use crate::util::Mangle;
 use std::ops::Deref;
 
@@ -8,34 +9,29 @@ impl Program<'i> {
     pub fn gen(self, ctx: &mut Ctx<'i>) {
         for define in self.0 {
             define.gen(ctx);
-            ctx.o.push('\n')
-        }
-        if ctx.o.ends_with('\n') {
-            ctx.o.pop();
         }
     }
 }
 
 impl Define<'i> {
     pub fn gen(self, ctx: &mut Ctx<'i>) {
-        use crate::pass::ast::DefineKind::*;
+        use DefineKind::*;
         match self.kind {
             Struct { name, body } => {
-                let old_o = std::mem::take(&mut ctx.o);
+                let structs = std::mem::take(&mut ctx.structs);
+                let old_o = std::mem::replace(&mut ctx.o, structs);
 
                 ctx.o.push_str("struct ");
                 ctx.o.push_str(&name.mangle());
-
-                ctx.struct_protos.push_str(&ctx.o);
-                ctx.o.insert_str(0, &old_o);
-                ctx.struct_protos.push_str(";\n");
-
                 ctx.o.push_str(" {\n");
                 for define in body {
                     define.gen(ctx);
                     ctx.o.push('\n')
                 }
-                ctx.o.push_str("};");
+                ctx.o.push_str("};\n");
+
+                let new_o = std::mem::replace(&mut ctx.o, old_o);
+                ctx.structs = new_o;
             }
             Func {
                 ty_node,
@@ -70,20 +66,26 @@ impl Define<'i> {
                     }
                     ctx.o.push(')');
 
-                    ctx.func_protos.push_str(&ctx.o);
-                    ctx.o.insert_str(0, &old_o);
-                    ctx.func_protos.push_str(";\n");
+                    ctx.func_declares.push_str(&ctx.o);
+                    ctx.func_declares.push_str(";\n");
 
                     ctx.o.push(' ');
                     body.gen(ctx);
+
+                    let new_o = std::mem::replace(&mut ctx.o, old_o);
+                    ctx.func_defines.push_str(&new_o);
                 }
             }
             Var(var_define) => {
+                // fixme global variables stick around in ctx.o when they should go somewhere else, this will panic
                 var_define.gen(ctx);
-                ctx.o.push(';')
+                ctx.o.push_str(";\n")
             }
 
-            CCode(c_code) => c_code.gen(ctx),
+            CCode(c_code) => {
+                c_code.gen(ctx);
+                ctx.o.push_str(";\n");
+            }
         }
     }
 }
@@ -102,7 +104,7 @@ impl VarDefine<'i> {
 
 impl Statement<'i> {
     pub fn gen(self, ctx: &mut Ctx<'i>) {
-        use crate::pass::ast::StatementKind::*;
+        use StatementKind::*;
         match self.kind {
             Return(value) => {
                 ctx.o.push_str("return");
@@ -110,10 +112,10 @@ impl Statement<'i> {
                     ctx.o.push(' ');
                     value.gen(ctx)
                 }
-                ctx.o.push(';');
+                ctx.o.push_str(";\n");
             }
-            Break => ctx.o.push_str("break;"),
-            Continue => ctx.o.push_str("continue;"),
+            Break => ctx.o.push_str("break;\n"),
+            Continue => ctx.o.push_str("continue;\n"),
             If {
                 cond,
                 then,
@@ -147,6 +149,7 @@ impl Statement<'i> {
                 ctx.o.push_str("; ");
                 update.gen(ctx);
                 ctx.o.pop(); // for update statement's semicolon
+                ctx.o.pop(); // for update statement's newline
                 ctx.o.push_str(") ");
                 block.gen(ctx);
             }
@@ -154,15 +157,15 @@ impl Statement<'i> {
                 lvalue.gen(ctx);
                 ctx.o.push_str(" = ");
                 rvalue.gen(ctx);
-                ctx.o.push(';');
+                ctx.o.push_str(";\n");
             }
             VarDefine(var_define) => {
                 var_define.gen(ctx);
-                ctx.o.push(';');
+                ctx.o.push_str(";\n");
             }
             Expr(expr) => {
                 expr.gen(ctx);
-                ctx.o.push(';');
+                ctx.o.push_str(";\n");
             }
         }
     }
@@ -173,9 +176,8 @@ impl Block<'i> {
         ctx.o.push_str("{\n");
         for statement in self.0 {
             statement.gen(ctx);
-            ctx.o.push('\n')
         }
-        ctx.o.push('}');
+        ctx.o.push_str("}\n");
     }
 }
 
@@ -194,12 +196,10 @@ impl CCode<'i> {
 
 impl Expr<'i> {
     pub fn gen(self, ctx: &mut Ctx<'i>) {
-        use crate::pass::ast;
-        use crate::pass::ast::ExprKind::*;
-        use crate::util::interned_str::Intern;
+        use ExprKind::*;
         match self.kind {
             Binary { left, op, right } => {
-                ast::FuncCall {
+                crate::pass::ast::FuncCall {
                     span: self.span,
                     name: op,
                     generic_replacements: vec![],
@@ -209,7 +209,7 @@ impl Expr<'i> {
                 .gen(ctx);
             }
             Unary { op, thing } => {
-                ast::FuncCall {
+                crate::pass::ast::FuncCall {
                     span: self.span,
                     name: op,
                     generic_replacements: vec![],
@@ -226,7 +226,7 @@ impl Expr<'i> {
                     ctx.o.push_str(") ");
                     thing.gen(ctx);
                 } else {
-                    ast::FuncCall {
+                    crate::pass::ast::FuncCall {
                         span: self.span,
                         name: format!("as {}", ty_node.ty.name()).intern(ctx),
                         generic_replacements: vec![],
@@ -286,7 +286,7 @@ impl FuncCall<'i> {
 
 impl Literal<'i> {
     pub fn gen(self, ctx: &mut Ctx<'i>) {
-        use crate::pass::ast::Literal::*;
+        use Literal::*;
         ctx.o.push_str(&match self {
             Float(value) => value.to_string(),
             Int(value) => value.to_string(),

@@ -1,5 +1,5 @@
 use crate::context::Ctx;
-use crate::error::Res;
+use crate::error::{err, Res};
 use crate::parse::Node;
 use crate::pass::ty::{LiteralType, PrimitiveType, Type};
 use crate::span::Span;
@@ -137,8 +137,7 @@ pub enum ExprKind<'i> {
 
 impl<'i> Expr<'i> {
     pub fn check_assignable(&self, span: Option<Span<'i>>) -> Res<'i, ()> {
-        use crate::error::err;
-        use crate::pass::ast::ExprKind::*;
+        use ExprKind::*;
         let is_assignable = matches!(self.kind, Field { .. } | Var(_));
 
         if !is_assignable {
@@ -169,7 +168,7 @@ pub enum Literal<'i> {
 
 impl<'i> Literal<'i> {
     pub fn ty(&self) -> Type<'i> {
-        use crate::pass::ast::Literal::*;
+        use Literal::*;
         match self {
             Float(_) => LiteralType::Float.ty(),
             Int(_) => LiteralType::Int.ty(),

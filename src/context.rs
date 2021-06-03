@@ -1,8 +1,7 @@
 use crate::parse::{Kind, Node};
-use crate::pass::ast::{CCode, CCodePart, Define, DefineKind, Program};
+use crate::pass::ast::{Define, Program};
 use crate::pass::ty::PrimitiveType;
 use crate::scope::Scopes;
-use crate::span::Span;
 use crate::util::frozen_vec::FrozenVec;
 
 /// stores general program context
@@ -11,11 +10,13 @@ pub struct Ctx<'i> {
     pub inputs: &'i FrozenVec<String>,
 
     pub scopes: Scopes<'i>,
-    pub extra_defines: Vec<Define<'i>>,
+    pub extra_defines: Vec<Define<'i>>, // fixme maybe make this a program, or put program in here?
 
-    pub struct_protos: String,
-    pub func_protos: String,
     pub o: String,
+    pub structs: String,
+    pub global_vars: String,
+    pub func_declares: String,
+    pub func_defines: String,
 }
 
 impl Ctx<'i> {
@@ -25,9 +26,11 @@ impl Ctx<'i> {
             scopes: Default::default(),
             extra_defines: Default::default(),
 
-            struct_protos: Default::default(),
-            func_protos: Default::default(),
             o: Default::default(),
+            structs: Default::default(),
+            global_vars: Default::default(),
+            func_declares: Default::default(),
+            func_defines: Default::default(),
         }
     }
 
@@ -36,7 +39,7 @@ impl Ctx<'i> {
     }
 }
 
-impl Ctx<'i> {
+impl Ctx<'_> {
     pub fn type_check_prelude(&mut self) {
         let mut i = String::new();
 
@@ -94,28 +97,14 @@ impl Ctx<'i> {
             }
         }
 
-        let mut defines = Node::parse(self.new_i(i), Kind::program)
+        let defines = Node::parse(self.new_i(i), Kind::program)
             .unwrap()
-            .visit::<Program<'i>>(self)
+            .visit::<Program<'_>>(self)
             .0;
         for define in &defines {
             define.type_check(self).unwrap();
         }
 
-        fn c_code(span: Span<'i>, string: &'i str) -> Define<'i> {
-            Define {
-                span,
-                kind: DefineKind::CCode(CCode(vec![CCodePart::String(string)])),
-            }
-        }
-        defines.insert(
-            0,
-            c_code(defines.first().unwrap().span, "#pragma region prelude"),
-        );
-        defines.push(c_code(
-            defines.last().unwrap().span,
-            "#pragma endregion prelude",
-        ));
         self.extra_defines.extend(defines);
     }
 }

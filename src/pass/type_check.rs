@@ -17,13 +17,14 @@ impl Program<'i> {
             define.type_check(ctx)?
         }
         ctx.scopes.pop();
+        debug_assert!(ctx.scopes.0.is_empty());
         Ok(())
     }
 }
 
 impl Define<'i> {
     pub fn type_check(&self, ctx: &mut Ctx<'i>) -> Res<'i, ()> {
-        use crate::pass::ast::DefineKind::*;
+        use DefineKind::*;
         match &self.kind {
             Struct { name, body } => {
                 ctx.scopes.push(false, None);
@@ -40,9 +41,12 @@ impl Define<'i> {
                             let mut field_types = HashMap::new();
                             for define in body {
                                 if let Var(VarDefine { name, ty_node, .. }) = &define.kind {
-                                    field_types
+                                    if field_types
                                         .insert(*name, ty_node.ty.deref().clone())
-                                        .unwrap_none();
+                                        .is_some()
+                                    {
+                                        unreachable!()
+                                    }
                                 }
                             }
                             field_types
@@ -116,7 +120,7 @@ impl VarDefine<'i> {
 
 impl Statement<'i> {
     pub fn type_check(&self, ctx: &mut Ctx<'i>) -> Res<'i, ()> {
-        use crate::pass::ast::StatementKind::*;
+        use StatementKind::*;
         match &self.kind {
             Return(value) => {
                 if let Some(value) = value {
@@ -224,7 +228,7 @@ impl CCode<'i> {
 
 impl Expr<'i> {
     pub fn type_check(&self, ctx: &mut Ctx<'i>) -> Res<'i, ()> {
-        use crate::pass::ast::ExprKind::*;
+        use ExprKind::*;
         self.ty.init(match &self.kind {
             Binary { left, op, right } => {
                 left.type_check(ctx)?;
@@ -370,7 +374,7 @@ impl FuncCall<'i> {
 
 impl TypeNode<'i> {
     pub fn type_check(&self, ctx: &Ctx<'i>) -> Res<'i, ()> {
-        use crate::pass::ast::TypeKind::*;
+        use TypeKind::*;
         self.ty.init(match &self.kind {
             Primitive(ty) => Type::Primitive(*ty),
             Ptr(ty) => {
