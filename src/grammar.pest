@@ -47,7 +47,7 @@ cont = { "cont" }
 
 
 
-ty = { primitive | ptr | ident }
+ty = { primitive | ptr | ident | auto }
 ptr = { "ptr" ~ "<" ~ ty ~ ">" }
 primitive = {
     "i8"
@@ -64,6 +64,7 @@ primitive = {
     | "char"
     | "void"
 }
+auto = { "auto" }
 
 
 expr = !{ equality_expr }

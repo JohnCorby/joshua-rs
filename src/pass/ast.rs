@@ -189,4 +189,5 @@ pub enum TypeKind<'i> {
     Primitive(PrimitiveType),
     Ptr(Rc<TypeNode<'i>>),
     Named(InternedStr<'i>),
+    Auto,
 }

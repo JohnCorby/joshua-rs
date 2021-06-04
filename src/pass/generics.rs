@@ -75,7 +75,12 @@ impl FuncCall<'i> {
             replacement.type_check(ctx)?
         }
         for arg in &self.args {
-            arg.type_check(ctx, None)?
+            arg.type_check(ctx, None)?;
+            // very lol
+            if matches!(*arg.ty, Type::GenericUnknown | Type::GenericPlaceholder(_)) {
+                self.ty.init(Type::GenericUnknown);
+                return Ok(());
+            }
         }
 
         // find an associated generic func

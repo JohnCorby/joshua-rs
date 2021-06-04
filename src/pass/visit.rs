@@ -325,6 +325,7 @@ impl Visit<'i> for TypeNode<'i> {
                 .visit::<TypeNode<'i>>(ctx)
                 .into()),
             Kind::ident => Named(node.visit_ident(ctx)),
+            Kind::auto => Auto,
 
             _ => unexpected_kind(node),
         };

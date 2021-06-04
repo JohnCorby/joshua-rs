@@ -72,11 +72,9 @@ impl TypeCheck<'i> for Define<'i> {
                     for arg in args {
                         arg.type_check(ctx)?
                     }
-                    body.type_check(ctx)?;
-                    ctx.scopes.check_return_called(Some(self.span))?;
-                    ctx.scopes.pop();
 
                     // add symbol
+                    let scope = ctx.scopes.0.pop().unwrap();
                     ctx.scopes.add(
                         Symbol::Func {
                             ty: ty_node.ty.deref().clone(),
@@ -88,6 +86,11 @@ impl TypeCheck<'i> for Define<'i> {
                         },
                         Some(self.span),
                     )?;
+                    ctx.scopes.0.push(scope);
+
+                    body.type_check(ctx)?;
+                    ctx.scopes.check_return_called(Some(self.span))?;
+                    ctx.scopes.pop();
                 } else {
                     self.type_check_generic(ctx)?;
                 }
@@ -257,11 +260,10 @@ impl Expr<'i> {
                 // field check
                 let struct_name = *match &*receiver.ty {
                     Type::Struct(struct_name) => struct_name,
-                    // ty @ Type::GenericPlaceholder(_) => {
-                    //     // fixme big ech
-                    //     self.ty.init(ty.clone());
-                    //     return Ok(());
-                    // }
+                    Type::GenericPlaceholder(_) => {
+                        self.ty.init(Type::GenericUnknown);
+                        return Ok(());
+                    }
                     ty => {
                         return err(
                             &format!("expected struct type, but got {}", ty),
@@ -313,7 +315,12 @@ impl TypeCheck<'i> for FuncCall<'i> {
                 replacement.type_check(ctx)?
             }
             for arg in &self.args {
-                arg.type_check(ctx, None)?
+                arg.type_check(ctx, None)?;
+                // very lol
+                if matches!(*arg.ty, Type::GenericUnknown | Type::GenericPlaceholder(_)) {
+                    self.ty.init(Type::GenericUnknown);
+                    return Ok(());
+                }
             }
 
             self.ty.init(
@@ -362,6 +369,7 @@ impl TypeCheck<'i> for TypeNode<'i> {
                     })?
                     .ty()
             }
+            Auto => Type::Auto,
         });
         Ok(())
     }

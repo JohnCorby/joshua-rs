@@ -8,13 +8,25 @@ use std::rc::Rc;
 #[derive(Debug, Clone, Hash, PartialEq)]
 pub enum Type<'i> {
     Primitive(PrimitiveType),
+    /// fixme merge these into generics when we get type inference
     Literal(LiteralType),
     Struct(InternedStr<'i>),
+    /// replaced with concrete type on specialization
     GenericPlaceholder(InternedStr<'i>),
     Ptr(Rc<Type<'i>>),
+    /// for inferring with var define and probably other stuff later
+    Auto,
+    /// for when we use generics and we don't know what types are yet (fields, func return types, etc)
+    GenericUnknown,
 }
 impl Type<'i> {
     pub fn check(&self, expected: &Self, span: Option<Span<'i>>) -> Res<'i> {
+        // very lol
+        if matches!(self, Type::GenericUnknown | Type::GenericPlaceholder(_))
+            || matches!(expected, Type::GenericUnknown | Type::GenericPlaceholder(_))
+        {
+            return Ok(());
+        }
         let actual = self;
         if expected == actual {
             Ok(())
@@ -23,14 +35,14 @@ impl Type<'i> {
         }
     }
 
+    /// name used for func names
     pub fn name(&self) -> String {
         use Type::*;
         match self {
             Primitive(ty) => ty.to_string(),
             Struct(name) => name.to_string(),
-            GenericPlaceholder(name) => name.to_string(),
-            Literal(ty) => ty.to_string(),
             Ptr(ty) => format!("ptr<{}>", ty.name()),
+            _ => format!("{{{:?}}}", self),
         }
     }
 }
@@ -46,9 +58,8 @@ impl Display for Type<'_> {
         match self {
             Primitive(ty) => write!(f, "primitive type {}", ty),
             Struct(name) => write!(f, "struct type `{}`", name),
-            GenericPlaceholder(name) => write!(f, "generic placeholder type `{}`", name),
-            Literal(ty) => write!(f, "literal type {}", ty),
             Ptr(ty) => write!(f, "pointer type to {}", ty),
+            _ => write!(f, "internal type {:?}", self),
         }
     }
 }
@@ -96,7 +107,6 @@ impl PrimitiveType {
 }
 
 #[derive(Debug, Copy, Clone, Hash, PartialEq, strum::Display)]
-#[strum(serialize_all = "snake_case")]
 pub enum LiteralType {
     Float,
     Int,
