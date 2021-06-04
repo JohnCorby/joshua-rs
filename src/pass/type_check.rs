@@ -9,8 +9,12 @@ use crate::util::interned_str::Intern;
 use std::collections::HashMap;
 use std::ops::Deref;
 
-impl Program<'i> {
-    pub fn type_check(&self, ctx: &mut Ctx<'i>) -> Res<'i, ()> {
+pub trait TypeCheck<'i> {
+    fn type_check(&self, ctx: &mut Ctx<'i>) -> Res<'i>;
+}
+
+impl TypeCheck<'i> for Program<'i> {
+    fn type_check(&self, ctx: &mut Ctx<'i>) -> Res<'i> {
         ctx.scopes.push(false, None);
         ctx.type_check_prelude();
         for define in &self.0 {
@@ -22,8 +26,8 @@ impl Program<'i> {
     }
 }
 
-impl Define<'i> {
-    pub fn type_check(&self, ctx: &mut Ctx<'i>) -> Res<'i, ()> {
+impl TypeCheck<'i> for Define<'i> {
+    fn type_check(&self, ctx: &mut Ctx<'i>) -> Res<'i> {
         use DefineKind::*;
         match &self.kind {
             Struct { name, body } => {
@@ -95,8 +99,8 @@ impl Define<'i> {
     }
 }
 
-impl VarDefine<'i> {
-    pub fn type_check(&self, ctx: &mut Ctx<'i>) -> Res<'i, ()> {
+impl TypeCheck<'i> for VarDefine<'i> {
+    fn type_check(&self, ctx: &mut Ctx<'i>) -> Res<'i> {
         self.ty_node.type_check(ctx)?;
         if let Some(value) = &self.value {
             value.type_check(ctx)?;
@@ -118,8 +122,8 @@ impl VarDefine<'i> {
     }
 }
 
-impl Statement<'i> {
-    pub fn type_check(&self, ctx: &mut Ctx<'i>) -> Res<'i, ()> {
+impl TypeCheck<'i> for Statement<'i> {
+    fn type_check(&self, ctx: &mut Ctx<'i>) -> Res<'i> {
         use StatementKind::*;
         match &self.kind {
             Return(value) => {
@@ -203,8 +207,8 @@ impl Statement<'i> {
     }
 }
 
-impl Block<'i> {
-    pub fn type_check(&self, ctx: &mut Ctx<'i>) -> Res<'i, ()> {
+impl TypeCheck<'i> for Block<'i> {
+    fn type_check(&self, ctx: &mut Ctx<'i>) -> Res<'i> {
         for statement in &self.0 {
             statement.type_check(ctx)?
         }
@@ -212,22 +216,20 @@ impl Block<'i> {
     }
 }
 
-impl CCode<'i> {
-    pub fn type_check(&self, ctx: &mut Ctx<'i>) -> Res<'i, ()> {
+impl TypeCheck<'i> for CCode<'i> {
+    fn type_check(&self, ctx: &mut Ctx<'i>) -> Res<'i> {
         for part in &self.0 {
             match part {
                 CCodePart::String(_) => {}
-                CCodePart::Expr(expr) => {
-                    expr.type_check(ctx)?;
-                }
+                CCodePart::Expr(expr) => expr.type_check(ctx)?,
             }
         }
         Ok(())
     }
 }
 
-impl Expr<'i> {
-    pub fn type_check(&self, ctx: &mut Ctx<'i>) -> Res<'i, ()> {
+impl TypeCheck<'i> for Expr<'i> {
+    fn type_check(&self, ctx: &mut Ctx<'i>) -> Res<'i> {
         use ExprKind::*;
         self.ty.init(match &self.kind {
             Cast { thing, ty_node } => {
@@ -304,8 +306,8 @@ impl Expr<'i> {
     }
 }
 
-impl FuncCall<'i> {
-    pub fn type_check(&self, ctx: &mut Ctx<'i>) -> Res<'i, ()> {
+impl TypeCheck<'i> for FuncCall<'i> {
+    fn type_check(&self, ctx: &mut Ctx<'i>) -> Res<'i> {
         if self.generic_replacements.is_empty() {
             for replacement in &self.generic_replacements {
                 replacement.type_check(ctx)?
@@ -333,8 +335,8 @@ impl FuncCall<'i> {
     }
 }
 
-impl TypeNode<'i> {
-    pub fn type_check(&self, ctx: &Ctx<'i>) -> Res<'i, ()> {
+impl TypeCheck<'i> for TypeNode<'i> {
+    fn type_check(&self, ctx: &mut Ctx<'i>) -> Res<'i> {
         use TypeKind::*;
         self.ty.init(match &self.kind {
             Primitive(ty) => Type::Primitive(*ty),

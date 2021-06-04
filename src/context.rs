@@ -1,6 +1,7 @@
 use crate::parse::{Kind, Node};
 use crate::pass::ast::{Define, Program};
 use crate::pass::ty::PrimitiveType;
+use crate::pass::type_check::TypeCheck;
 use crate::scope::Scopes;
 use crate::util::frozen_vec::FrozenVec;
 

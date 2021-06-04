@@ -4,7 +4,7 @@ use crate::parse::{Kind, Node, Nodes};
 use crate::pass::ast::*;
 use crate::util::interned_str::Intern;
 
-pub trait Visit<'i>: Sized {
+pub trait Visit<'i> {
     fn visit(node: Node<'i>, ctx: &mut Ctx<'i>) -> Self;
 }
 

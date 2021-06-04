@@ -14,7 +14,7 @@ pub enum Type<'i> {
     Ptr(Rc<Type<'i>>),
 }
 impl Type<'i> {
-    pub fn check(&self, expected: &Self, span: Option<Span<'i>>) -> Res<'i, ()> {
+    pub fn check(&self, expected: &Self, span: Option<Span<'i>>) -> Res<'i> {
         let actual = self;
         if expected == actual {
             Ok(())

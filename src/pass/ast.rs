@@ -123,7 +123,7 @@ pub enum ExprKind<'i> {
 }
 
 impl<'i> Expr<'i> {
-    pub fn check_assignable(&self, span: Option<Span<'i>>) -> Res<'i, ()> {
+    pub fn check_assignable(&self, span: Option<Span<'i>>) -> Res<'i> {
         use ExprKind::*;
         let is_assignable = matches!(self.kind, Field { .. } | Var(_));
 

@@ -5,16 +5,20 @@ use crate::util::interned_str::Intern;
 use crate::util::Mangle;
 use std::ops::Deref;
 
-impl Program<'i> {
-    pub fn gen(self, ctx: &mut Ctx<'i>) {
+pub trait Gen<'i> {
+    fn gen(self, ctx: &mut Ctx<'i>);
+}
+
+impl Gen<'i> for Program<'i> {
+    fn gen(self, ctx: &mut Ctx<'i>) {
         for define in self.0 {
             define.gen(ctx);
         }
     }
 }
 
-impl Define<'i> {
-    pub fn gen(self, ctx: &mut Ctx<'i>) {
+impl Gen<'i> for Define<'i> {
+    fn gen(self, ctx: &mut Ctx<'i>) {
         use DefineKind::*;
         match self.kind {
             Struct { name, body } => {
@@ -89,8 +93,8 @@ impl Define<'i> {
     }
 }
 
-impl VarDefine<'i> {
-    pub fn gen(self, ctx: &mut Ctx<'i>) {
+impl Gen<'i> for VarDefine<'i> {
+    fn gen(self, ctx: &mut Ctx<'i>) {
         self.ty_node.gen(ctx);
         ctx.o.push(' ');
         ctx.o.push_str(&self.name.mangle());
@@ -101,8 +105,8 @@ impl VarDefine<'i> {
     }
 }
 
-impl Statement<'i> {
-    pub fn gen(self, ctx: &mut Ctx<'i>) {
+impl Gen<'i> for Statement<'i> {
+    fn gen(self, ctx: &mut Ctx<'i>) {
         use StatementKind::*;
         match self.kind {
             Return(value) => {
@@ -170,8 +174,8 @@ impl Statement<'i> {
     }
 }
 
-impl Block<'i> {
-    pub fn gen(self, ctx: &mut Ctx<'i>) {
+impl Gen<'i> for Block<'i> {
+    fn gen(self, ctx: &mut Ctx<'i>) {
         ctx.o.push_str("{\n");
         for statement in self.0 {
             statement.gen(ctx);
@@ -180,8 +184,8 @@ impl Block<'i> {
     }
 }
 
-impl CCode<'i> {
-    pub fn gen(self, ctx: &mut Ctx<'i>) {
+impl Gen<'i> for CCode<'i> {
+    fn gen(self, ctx: &mut Ctx<'i>) {
         ctx.o.push_str("/*<{*/");
         for part in self.0 {
             match part {
@@ -193,8 +197,8 @@ impl CCode<'i> {
     }
 }
 
-impl Expr<'i> {
-    pub fn gen(self, ctx: &mut Ctx<'i>) {
+impl Gen<'i> for Expr<'i> {
+    fn gen(self, ctx: &mut Ctx<'i>) {
         use ExprKind::*;
         match self.kind {
             Cast { thing, ty_node } => {
@@ -231,8 +235,8 @@ impl Expr<'i> {
     }
 }
 
-impl FuncCall<'i> {
-    pub fn gen(self, ctx: &mut Ctx<'i>) {
+impl Gen<'i> for FuncCall<'i> {
+    fn gen(self, ctx: &mut Ctx<'i>) {
         ctx.o.push_str(
             &self.name.mangle_func(
                 &self.args.iter().map(|it| it.ty.deref()).collect::<Vec<_>>(),
@@ -256,8 +260,8 @@ impl FuncCall<'i> {
     }
 }
 
-impl Literal<'i> {
-    pub fn gen(self, ctx: &mut Ctx<'i>) {
+impl Gen<'i> for Literal<'i> {
+    fn gen(self, ctx: &mut Ctx<'i>) {
         use Literal::*;
         ctx.o.push_str(&match self {
             Float(value) => value.to_string(),
@@ -269,8 +273,8 @@ impl Literal<'i> {
     }
 }
 
-impl TypeNode<'i> {
-    pub fn gen(self, ctx: &mut Ctx<'i>) {
+impl Gen<'i> for TypeNode<'i> {
+    fn gen(self, ctx: &mut Ctx<'i>) {
         use crate::pass::ty::Type::*;
         match self.ty.deref() {
             Primitive(ty) => ctx.o.push_str(ty.c_type()),

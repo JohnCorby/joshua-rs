@@ -30,6 +30,8 @@ use crate::context::Ctx;
 use crate::error::{Err, Res};
 use crate::parse::{Kind, Node};
 use crate::pass::compile_program;
+use crate::pass::gen::Gen;
+use crate::pass::type_check::TypeCheck;
 use pass::ast::Program;
 use std::env::args;
 use std::path::PathBuf;
@@ -54,7 +56,7 @@ fn main() {
     let path = &PathBuf::from(path);
     let program = std::fs::read_to_string(path).unwrap();
 
-    let result: Res<'_, ()> = try {
+    let result: Res<'_> = try {
         println!("parsing");
         let node = Node::parse(ctx.new_i(program), Kind::program)?;
         println!("visiting");

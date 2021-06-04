@@ -4,6 +4,7 @@ use crate::context::Ctx;
 use crate::error::{err, Res};
 use crate::pass::ast::*;
 use crate::pass::ty::Type;
+use crate::pass::type_check::TypeCheck;
 use crate::scope::{Scopes, Symbol};
 use crate::span::Span;
 use crate::util::interned_str::InternedStr;
@@ -11,7 +12,7 @@ use std::collections::HashMap;
 use std::ops::Deref;
 
 impl Define<'i> {
-    pub fn type_check_generic(&self, ctx: &mut Ctx<'i>) -> Res<'i, ()> {
+    pub fn type_check_generic(&self, ctx: &mut Ctx<'i>) -> Res<'i> {
         match &self.kind {
             DefineKind::Func {
                 ty_node,
@@ -67,7 +68,7 @@ impl Define<'i> {
 type GenericMap<'i> = HashMap<InternedStr<'i>, Type<'i>>;
 
 impl FuncCall<'i> {
-    pub fn type_check_generic(&self, ctx: &mut Ctx<'i>) -> Res<'i, ()> {
+    pub fn type_check_generic(&self, ctx: &mut Ctx<'i>) -> Res<'i> {
         debug_assert!(!self.generic_replacements.is_empty());
 
         for replacement in &self.generic_replacements {
@@ -216,9 +217,20 @@ impl Scopes<'i> {
     }
 }
 
-// impl replace generics
-// note: this resets types, so you gotta type_check again
-impl Define<'i> {
+/// note: this resets types, so you gotta type_check again
+trait ReplaceGenerics<'i> {
+    fn replace_generics(&mut self, generic_map: &GenericMap<'i>);
+}
+
+impl ReplaceGenerics<'i> for Program<'i> {
+    fn replace_generics(&mut self, generic_map: &GenericMap<'i>) {
+        for define in &mut self.0 {
+            define.replace_generics(generic_map)
+        }
+    }
+}
+
+impl ReplaceGenerics<'i> for Define<'i> {
     fn replace_generics(&mut self, generic_map: &GenericMap<'i>) {
         use DefineKind::*;
         match &mut self.kind {
@@ -243,11 +255,12 @@ impl Define<'i> {
                 generic_placeholders.clear()
             }
             Var(var_define) => var_define.replace_generics(generic_map),
-            CCode(_) => {}
+            CCode(c_code) => c_code.replace_generics(generic_map),
         }
     }
 }
-impl VarDefine<'i> {
+
+impl ReplaceGenerics<'i> for VarDefine<'i> {
     fn replace_generics(&mut self, generic_map: &GenericMap<'i>) {
         self.ty_node.replace_generics(generic_map);
         if let Some(value) = &mut self.value {
@@ -255,7 +268,8 @@ impl VarDefine<'i> {
         }
     }
 }
-impl Statement<'i> {
+
+impl ReplaceGenerics<'i> for Statement<'i> {
     fn replace_generics(&mut self, generic_map: &GenericMap<'i>) {
         use StatementKind::*;
         match &mut self.kind {
@@ -301,14 +315,27 @@ impl Statement<'i> {
         }
     }
 }
-impl Block<'i> {
+
+impl ReplaceGenerics<'i> for Block<'i> {
     fn replace_generics(&mut self, generic_map: &GenericMap<'i>) {
         for statement in &mut self.0 {
             statement.replace_generics(generic_map)
         }
     }
 }
-impl Expr<'i> {
+
+impl ReplaceGenerics<'i> for CCode<'i> {
+    fn replace_generics(&mut self, generic_map: &GenericMap<'i>) {
+        for part in &mut self.0 {
+            match part {
+                CCodePart::String(_) => {}
+                CCodePart::Expr(expr) => expr.replace_generics(generic_map),
+            }
+        }
+    }
+}
+
+impl ReplaceGenerics<'i> for Expr<'i> {
     fn replace_generics(&mut self, generic_map: &GenericMap<'i>) {
         use ExprKind::*;
         match &mut self.kind {
@@ -320,13 +347,14 @@ impl Expr<'i> {
             Literal(_) => {}
             FuncCall(func_call) => func_call.replace_generics(generic_map),
             Var(_) => {}
-            CCode(_) => {}
+            CCode(c_code) => c_code.replace_generics(generic_map),
         }
 
         self.ty = Default::default();
     }
 }
-impl FuncCall<'i> {
+
+impl ReplaceGenerics<'i> for FuncCall<'i> {
     fn replace_generics(&mut self, generic_map: &GenericMap<'i>) {
         for replacement in &mut self.generic_replacements {
             replacement.replace_generics(generic_map)
@@ -338,7 +366,8 @@ impl FuncCall<'i> {
         self.ty = Default::default();
     }
 }
-impl TypeNode<'i> {
+
+impl ReplaceGenerics<'i> for TypeNode<'i> {
     fn replace_generics(&mut self, generic_map: &GenericMap<'i>) {
         if let Type::GenericPlaceholder(name) = *self.ty {
             self.kind = match &generic_map[&name] {

@@ -3,7 +3,7 @@ use crate::span::Span;
 use std::backtrace::{Backtrace, BacktraceStatus};
 use std::fmt::{Debug, Display, Formatter};
 
-pub type Res<'i, T> = Result<T, Err<'i>>;
+pub type Res<'i, T = ()> = Result<T, Err<'i>>;
 pub struct Err<'i> {
     message: String,
     span: Option<Span<'i>>,

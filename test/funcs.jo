@@ -16,11 +16,11 @@ T `+`<T>(T a, T b) {
 
 
 i32 main() {
-//    f(1 as i8)
-//    f(1 as i8, 2 as i8)
-//
-//    f<i16>(1 as i16)
-//    f<i16>(1 as i16, 2 as i16)
+    f(1 as i8)
+    f(1 as i8, 2 as i8)
+
+    f<i16>(1 as i16)
+    f<i16>(1 as i16, 2 as i16)
 //
 //    S s
 //    `+`<S>(s, s)

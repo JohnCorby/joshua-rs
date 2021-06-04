@@ -172,7 +172,7 @@ impl Scopes<'i> {
         }
     }
     /// note: only checks one current scope and outer ones
-    pub fn check_return_called(&self, span: Option<Span<'i>>) -> Res<'i, ()> {
+    pub fn check_return_called(&self, span: Option<Span<'i>>) -> Res<'i> {
         let return_called = self.0.last().unwrap().return_called;
         let is_void = self.func_return_type() == &Type::Primitive(PrimitiveType::Void);
 
@@ -185,7 +185,7 @@ impl Scopes<'i> {
 }
 
 impl Scopes<'i> {
-    pub fn add(&mut self, symbol: Symbol<'i>, span: Option<Span<'i>>) -> Res<'i, ()> {
+    pub fn add(&mut self, symbol: Symbol<'i>, span: Option<Span<'i>>) -> Res<'i> {
         let scope = self.0.last_mut().unwrap();
         if let Some(symbol) = scope.symbols.get(&symbol) {
             return err(&format!("{} already defined", symbol), span);
