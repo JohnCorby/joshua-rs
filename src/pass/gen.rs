@@ -3,7 +3,6 @@ use crate::pass::ast::*;
 use crate::pass::ty::Type;
 use crate::util::interned_str::Intern;
 use crate::util::Mangle;
-use std::ops::Deref;
 
 pub trait Gen<'i> {
     fn gen(self, ctx: &mut Ctx<'i>);
@@ -49,15 +48,10 @@ impl Gen<'i> for Define<'i> {
 
                     ty_node.gen(ctx);
                     ctx.o.push(' ');
-                    ctx.o.push_str(
-                        &name.mangle_func(
-                            &args
-                                .iter()
-                                .map(|it| it.ty_node.ty.deref())
-                                .collect::<Vec<_>>(),
-                            &[],
-                        ),
-                    );
+                    ctx.o.push_str(&name.mangle_func(
+                        &args.iter().map(|it| &*it.ty_node.ty).collect::<Vec<_>>(),
+                        &[],
+                    ));
                     ctx.o.push('(');
                     for arg in args {
                         arg.gen(ctx);
@@ -239,11 +233,11 @@ impl Gen<'i> for FuncCall<'i> {
     fn gen(self, ctx: &mut Ctx<'i>) {
         ctx.o.push_str(
             &self.name.mangle_func(
-                &self.args.iter().map(|it| it.ty.deref()).collect::<Vec<_>>(),
+                &self.args.iter().map(|it| &*it.ty).collect::<Vec<_>>(),
                 &self
                     .generic_replacements
                     .iter()
-                    .map(|it| it.ty.deref())
+                    .map(|it| &*it.ty)
                     .collect::<Vec<_>>(),
             ),
         );
@@ -275,8 +269,8 @@ impl Gen<'i> for Literal<'i> {
 
 impl Gen<'i> for TypeNode<'i> {
     fn gen(self, ctx: &mut Ctx<'i>) {
-        use crate::pass::ty::Type::*;
-        match self.ty.deref() {
+        use Type::*;
+        match &*self.ty {
             Primitive(ty) => ctx.o.push_str(ty.c_type()),
             Struct(name) => {
                 ctx.o.push_str("struct ");

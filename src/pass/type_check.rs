@@ -103,10 +103,10 @@ impl TypeCheck<'i> for VarDefine<'i> {
     fn type_check(&self, ctx: &mut Ctx<'i>) -> Res<'i> {
         self.ty_node.type_check(ctx)?;
         if let Some(value) = &self.value {
-            value.type_check(ctx)?;
+            value.type_check(ctx, Some(&self.ty_node.ty))?;
 
             // check matching
-            value.ty.check(self.ty_node.ty.deref(), Some(self.span))?;
+            value.ty.check(&self.ty_node.ty, Some(self.span))?;
         }
 
         // add symbol
@@ -128,7 +128,7 @@ impl TypeCheck<'i> for Statement<'i> {
         match &self.kind {
             Return(value) => {
                 if let Some(value) = value {
-                    value.type_check(ctx)?
+                    value.type_check(ctx, Some(&ctx.scopes.func_return_type().clone()))?
                 }
 
                 // check return type
@@ -154,7 +154,7 @@ impl TypeCheck<'i> for Statement<'i> {
                 then,
                 otherwise,
             } => {
-                cond.type_check(ctx)?;
+                cond.type_check(ctx, Some(&PrimitiveType::Bool.ty()))?;
                 ctx.scopes.push(false, None);
                 then.type_check(ctx)?;
                 ctx.scopes.pop();
@@ -168,7 +168,7 @@ impl TypeCheck<'i> for Statement<'i> {
                 cond.ty.check(&PrimitiveType::Bool.ty(), Some(self.span))?;
             }
             Until { cond, block } => {
-                cond.type_check(ctx)?;
+                cond.type_check(ctx, Some(&PrimitiveType::Bool.ty()))?;
                 ctx.scopes.push(true, None);
                 block.type_check(ctx)?;
                 ctx.scopes.pop();
@@ -184,7 +184,7 @@ impl TypeCheck<'i> for Statement<'i> {
             } => {
                 ctx.scopes.push(true, None);
                 init.type_check(ctx)?;
-                cond.type_check(ctx)?;
+                cond.type_check(ctx, Some(&PrimitiveType::Bool.ty()))?;
                 update.type_check(ctx)?;
                 block.type_check(ctx)?;
                 ctx.scopes.pop();
@@ -193,15 +193,15 @@ impl TypeCheck<'i> for Statement<'i> {
                 cond.ty.check(&PrimitiveType::Bool.ty(), Some(self.span))?;
             }
             ExprAssign { lvalue, rvalue } => {
-                lvalue.type_check(ctx)?;
-                rvalue.type_check(ctx)?;
+                lvalue.type_check(ctx, None)?;
+                rvalue.type_check(ctx, Some(&lvalue.ty))?;
 
                 // check matching
                 lvalue.check_assignable(Some(self.span))?;
                 rvalue.ty.check(&lvalue.ty, Some(self.span))?;
             }
             VarDefine(var_define) => var_define.type_check(ctx)?,
-            Expr(expr) => expr.type_check(ctx)?,
+            Expr(expr) => expr.type_check(ctx, None)?,
         }
         Ok(())
     }
@@ -221,20 +221,20 @@ impl TypeCheck<'i> for CCode<'i> {
         for part in &self.0 {
             match part {
                 CCodePart::String(_) => {}
-                CCodePart::Expr(expr) => expr.type_check(ctx)?,
+                CCodePart::Expr(expr) => expr.type_check(ctx, None)?,
             }
         }
         Ok(())
     }
 }
 
-impl TypeCheck<'i> for Expr<'i> {
-    fn type_check(&self, ctx: &mut Ctx<'i>) -> Res<'i> {
+impl Expr<'i> {
+    pub fn type_check(&self, ctx: &mut Ctx<'i>, type_hint: Option<&Type<'i>>) -> Res<'i> {
         use ExprKind::*;
         self.ty.init(match &self.kind {
             Cast { thing, ty_node } => {
-                thing.type_check(ctx)?;
                 ty_node.type_check(ctx)?;
+                thing.type_check(ctx, Some(&ty_node.ty))?;
 
                 // symbol check
                 // fixme literal casting is hacky as shit
@@ -252,10 +252,10 @@ impl TypeCheck<'i> for Expr<'i> {
                 }
             }
             Field { receiver, var } => {
-                receiver.type_check(ctx)?;
+                receiver.type_check(ctx, type_hint)?;
 
                 // field check
-                let struct_name = *match receiver.ty.deref() {
+                let struct_name = *match &*receiver.ty {
                     Type::Struct(struct_name) => struct_name,
                     // ty @ Type::GenericPlaceholder(_) => {
                     //     // fixme big ech
@@ -313,7 +313,7 @@ impl TypeCheck<'i> for FuncCall<'i> {
                 replacement.type_check(ctx)?
             }
             for arg in &self.args {
-                arg.type_check(ctx)?
+                arg.type_check(ctx, None)?
             }
 
             self.ty.init(

@@ -4,6 +4,8 @@ use crate::context::Ctx;
 use crate::parse::{Kind, Node};
 use crate::pass::ast::Program;
 use crate::pass::compile_program;
+use crate::pass::gen::Gen;
+use crate::pass::type_check::TypeCheck;
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use unindent::Unindent;

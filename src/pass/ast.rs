@@ -89,7 +89,7 @@ pub enum CCodePart<'i> {
     Expr(Expr<'i>),
 }
 
-impl<'i> CCode<'i> {
+impl CCode<'i> {
     pub fn ty(&self) -> Type<'i> {
         LiteralType::CCode.ty()
     }
@@ -122,7 +122,7 @@ pub enum ExprKind<'i> {
     CCode(CCode<'i>),
 }
 
-impl<'i> Expr<'i> {
+impl Expr<'i> {
     pub fn check_assignable(&self, span: Option<Span<'i>>) -> Res<'i> {
         use ExprKind::*;
         let is_assignable = matches!(self.kind, Field { .. } | Var(_));
@@ -153,7 +153,7 @@ pub enum Literal<'i> {
     Str(&'i str),
 }
 
-impl<'i> Literal<'i> {
+impl Literal<'i> {
     pub fn ty(&self) -> Type<'i> {
         use Literal::*;
         match self {

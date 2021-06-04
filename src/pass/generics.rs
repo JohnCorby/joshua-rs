@@ -75,7 +75,7 @@ impl FuncCall<'i> {
             replacement.type_check(ctx)?
         }
         for arg in &self.args {
-            arg.type_check(ctx)?
+            arg.type_check(ctx, None)?
         }
 
         // find an associated generic func
@@ -86,9 +86,9 @@ impl FuncCall<'i> {
                 &self
                     .generic_replacements
                     .iter()
-                    .map(|it| it.ty.deref())
+                    .map(|it| &*it.ty)
                     .collect::<Vec<_>>(),
-                &self.args.iter().map(|it| it.ty.deref()).collect::<Vec<_>>(),
+                &self.args.iter().map(|it| &*it.ty).collect::<Vec<_>>(),
                 Some(self.span),
             )?
             .clone();
