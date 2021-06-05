@@ -20,12 +20,12 @@ void bruh<T>(T a) bruh<T>(a)
 
 
 
-struct Hello<T> {
-    T field
-}
-
-void take(Hello<i8> arg) {}
-//void take_cooler<T>(Hello<T> arg) {}
+//struct Hello<T> {
+//    T field
+//}
+//
+//void take(Hello<i8> arg) {}
+////void take_cooler<T>(Hello<T> arg) {}
 
 
 i32 main() {
@@ -46,8 +46,8 @@ i32 main() {
 
 
 
-    Hello<i8> hello
-    take(hello)
+//    Hello<i8> hello
+//    take(hello)
 
 
 

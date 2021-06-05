@@ -232,7 +232,7 @@ impl Scopes<'i> {
                     if arg_types.len() != other_arg_types.len() {
                         return false;
                     }
-                    for (&ty, other_ty) in arg_types.iter().zip(other_arg_types.iter()) {
+                    for (&ty, other_ty) in arg_types.iter().zip(other_arg_types) {
                         if let Type::GenericPlaceholder(_) = other_ty {
                             // generic other_ty will always match ty, so don't return false
                         } else if ty != other_ty {
