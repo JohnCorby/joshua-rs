@@ -47,7 +47,7 @@ cont = { "cont" }
 
 
 
-ty = { primitive | ptr | ident | auto }
+ty = { auto | primitive | ptr | ident }
 ptr = { "ptr" ~ "<" ~ ty ~ ">" }
 primitive = {
     "i8"

@@ -102,12 +102,25 @@ impl TypeCheck<'i> for Define<'i> {
 
 impl TypeCheck<'i> for VarDefine<'i> {
     fn type_check(&self, ctx: &mut Ctx<'i>) -> Res<'i> {
-        self.ty_node.type_check(ctx)?;
-        if let Some(value) = &self.value {
-            value.type_check(ctx, Some(&self.ty_node.ty))?;
+        // special case for auto type, where lvalue is inferred from rvalue instead of the other way around
+        if let TypeKind::Auto = self.ty_node.kind {
+            if let Some(value) = &self.value {
+                value.type_check(ctx, None)?;
+                self.ty_node.ty.init(value.ty.deref().clone());
 
-            // check matching
-            value.ty.check(&self.ty_node.ty, Some(self.span))?;
+                // check matching
+                value.ty.check(&self.ty_node.ty, Some(self.span))?;
+            } else {
+                return err("cannot infer type", Some(self.span));
+            }
+        } else {
+            self.ty_node.type_check(ctx)?;
+            if let Some(value) = &self.value {
+                value.type_check(ctx, Some(&self.ty_node.ty))?;
+
+                // check matching
+                value.ty.check(&self.ty_node.ty, Some(self.span))?;
+            }
         }
 
         // add symbol
@@ -345,9 +358,9 @@ impl TypeCheck<'i> for TypeNode<'i> {
         use TypeKind::*;
         self.ty.init(match &self.kind {
             Primitive(ty) => Type::Primitive(*ty),
-            Ptr(ty) => {
-                ty.type_check(ctx)?;
-                Type::Ptr(ty.ty.deref().clone().into())
+            Ptr(inner) => {
+                inner.type_check(ctx)?;
+                Type::Ptr(inner.ty.deref().clone().into())
             }
             Named(name) => {
                 // symbol check

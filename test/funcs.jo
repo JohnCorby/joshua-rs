@@ -19,6 +19,8 @@ void bruh<T>(T a) {
 }
 
 i32 main() {
+    auto i = 1
+
     f(1 as i8)
     f(1 as i8, 2 as i8)
 

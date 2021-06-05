@@ -1,13 +1,13 @@
 //!todo
 //! - some type inference
 //! - generic inference
+//! - pointers (array type can come from this)
 //! - structs/funcs in funcs, this one will be painful
 //! - interned string: a tiny bit more refactoring?
 //! - "build scope" pass which will add _____Type and Func symbols to the scope uhhhhh well it's a stack now so we can't pre-build this. darn
 //!todo
 //! - methods
 //! - get literals to actually work, you might just have to brute force it, or not idk. you might be able to use generics for this instead :)
-//! - pointers (array type can come from this)
 //!todo
 //! - polymorphism??? inheritance???????
 //! - ownership? borrowing? lifetimes? oh goodness

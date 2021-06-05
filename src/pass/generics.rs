@@ -421,7 +421,8 @@ impl ReplaceGenerics<'i> for TypeNode<'i> {
             self.kind = match &generic_map[&name] {
                 Type::Primitive(ty) => TypeKind::Primitive(*ty),
                 Type::Struct(name) => TypeKind::Named(*name),
-                ty => unreachable!("replacing generic with {}", ty),
+                Type::Ptr(inner) => {}
+                ty => panic!("replacing generic with {}", ty),
             };
         }
 
