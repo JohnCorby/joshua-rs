@@ -19,8 +19,6 @@ void bruh<T>(T a) {
 }
 
 i32 main() {
-    auto i = 1
-
     f(1 as i8)
     f(1 as i8, 2 as i8)
 
@@ -31,6 +29,8 @@ i32 main() {
     `+`<S>(s, s)
 
     bruh<i8>(1 as i8)
+    // fixme this should not work for pretty obvious reasons
+    bruh<bool>(1 as i8)
 
     ret 0 as i32
 }

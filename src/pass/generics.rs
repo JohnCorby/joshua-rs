@@ -65,7 +65,7 @@ impl Define<'i> {
     }
 }
 
-type GenericMap<'i> = HashMap<InternedStr<'i>, Type<'i>>;
+type GenericMap<'i> = HashMap<InternedStr<'i>, TypeNode<'i>>;
 
 impl FuncCall<'i> {
     pub fn type_check_generic(&self, ctx: &mut Ctx<'i>) -> Res<'i> {
@@ -113,18 +113,11 @@ impl FuncCall<'i> {
             let scopes_after = ctx.scopes.0.split_off(scopes_index);
 
             // get mapping from placeholder names to replacement types
-            let generic_map = {
-                let generic_replacements = self
-                    .generic_replacements
-                    .iter()
-                    .map(|it| it.ty.deref().clone())
-                    .collect::<Vec<_>>();
-                generic_placeholders
-                    .iter()
-                    .copied()
-                    .zip(generic_replacements)
-                    .collect::<GenericMap<'i>>()
-            };
+            let generic_map = generic_placeholders
+                .iter()
+                .copied()
+                .zip(self.generic_replacements.iter().cloned())
+                .collect::<GenericMap<'i>>();
 
             // a decent chunk of this is just duplicated code from Define::type_check
             // that's slightly modified to replace_generics and to not always Scopes::add
@@ -418,12 +411,7 @@ impl ReplaceGenerics<'i> for FuncCall<'i> {
 impl ReplaceGenerics<'i> for TypeNode<'i> {
     fn replace_generics(&mut self, generic_map: &GenericMap<'i>) {
         if let Type::GenericPlaceholder(name) = *self.ty {
-            self.kind = match &generic_map[&name] {
-                Type::Primitive(ty) => TypeKind::Primitive(*ty),
-                Type::Struct(name) => TypeKind::Named(*name),
-                Type::Ptr(inner) => {}
-                ty => panic!("replacing generic with {}", ty),
-            };
+            self.kind = generic_map[&name].kind.clone();
         }
 
         self.ty = Default::default();
