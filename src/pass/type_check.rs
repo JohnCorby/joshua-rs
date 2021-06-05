@@ -256,7 +256,7 @@ impl Expr<'i> {
                     // casting will always work for literals
                     ty_node.ty.deref().clone()
                 } else {
-                    let name = format!("as {}", ty_node.ty.name()).intern(ctx);
+                    let name = format!("as {}", ty_node.ty.func_name()).intern(ctx);
                     ctx.scopes
                         .find(
                             &Symbol::new_func(name, [thing.ty.deref().clone()].into()),

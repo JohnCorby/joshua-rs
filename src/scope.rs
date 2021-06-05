@@ -94,7 +94,8 @@ impl Display for Symbol<'_> {
             ),
             Var { name, .. } => write!(f, "var symbol `{}`", name),
             StructType { name, .. } => write!(f, "struct type symbol `{}`", name),
-            _ => write!(f, "internal symbol {:?}", self),
+            // _ => write!(f, "internal symbol {:?}", self),
+            _ => panic!("internal symbol {:?} should not be displayed", self),
         }
     }
 }

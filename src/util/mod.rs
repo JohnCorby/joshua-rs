@@ -22,7 +22,7 @@ impl Mangle for str {
                 self,
                 arg_types
                     .iter()
-                    .map(|ty| ty.name())
+                    .map(|ty| ty.func_name())
                     .collect::<Vec<_>>()
                     .join(", ")
             )

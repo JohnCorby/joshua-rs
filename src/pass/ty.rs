@@ -35,14 +35,15 @@ impl Type<'i> {
         }
     }
 
-    /// name used for func names
-    pub fn name(&self) -> String {
+    /// name used in funcs
+    pub fn func_name(&self) -> String {
         use Type::*;
         match self {
             Primitive(ty) => ty.to_string(),
             Struct(name) => name.to_string(),
-            Ptr(ty) => format!("ptr<{}>", ty.name()),
-            _ => format!("{{{:?}}}", self),
+            Ptr(ty) => format!("ptr<{}>", ty.func_name()),
+            // _ => format!("{{{:?}}}", self),
+            _ => panic!("internal type {:?} should not be used in func name", self),
         }
     }
 }
@@ -59,7 +60,8 @@ impl Display for Type<'_> {
             Primitive(ty) => write!(f, "primitive type {}", ty),
             Struct(name) => write!(f, "struct type `{}`", name),
             Ptr(ty) => write!(f, "pointer type to {}", ty),
-            _ => write!(f, "internal type {:?}", self),
+            // _ => write!(f, "internal type {:?}", self),
+            _ => panic!("internal type {:?} should not be displayed", self),
         }
     }
 }

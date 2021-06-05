@@ -208,7 +208,7 @@ impl Gen<'i> for Expr<'i> {
                 } else {
                     self::FuncCall {
                         span: self.span,
-                        name: format!("as {}", ty_node.ty.name()).intern(ctx),
+                        name: format!("as {}", ty_node.ty.func_name()).intern(ctx),
                         generic_replacements: vec![],
                         args: vec![*thing],
                         ty: Default::default(),

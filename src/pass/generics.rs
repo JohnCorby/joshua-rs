@@ -125,13 +125,16 @@ impl FuncCall<'i> {
             ty_node.replace_generics(&generic_map);
             ty_node.type_check(ctx)?;
             ctx.scopes.push(false, Some(ty_node.ty.deref().clone()));
-            for arg in &mut args {
+            for (arg, call_arg) in args.iter_mut().zip(&self.args) {
                 arg.replace_generics(&generic_map);
-                arg.type_check(ctx)?
+                arg.type_check(ctx)?;
+
+                // make sure the args actually match
+                call_arg.ty.check(&*arg.ty_node.ty, Some(call_arg.span))?;
             }
             generic_placeholders.clear();
 
-            // find or add symbol
+            // add symbol if non-existent
             if ctx
                 .scopes
                 .find(
@@ -143,10 +146,8 @@ impl FuncCall<'i> {
                     ),
                     Some(self.span),
                 )
-                .is_ok()
+                .is_err()
             {
-                ctx.scopes.pop();
-            } else {
                 // add symbol
                 let scope = ctx.scopes.0.pop().unwrap();
                 ctx.scopes.add(
@@ -162,11 +163,10 @@ impl FuncCall<'i> {
                 )?;
                 ctx.scopes.0.push(scope);
 
-                let mut body = body.deref().clone(); // fixme this clones the Block, so what's the point of the Rc?
+                let mut body = body.deref().clone(); // this clones the Block, not Rc, oh well
                 body.replace_generics(&generic_map);
                 body.type_check(ctx)?;
                 ctx.scopes.check_return_called(Some(self.span))?;
-                ctx.scopes.pop();
 
                 // push a define ast so it will be generated properly
                 ctx.extra_defines.push(Define {
@@ -181,6 +181,7 @@ impl FuncCall<'i> {
                 });
             }
 
+            ctx.scopes.pop();
             self.ty.init(ty_node.ty.deref().clone());
 
             ctx.scopes.0.extend(scopes_after);

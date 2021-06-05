@@ -29,8 +29,6 @@ i32 main() {
     `+`<S>(s, s)
 
     bruh<i8>(1 as i8)
-    // fixme this should not work for pretty obvious reasons
-    bruh<bool>(1 as i8)
 
     ret 0 as i32
 }
