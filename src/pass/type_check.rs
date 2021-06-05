@@ -20,7 +20,6 @@ impl TypeCheck<'i> for Program<'i> {
             define.type_check(ctx)?
         }
         ctx.scopes.pop();
-        debug_assert!(ctx.scopes.0.is_empty());
         Ok(())
     }
 }

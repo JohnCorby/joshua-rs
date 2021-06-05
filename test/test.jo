@@ -1,4 +1,4 @@
-<{#include <stdio.h>}>
+//<{#include <stdio.h>}>
 
 
 // fixme recursion does not work. period. cuz symbol is added after entire body is type-checked
@@ -74,7 +74,7 @@ f32 `+`(baba_booey a, baba_booey b)
 
 
 
-i32 ok = 2 as i32
+//i32 ok = 2 as i32
 
 
 
