@@ -94,19 +94,7 @@ impl Display for Symbol<'_> {
             ),
             Var { name, .. } => write!(f, "var symbol `{}`", name),
             StructType { name, .. } => write!(f, "struct type symbol `{}`", name),
-            GenericPlaceholderType(name) => write!(f, "generic placeholder type symbol `{}`", name),
-            GenericFunc {
-                name, arg_types, ..
-            } => write!(
-                f,
-                "generic func symbol `{}` and arg types ({})",
-                name,
-                arg_types
-                    .iter()
-                    .map(Type::to_string)
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            ),
+            _ => write!(f, "internal symbol {:?}", self),
         }
     }
 }

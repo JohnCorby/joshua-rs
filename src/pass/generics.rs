@@ -99,16 +99,19 @@ impl FuncCall<'i> {
             .clone();
         if let Symbol::GenericFunc {
             span,
-            ty_node,
+            mut ty_node,
             name,
-            generic_placeholders,
-            args,
+            mut generic_placeholders,
+            mut args,
             body,
 
             scopes_index,
             ..
         } = symbol
         {
+            // go to where the generic func was defined
+            let scopes_after = ctx.scopes.0.split_off(scopes_index);
+
             // get mapping from placeholder names to replacement types
             let generic_map = {
                 let generic_replacements = self
@@ -123,32 +126,71 @@ impl FuncCall<'i> {
                     .collect::<GenericMap<'i>>()
             };
 
-            // make specialized func
-            let mut func_define = Define {
-                span,
-                kind: DefineKind::Func {
-                    ty_node,
-                    name,
-                    generic_placeholders,
-                    args,
-                    body: body.deref().clone(),
-                },
-            };
-            func_define.replace_generics(&generic_map);
+            // a decent chunk of this is just duplicated code from Define::type_check
+            // that's slightly modified to replace_generics and to not always Scopes::add
+            // oh well
+            ty_node.replace_generics(&generic_map);
+            ty_node.type_check(ctx)?;
+            ctx.scopes.push(false, Some(ty_node.ty.deref().clone()));
+            for arg in &mut args {
+                arg.replace_generics(&generic_map);
+                arg.type_check(ctx)?
+            }
+            generic_placeholders.clear();
 
-            // type check
-            let scopes_after = ctx.scopes.0.split_off(scopes_index);
-            func_define.type_check(ctx)?;
+            // find or add symbol
+            if ctx
+                .scopes
+                .find(
+                    &Symbol::new_func(
+                        name,
+                        args.iter()
+                            .map(|it| it.ty_node.ty.deref().clone())
+                            .collect(),
+                    ),
+                    Some(self.span),
+                )
+                .is_ok()
+            {
+                ctx.scopes.pop();
+            } else {
+                // add symbol
+                let scope = ctx.scopes.0.pop().unwrap();
+                ctx.scopes.add(
+                    Symbol::Func {
+                        ty: ty_node.ty.deref().clone(),
+                        name,
+                        arg_types: args
+                            .iter()
+                            .map(|it| it.ty_node.ty.deref().clone())
+                            .collect(),
+                    },
+                    Some(self.span),
+                )?;
+                ctx.scopes.0.push(scope);
+
+                let mut body = body.deref().clone(); // fixme this clones the Block, so what's the point of the Rc?
+                body.replace_generics(&generic_map);
+                body.type_check(ctx)?;
+                ctx.scopes.check_return_called(Some(self.span))?;
+                ctx.scopes.pop();
+
+                // push a define ast so it will be generated properly
+                ctx.extra_defines.push(Define {
+                    span,
+                    kind: DefineKind::Func {
+                        ty_node: ty_node.clone(),
+                        name,
+                        generic_placeholders,
+                        args,
+                        body,
+                    },
+                });
+            }
+
+            self.ty.init(ty_node.ty.deref().clone());
+
             ctx.scopes.0.extend(scopes_after);
-
-            // init type
-            self.ty.init(match &func_define.kind {
-                DefineKind::Func { ty_node, .. } => ty_node.ty.deref().clone(),
-                _ => unreachable!(),
-            });
-
-            ctx.extra_defines.push(func_define);
-
             Ok(())
         } else {
             unreachable!()
@@ -203,7 +245,7 @@ impl Scopes<'i> {
         }
         err(
             &format!(
-                "could not find generic func name `{}` and arg_types ({}) \
+                "could not find generic func name `{}` with arg_types ({}) \
                 that matches generic replacements ({})",
                 name,
                 arg_types
@@ -222,8 +264,9 @@ impl Scopes<'i> {
     }
 }
 
-/// note: this resets types, so you gotta type_check again
 trait ReplaceGenerics<'i> {
+    /// replaces generic placeholders with real types
+    /// note: this resets types, so you gotta type_check again
     fn replace_generics(&mut self, generic_map: &GenericMap<'i>);
 }
 

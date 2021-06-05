@@ -11,8 +11,10 @@ pub struct Ctx<'i> {
     pub inputs: &'i FrozenVec<String>,
 
     pub scopes: Scopes<'i>,
+    /// note: these should already be type-checked when they're added
     pub extra_defines: Vec<Define<'i>>, // fixme maybe make this a program, or put program in here?
 
+    /// general buffer, eventually this should be empty as everything is transferred to the Strings below
     pub o: String,
     pub structs: String,
     pub global_vars: String,

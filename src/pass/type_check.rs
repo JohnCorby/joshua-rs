@@ -1,5 +1,3 @@
-//! type init, type checking, scope handling
-
 use crate::context::Ctx;
 use crate::error::{err, Res};
 use crate::pass::ast::*;
@@ -10,6 +8,7 @@ use std::collections::HashMap;
 use std::ops::Deref;
 
 pub trait TypeCheck<'i> {
+    /// type init, type checking, scope handling
     fn type_check(&self, ctx: &mut Ctx<'i>) -> Res<'i>;
 }
 

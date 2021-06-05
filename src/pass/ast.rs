@@ -144,7 +144,7 @@ pub struct FuncCall<'i> {
     pub ty: LateInit<Type<'i>>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub enum Literal<'i> {
     Float(f64),
     Int(i64),
@@ -177,6 +177,7 @@ impl Node<'i> {
     }
 }
 
+/// note: cloning is okay and cheap because it's Rc::clone
 #[derive(Debug, Clone)]
 pub struct TypeNode<'i> {
     pub span: Span<'i>,
@@ -184,6 +185,7 @@ pub struct TypeNode<'i> {
     pub ty: LateInit<Type<'i>>,
 }
 
+/// note: cloning is okay and cheap because it's Rc::clone
 #[derive(Debug, Clone)]
 pub enum TypeKind<'i> {
     Primitive(PrimitiveType),

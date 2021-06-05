@@ -5,6 +5,7 @@ use crate::util::interned_str::Intern;
 use crate::util::Mangle;
 
 pub trait Gen<'i> {
+    /// take fully initialized self and generate it into one of the ctx output sections
     fn gen(self, ctx: &mut Ctx<'i>);
 }
 
