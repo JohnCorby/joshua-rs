@@ -1,7 +1,6 @@
 use crate::error::{err, Res};
 use crate::span::Span;
 use crate::util::interned_str::InternedStr;
-use crate::util::{func_name, to_string};
 use std::fmt::{Display, Formatter};
 use std::rc::Rc;
 
@@ -11,10 +10,7 @@ pub enum Type<'i> {
     Primitive(PrimitiveType),
     /// fixme merge these into generics when we get type inference
     Literal(LiteralType),
-    Struct {
-        name: InternedStr<'i>,
-        generic_replacements: Vec<Type<'i>>,
-    },
+    Struct(InternedStr<'i>),
     /// replaced with concrete type on specialization
     GenericPlaceholder(InternedStr<'i>),
     Ptr(Rc<Type<'i>>),
@@ -40,15 +36,12 @@ impl Type<'i> {
     }
 
     /// name used in funcs
-    pub fn func_name(&self) -> String {
+    pub fn code_name(&self) -> String {
         use Type::*;
         match self {
             Primitive(ty) => ty.to_string(),
-            Struct {
-                name,
-                generic_replacements,
-            } => func_name(name, &generic_replacements.iter().collect::<Vec<_>>(), None),
-            Ptr(ty) => format!("ptr<{}>", ty.func_name()),
+            Struct(name) => name.to_string(),
+            Ptr(ty) => format!("ptr<{}>", ty.code_name()),
             // _ => format!("{{{:?}}}", self),
             _ => panic!("internal type {:?} should not be used in func name", self),
         }
@@ -65,15 +58,7 @@ impl Display for Type<'_> {
         use Type::*;
         match self {
             Primitive(ty) => write!(f, "primitive type {}", ty),
-            Struct {
-                name,
-                generic_replacements,
-            } => f.write_str(&to_string(
-                "struct type",
-                name,
-                &generic_replacements.iter().collect::<Vec<_>>(),
-                None,
-            )),
+            Struct(name) => write!(f, "struct type `{}`", name),
             Ptr(ty) => write!(f, "pointer type to {}", ty),
             // _ => write!(f, "internal type {:?}", self),
             _ => panic!("internal type {:?} should not be displayed", self),

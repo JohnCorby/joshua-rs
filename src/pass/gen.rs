@@ -216,7 +216,7 @@ impl Gen<'i> for Expr<'i> {
                 } else {
                     self::FuncCall {
                         span: self.span,
-                        name: format!("as {}", ty_node.ty.func_name()).intern(ctx),
+                        name: format!("as {}", ty_node.ty.code_name()).intern(ctx),
                         generic_replacements: vec![],
                         args: vec![*thing],
                         ty: Default::default(),
@@ -288,9 +288,9 @@ impl Gen<'i> for TypeNode<'i> {
         }
         match &*self.ty {
             Primitive(ty) => ctx.o.push_str(ty.c_type()),
-            Struct { .. } => {
+            Struct(_) => {
                 ctx.o.push_str("struct ");
-                ctx.o.push_str(&self.ty.func_name().mangle())
+                ctx.o.push_str(&self.ty.code_name().mangle())
             }
             ty => panic!("tried to gen {}", ty),
         }

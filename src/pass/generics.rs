@@ -7,8 +7,8 @@ use crate::pass::ty::Type;
 use crate::pass::type_check::TypeCheck;
 use crate::scope::{Scopes, Symbol};
 use crate::span::Span;
-use crate::util::interned_str::InternedStr;
-use crate::util::to_string;
+use crate::util::interned_str::{Intern, InternedStr};
+use crate::util::{code_name, to_string};
 use std::collections::HashMap;
 use std::ops::Deref;
 
@@ -136,21 +136,19 @@ impl FuncCall<'i> {
             generic_placeholders.clear();
 
             // add symbol if non-existent
+            let symbol_name = code_name(
+                &name,
+                &self
+                    .generic_replacements
+                    .iter()
+                    .map(|it| &*it.ty)
+                    .collect::<Vec<_>>(),
+                Some(&args.iter().map(|it| &*it.ty_node.ty).collect::<Vec<_>>()),
+            )
+            .intern(ctx);
             if ctx
                 .scopes
-                .find(
-                    &Symbol::new_func(
-                        name,
-                        self.generic_replacements
-                            .iter()
-                            .map(|it| it.ty.deref().clone())
-                            .collect(),
-                        args.iter()
-                            .map(|it| it.ty_node.ty.deref().clone())
-                            .collect(),
-                    ),
-                    Some(self.span),
-                )
+                .find(&Symbol::new_func(symbol_name), Some(self.span))
                 .is_err()
             {
                 // add symbol
@@ -158,16 +156,7 @@ impl FuncCall<'i> {
                 ctx.scopes.add(
                     Symbol::Func {
                         ty: ty_node.ty.deref().clone(),
-                        name,
-                        generic_replacements: self
-                            .generic_replacements
-                            .iter()
-                            .map(|it| it.ty.deref().clone())
-                            .collect(),
-                        arg_types: args
-                            .iter()
-                            .map(|it| it.ty_node.ty.deref().clone())
-                            .collect(),
+                        name: symbol_name,
                     },
                     Some(self.span),
                 )?;
@@ -179,11 +168,21 @@ impl FuncCall<'i> {
                 ctx.scopes.check_return_called(Some(self.span))?;
 
                 // push a define ast so it will be generated properly
+                let define_name = code_name(
+                    &name,
+                    &self
+                        .generic_replacements
+                        .iter()
+                        .map(|it| &*it.ty)
+                        .collect::<Vec<_>>(),
+                    None,
+                )
+                .intern(ctx);
                 ctx.extra_defines.push(Define {
                     span,
                     kind: DefineKind::Func {
                         ty_node: ty_node.clone(),
-                        name,
+                        name: define_name,
                         generic_placeholders,
                         args,
                         body,

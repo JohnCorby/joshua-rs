@@ -3,6 +3,7 @@ use crate::error::{err, Res};
 use crate::pass::ast::*;
 use crate::pass::ty::{PrimitiveType, Type};
 use crate::scope::Symbol;
+use crate::util::code_name;
 use crate::util::interned_str::Intern;
 use std::collections::HashMap;
 use std::ops::Deref;
@@ -44,7 +45,6 @@ impl TypeCheck<'i> for Define<'i> {
                     ctx.scopes.add(
                         Symbol::StructType {
                             name: *name,
-                            generic_replacements: vec![],
                             field_types: {
                                 let mut field_types = HashMap::new();
                                 for define in body {
@@ -82,15 +82,16 @@ impl TypeCheck<'i> for Define<'i> {
 
                     // add symbol
                     let scope = ctx.scopes.0.pop().unwrap();
+                    let symbol_name = code_name(
+                        name,
+                        &[],
+                        Some(&args.iter().map(|it| &*it.ty_node.ty).collect::<Vec<_>>()),
+                    )
+                    .intern(ctx);
                     ctx.scopes.add(
                         Symbol::Func {
                             ty: ty_node.ty.deref().clone(),
-                            name: *name,
-                            generic_replacements: vec![],
-                            arg_types: args
-                                .iter()
-                                .map(|it| it.ty_node.ty.deref().clone())
-                                .collect(),
+                            name: symbol_name,
                         },
                         Some(self.span),
                     )?;
@@ -266,12 +267,10 @@ impl Expr<'i> {
                     // casting will always work for literals
                     ty_node.ty.deref().clone()
                 } else {
-                    let name = format!("as {}", ty_node.ty.func_name()).intern(ctx);
+                    let name = format!("as {}", ty_node.ty.code_name()).intern(ctx);
+                    let symbol_name = code_name(&name, &[], Some(&[&thing.ty])).intern(ctx);
                     ctx.scopes
-                        .find(
-                            &Symbol::new_func(name, vec![], [thing.ty.deref().clone()].into()),
-                            Some(self.span),
-                        )?
+                        .find(&Symbol::new_func(symbol_name), Some(self.span))?
                         .ty()
                 }
             }
@@ -279,11 +278,8 @@ impl Expr<'i> {
                 receiver.type_check(ctx, type_hint)?;
 
                 // field check
-                let (struct_name, struct_generic_replacements) = match &*receiver.ty {
-                    Type::Struct {
-                        name,
-                        generic_replacements,
-                    } => (name, generic_replacements),
+                let struct_name = *match &*receiver.ty {
+                    Type::Struct(name) => name,
                     Type::GenericPlaceholder(_) => {
                         self.ty.init(Type::GenericUnknown);
                         return Ok(());
@@ -295,10 +291,9 @@ impl Expr<'i> {
                         )
                     }
                 };
-                let symbol = ctx.scopes.find(
-                    &Symbol::new_struct_type(*struct_name, struct_generic_replacements.clone()),
-                    Some(self.span),
-                )?;
+                let symbol = ctx
+                    .scopes
+                    .find(&Symbol::new_struct_type(struct_name), Some(self.span))?;
                 let field_types = match &symbol {
                     Symbol::StructType { field_types, .. } => field_types,
                     _ => unreachable!(),
@@ -348,17 +343,16 @@ impl TypeCheck<'i> for FuncCall<'i> {
                 }
             }
 
+            let symbol_name = code_name(
+                &self.name,
+                &[],
+                Some(&self.args.iter().map(|it| &*it.ty).collect::<Vec<_>>()),
+            )
+            .intern(ctx);
             self.ty.init(
                 // symbol check
                 ctx.scopes
-                    .find(
-                        &Symbol::new_func(
-                            self.name,
-                            vec![],
-                            self.args.iter().map(|it| it.ty.deref().clone()).collect(),
-                        ),
-                        Some(self.span),
-                    )?
+                    .find(&Symbol::new_func(symbol_name), Some(self.span))?
                     .ty(),
             );
             Ok(())
@@ -382,15 +376,15 @@ impl TypeCheck<'i> for TypeNode<'i> {
                 generic_replacements,
             } => {
                 // symbol check
+                let struct_symbol_name = code_name(
+                    name,
+                    &[], // todo generic find or add
+                    None,
+                )
+                .intern(ctx);
                 ctx.scopes
                     .find(
-                        &Symbol::new_struct_type(
-                            *name,
-                            generic_replacements
-                                .iter()
-                                .map(|it| it.ty.deref().clone())
-                                .collect(),
-                        ),
+                        &Symbol::new_struct_type(struct_symbol_name),
                         Some(self.span),
                     )
                     .or_else(|_| {

@@ -8,7 +8,6 @@ use crate::pass::ast::{Define, VarDefine};
 use crate::pass::ty::{PrimitiveType, Type};
 use crate::span::Span;
 use crate::util::interned_str::InternedStr;
-use crate::util::to_string;
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::Deref;
@@ -22,8 +21,6 @@ pub enum Symbol<'i> {
         #[new(default)]
         ty: Type<'i>,
         name: InternedStr<'i>,
-        generic_replacements: Vec<Type<'i>>,
-        arg_types: Vec<Type<'i>>,
     },
     Var {
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
@@ -33,7 +30,6 @@ pub enum Symbol<'i> {
     },
     StructType {
         name: InternedStr<'i>,
-        generic_replacements: Vec<Type<'i>>,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         #[new(default)]
         field_types: HashMap<InternedStr<'i>, Type<'i>>,
@@ -89,14 +85,7 @@ impl Symbol<'i> {
             | Var { ty, .. }
             | GenericFunc { ty, .. }
             | GenericStruct { ty, .. } => ty.deref().clone(),
-            StructType {
-                name,
-                generic_replacements,
-                ..
-            } => Type::Struct {
-                name: *name,
-                generic_replacements: generic_replacements.clone(),
-            },
+            StructType { name, .. } => Type::Struct(*name),
             GenericPlaceholderType(name) => Type::GenericPlaceholder(*name),
         }
     }
@@ -107,28 +96,9 @@ impl Display for Symbol<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         use Symbol::*;
         match self {
-            Func {
-                name,
-                generic_replacements,
-                arg_types,
-                ..
-            } => f.write_str(&to_string(
-                "func symbol",
-                name,
-                &generic_replacements.iter().collect::<Vec<_>>(),
-                Some(&arg_types.iter().collect::<Vec<_>>()),
-            )),
+            Func { name, .. } => write!(f, "func symbol `{}`", name),
             Var { name, .. } => write!(f, "var symbol `{}`", name),
-            StructType {
-                name,
-                generic_replacements,
-                ..
-            } => f.write_str(&to_string(
-                "struct type symbol",
-                name,
-                &generic_replacements.iter().collect::<Vec<_>>(),
-                None,
-            )),
+            StructType { name, .. } => write!(f, "struct type symbol `{}`", name),
             // _ => write!(f, "internal symbol {:?}", self),
             _ => panic!("internal symbol {:?} should not be displayed", self),
         }

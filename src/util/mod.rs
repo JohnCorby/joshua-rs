@@ -6,7 +6,7 @@ pub mod interned_str;
 pub mod late_init;
 
 /// make a proper name out of stuff
-pub fn func_name(
+pub fn code_name(
     name: &str,
     generic_replacements: &[&Type<'_>],
     arg_types: Option<&[&Type<'_>]>,
@@ -16,7 +16,7 @@ pub fn func_name(
             "<{}>",
             generic_replacements
                 .iter()
-                .map(|it| it.func_name())
+                .map(|it| it.code_name())
                 .collect::<Vec<_>>()
                 .join(", ")
         )
@@ -28,7 +28,7 @@ pub fn func_name(
             "({})",
             arg_types
                 .iter()
-                .map(|it| it.func_name())
+                .map(|it| it.code_name())
                 .collect::<Vec<_>>()
                 .join(", ")
         )
@@ -93,7 +93,7 @@ impl Mangle for str {
         if self == "main" {
             self.to_string()
         } else {
-            func_name(self, generic_replacements, Some(arg_types)).mangle()
+            code_name(self, generic_replacements, Some(arg_types)).mangle()
         }
     }
 }
