@@ -1,7 +1,6 @@
 //!todo
-//! - some type inference
+//! - ways to use pointers
 //! - generic inference
-//! - pointers (array type can come from this)
 //! - structs/funcs in funcs, this one will be painful
 //! - interned string: a tiny bit more refactoring?
 //! - "build scope" pass which will add _____Type and Func symbols to the scope uhhhhh well it's a stack now so we can't pre-build this. darn

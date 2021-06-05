@@ -7,7 +7,7 @@ use crate::pass::ty::Type;
 use crate::pass::type_check::TypeCheck;
 use crate::scope::{Scopes, Symbol};
 use crate::span::Span;
-use crate::util::interned_str::InternedStr;
+use crate::util::interned_str::{Intern, InternedStr};
 use std::collections::HashMap;
 use std::ops::Deref;
 
@@ -100,7 +100,7 @@ impl FuncCall<'i> {
         if let Symbol::GenericFunc {
             span,
             mut ty_node,
-            name,
+            mut name,
             mut generic_placeholders,
             mut args,
             body,
@@ -133,6 +133,17 @@ impl FuncCall<'i> {
                 call_arg.ty.check(&*arg.ty_node.ty, Some(call_arg.span))?;
             }
             generic_placeholders.clear();
+
+            name = format!(
+                "{}<{}>",
+                name,
+                self.generic_replacements
+                    .iter()
+                    .map(|it| it.ty.func_name())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )
+            .intern(ctx);
 
             // add symbol if non-existent
             if ctx
