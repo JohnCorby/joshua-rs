@@ -24,16 +24,16 @@ statement = _{
 
 block = { statement | "{" ~ statement* ~ "}" }
 
-func_define = { ty ~ ident ~ func_define_generics ~ "(" ~ (var_define ~ ("," ~ var_define)*)? ~ ")" ~ block }
-func_define_generics = { ("<" ~ ident ~ ("," ~ ident)* ~ ">")? }
-func_call = { ident ~ func_call_generics ~ "(" ~ (expr ~ ("," ~ expr)*)? ~ ")" }
-func_call_generics = { ("<" ~ (ty ~ ("," ~ ty)*)~ ">")? }
+func_define = { ty ~ ident ~ generic_placeholders ~ "(" ~ (var_define ~ ("," ~ var_define)*)? ~ ")" ~ block }
+generic_placeholders = { ("<" ~ ident ~ ("," ~ ident)* ~ ">")? }
+func_call = { ident ~ generic_replacements ~ "(" ~ (expr ~ ("," ~ expr)*)? ~ ")" }
+generic_replacements = { ("<" ~ (ty ~ ("," ~ ty)*)~ ">")? }
 
 var_define = { ty ~ ident ~ ("=" ~ expr)? }
 expr_assign = { expr ~ "=" ~ expr }
 
 
-struct_define = { "struct" ~ ident ~ "{" ~ var_define* ~ "}" }
+struct_define = { "struct" ~ ident ~ generic_placeholders ~ "{" ~ var_define* ~ "}" }
 
 
 iff = { "if" ~ "(" ~ expr ~ ")" ~ block ~ ("else" ~ block)? }
@@ -47,7 +47,7 @@ cont = { "cont" }
 
 
 
-ty = { auto | primitive | ptr | ident }
+ty = { auto | primitive | ptr | named }
 ptr = { "ptr" ~ "<" ~ ty ~ ">" }
 primitive = {
     "i8"
@@ -65,6 +65,7 @@ primitive = {
     | "void"
 }
 auto = { "auto" }
+named = { ident ~ generic_replacements }
 
 
 expr = !{ equality_expr }

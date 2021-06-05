@@ -3,11 +3,12 @@
 //! symbols allow us to check for existence and type of stuff we define
 
 use crate::error::{err, Res};
-use crate::pass::ast::VarDefine;
 use crate::pass::ast::{Block, TypeNode};
+use crate::pass::ast::{Define, VarDefine};
 use crate::pass::ty::{PrimitiveType, Type};
 use crate::span::Span;
 use crate::util::interned_str::InternedStr;
+use crate::util::to_string;
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::Deref;
@@ -21,6 +22,7 @@ pub enum Symbol<'i> {
         #[new(default)]
         ty: Type<'i>,
         name: InternedStr<'i>,
+        generic_replacements: Vec<Type<'i>>,
         arg_types: Vec<Type<'i>>,
     },
     Var {
@@ -31,6 +33,7 @@ pub enum Symbol<'i> {
     },
     StructType {
         name: InternedStr<'i>,
+        generic_replacements: Vec<Type<'i>>,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         #[new(default)]
         field_types: HashMap<InternedStr<'i>, Type<'i>>,
@@ -39,7 +42,6 @@ pub enum Symbol<'i> {
     GenericFunc {
         // cached for faster access
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
-        #[new(default)]
         ty: Type<'i>,
         arg_types: Vec<Type<'i>>,
 
@@ -50,17 +52,32 @@ pub enum Symbol<'i> {
         ty_node: TypeNode<'i>,
         name: InternedStr<'i>,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
-        #[new(default)]
         generic_placeholders: Vec<InternedStr<'i>>,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
-        #[new(default)]
         args: Vec<VarDefine<'i>>,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         body: Rc<Block<'i>>,
 
         // codegen info
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
-        #[new(default)]
+        scopes_index: usize,
+    },
+    GenericStruct {
+        // cached for faster access
+        #[derivative(Hash = "ignore", PartialEq = "ignore")]
+        ty: Type<'i>,
+
+        // copied from struct define
+        #[derivative(Hash = "ignore", PartialEq = "ignore")]
+        span: Span<'i>,
+        name: InternedStr<'i>,
+        #[derivative(Hash = "ignore", PartialEq = "ignore")]
+        generic_placeholders: Vec<InternedStr<'i>>,
+        #[derivative(Hash = "ignore", PartialEq = "ignore")]
+        body: Rc<Vec<Define<'i>>>,
+
+        // codegen info
+        #[derivative(Hash = "ignore", PartialEq = "ignore")]
         scopes_index: usize,
     },
 }
@@ -68,8 +85,18 @@ impl Symbol<'i> {
     pub fn ty(&self) -> Type<'i> {
         use Symbol::*;
         match self {
-            Func { ty, .. } | Var { ty, .. } | GenericFunc { ty, .. } => ty.deref().clone(),
-            StructType { name, .. } => Type::Struct(*name),
+            Func { ty, .. }
+            | Var { ty, .. }
+            | GenericFunc { ty, .. }
+            | GenericStruct { ty, .. } => ty.deref().clone(),
+            StructType {
+                name,
+                generic_replacements,
+                ..
+            } => Type::Struct {
+                name: *name,
+                generic_replacements: generic_replacements.clone(),
+            },
             GenericPlaceholderType(name) => Type::GenericPlaceholder(*name),
         }
     }
@@ -81,19 +108,27 @@ impl Display for Symbol<'_> {
         use Symbol::*;
         match self {
             Func {
-                name, arg_types, ..
-            } => write!(
-                f,
-                "func symbol `{}` with arg types ({})",
                 name,
-                arg_types
-                    .iter()
-                    .map(Type::to_string)
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            ),
+                generic_replacements,
+                arg_types,
+                ..
+            } => f.write_str(&to_string(
+                "func symbol",
+                name,
+                &generic_replacements.iter().collect::<Vec<_>>(),
+                Some(&arg_types.iter().collect::<Vec<_>>()),
+            )),
             Var { name, .. } => write!(f, "var symbol `{}`", name),
-            StructType { name, .. } => write!(f, "struct type symbol `{}`", name),
+            StructType {
+                name,
+                generic_replacements,
+                ..
+            } => f.write_str(&to_string(
+                "struct type symbol",
+                name,
+                &generic_replacements.iter().collect::<Vec<_>>(),
+                None,
+            )),
             // _ => write!(f, "internal symbol {:?}", self),
             _ => panic!("internal symbol {:?} should not be displayed", self),
         }

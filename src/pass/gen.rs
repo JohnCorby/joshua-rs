@@ -22,20 +22,29 @@ impl Gen<'i> for Define<'i> {
     fn gen(self, ctx: &mut Ctx<'i>) {
         use DefineKind::*;
         match self.kind {
-            Struct { name, body } => {
-                let structs = std::mem::take(&mut ctx.structs);
-                let old_o = std::mem::replace(&mut ctx.o, structs);
+            Struct {
+                name,
+                generic_placeholders,
+                body,
+            } => {
+                // only gen non-generic func
+                if generic_placeholders.is_empty() {
+                    let structs = std::mem::take(&mut ctx.structs);
+                    let old_o = std::mem::replace(&mut ctx.o, structs);
 
-                ctx.o.push_str("struct ");
-                ctx.o.push_str(&name.mangle());
-                ctx.o.push_str(" {\n");
-                for define in body {
-                    define.gen(ctx);
+                    ctx.o.push_str("struct ");
+                    ctx.o.push_str(&name.mangle());
+                    ctx.o.push_str(" {\n");
+                    for define in body {
+                        define.gen(ctx);
+                    }
+                    ctx.o.push_str("};\n");
+
+                    let new_o = std::mem::replace(&mut ctx.o, old_o);
+                    ctx.structs = new_o;
+                } else {
+                    todo!()
                 }
-                ctx.o.push_str("};\n");
-
-                let new_o = std::mem::replace(&mut ctx.o, old_o);
-                ctx.structs = new_o;
             }
             Func {
                 ty_node,
@@ -279,9 +288,9 @@ impl Gen<'i> for TypeNode<'i> {
         }
         match &*self.ty {
             Primitive(ty) => ctx.o.push_str(ty.c_type()),
-            Struct(name) => {
+            Struct { .. } => {
                 ctx.o.push_str("struct ");
-                ctx.o.push_str(&name.mangle())
+                ctx.o.push_str(&self.ty.func_name().mangle())
             }
             ty => panic!("tried to gen {}", ty),
         }

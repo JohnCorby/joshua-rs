@@ -45,6 +45,12 @@ impl Visit<'i> for Define<'i> {
 
                 Struct {
                     name: nodes.next().unwrap().visit_ident(ctx),
+                    generic_placeholders: nodes
+                        .next()
+                        .unwrap()
+                        .children_checked(Kind::generic_placeholders)
+                        .map(|node| node.visit_ident(ctx))
+                        .collect(),
                     body: nodes.visit_rest(ctx),
                 }
             }
@@ -56,7 +62,7 @@ impl Visit<'i> for Define<'i> {
                 let generic_placeholders = nodes
                     .next()
                     .unwrap()
-                    .children_checked(Kind::func_define_generics)
+                    .children_checked(Kind::generic_placeholders)
                     .map(|node| node.visit_ident(ctx))
                     .collect();
                 let mut args = vec![];
@@ -287,7 +293,7 @@ impl Visit<'i> for FuncCall<'i> {
             generic_replacements: nodes
                 .next()
                 .unwrap()
-                .children_checked(Kind::func_call_generics)
+                .children_checked(Kind::generic_replacements)
                 .map(|node| node.visit(ctx))
                 .collect(),
             args: nodes.visit_rest(ctx),
@@ -324,7 +330,18 @@ impl Visit<'i> for TypeNode<'i> {
                 .unwrap()
                 .visit::<TypeNode<'i>>(ctx)
                 .into()),
-            Kind::ident => Named(node.visit_ident(ctx)),
+            Kind::named => {
+                let mut nodes = node.children();
+                Named {
+                    name: nodes.next().unwrap().visit_ident(ctx),
+                    generic_replacements: nodes
+                        .next()
+                        .unwrap()
+                        .children_checked(Kind::generic_replacements)
+                        .map(|node| node.visit(ctx))
+                        .collect(),
+                }
+            }
             Kind::auto => Auto,
 
             _ => unexpected_kind(node),

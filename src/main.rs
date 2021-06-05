@@ -1,5 +1,6 @@
 //!todo
 //! - ways to use pointers
+//! - generic structs lol
 //! - generic inference
 //! - structs/funcs in funcs, this one will be painful
 //! - interned string: a tiny bit more refactoring?

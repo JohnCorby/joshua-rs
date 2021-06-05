@@ -1,10 +1,11 @@
 use crate::context::Ctx;
 use crate::error::{err, Res};
-use crate::parse::Node;
+use crate::parse::{Kind, Node};
 use crate::pass::ty::{LiteralType, PrimitiveType, Type};
 use crate::span::Span;
 use crate::util::interned_str::{Intern, InternedStr};
 use crate::util::late_init::LateInit;
+use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
 #[derive(Debug, Clone)]
@@ -20,6 +21,7 @@ pub struct Define<'i> {
 pub enum DefineKind<'i> {
     Struct {
         name: InternedStr<'i>,
+        generic_placeholders: Vec<InternedStr<'i>>,
         body: Vec<Define<'i>>,
     },
     Func {
@@ -168,6 +170,7 @@ impl Literal<'i> {
 
 impl Node<'i> {
     pub fn visit_ident(&self, ctx: &mut Ctx<'i>) -> InternedStr<'i> {
+        debug_assert_eq!(self.kind(), Kind::ident);
         let str = self.str();
         str.strip_prefix('`')
             .unwrap_or(str)
@@ -184,12 +187,25 @@ pub struct TypeNode<'i> {
     pub kind: TypeKind<'i>,
     pub ty: LateInit<Type<'i>>,
 }
+impl PartialEq for TypeNode<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        self.kind == other.kind
+    }
+}
+impl Hash for TypeNode<'_> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.kind.hash(state)
+    }
+}
 
 /// note: cloning is okay and cheap because it's Rc::clone
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash, PartialEq)]
 pub enum TypeKind<'i> {
     Primitive(PrimitiveType),
     Ptr(Rc<TypeNode<'i>>),
-    Named(InternedStr<'i>),
+    Named {
+        name: InternedStr<'i>,
+        generic_replacements: Vec<TypeNode<'i>>,
+    },
     Auto,
 }

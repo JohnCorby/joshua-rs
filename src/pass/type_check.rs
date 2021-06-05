@@ -28,34 +28,43 @@ impl TypeCheck<'i> for Define<'i> {
     fn type_check(&self, ctx: &mut Ctx<'i>) -> Res<'i> {
         use DefineKind::*;
         match &self.kind {
-            Struct { name, body } => {
-                ctx.scopes.push(false, None);
-                for define in body {
-                    define.type_check(ctx)?
-                }
-                ctx.scopes.pop();
+            Struct {
+                name,
+                generic_placeholders,
+                body,
+            } => {
+                if generic_placeholders.is_empty() {
+                    ctx.scopes.push(false, None);
+                    for define in body {
+                        define.type_check(ctx)?
+                    }
+                    ctx.scopes.pop();
 
-                // add symbol
-                ctx.scopes.add(
-                    Symbol::StructType {
-                        name: *name,
-                        field_types: {
-                            let mut field_types = HashMap::new();
-                            for define in body {
-                                if let Var(VarDefine { name, ty_node, .. }) = &define.kind {
-                                    if field_types
-                                        .insert(*name, ty_node.ty.deref().clone())
-                                        .is_some()
-                                    {
-                                        unreachable!()
+                    // add symbol
+                    ctx.scopes.add(
+                        Symbol::StructType {
+                            name: *name,
+                            generic_replacements: vec![],
+                            field_types: {
+                                let mut field_types = HashMap::new();
+                                for define in body {
+                                    if let Var(VarDefine { name, ty_node, .. }) = &define.kind {
+                                        if field_types
+                                            .insert(*name, ty_node.ty.deref().clone())
+                                            .is_some()
+                                        {
+                                            unreachable!()
+                                        }
                                     }
                                 }
-                            }
-                            field_types
+                                field_types
+                            },
                         },
-                    },
-                    Some(self.span),
-                )?;
+                        Some(self.span),
+                    )?;
+                } else {
+                    todo!()
+                }
             }
             Func {
                 ty_node,
@@ -77,6 +86,7 @@ impl TypeCheck<'i> for Define<'i> {
                         Symbol::Func {
                             ty: ty_node.ty.deref().clone(),
                             name: *name,
+                            generic_replacements: vec![],
                             arg_types: args
                                 .iter()
                                 .map(|it| it.ty_node.ty.deref().clone())
@@ -259,7 +269,7 @@ impl Expr<'i> {
                     let name = format!("as {}", ty_node.ty.func_name()).intern(ctx);
                     ctx.scopes
                         .find(
-                            &Symbol::new_func(name, [thing.ty.deref().clone()].into()),
+                            &Symbol::new_func(name, vec![], [thing.ty.deref().clone()].into()),
                             Some(self.span),
                         )?
                         .ty()
@@ -269,8 +279,11 @@ impl Expr<'i> {
                 receiver.type_check(ctx, type_hint)?;
 
                 // field check
-                let struct_name = *match &*receiver.ty {
-                    Type::Struct(struct_name) => struct_name,
+                let (struct_name, struct_generic_replacements) = match &*receiver.ty {
+                    Type::Struct {
+                        name,
+                        generic_replacements,
+                    } => (name, generic_replacements),
                     Type::GenericPlaceholder(_) => {
                         self.ty.init(Type::GenericUnknown);
                         return Ok(());
@@ -282,9 +295,10 @@ impl Expr<'i> {
                         )
                     }
                 };
-                let symbol = ctx
-                    .scopes
-                    .find(&Symbol::new_struct_type(struct_name), Some(self.span))?;
+                let symbol = ctx.scopes.find(
+                    &Symbol::new_struct_type(*struct_name, struct_generic_replacements.clone()),
+                    Some(self.span),
+                )?;
                 let field_types = match &symbol {
                     Symbol::StructType { field_types, .. } => field_types,
                     _ => unreachable!(),
@@ -340,6 +354,7 @@ impl TypeCheck<'i> for FuncCall<'i> {
                     .find(
                         &Symbol::new_func(
                             self.name,
+                            vec![],
                             self.args.iter().map(|it| it.ty.deref().clone()).collect(),
                         ),
                         Some(self.span),
@@ -362,10 +377,22 @@ impl TypeCheck<'i> for TypeNode<'i> {
                 inner.type_check(ctx)?;
                 Type::Ptr(inner.ty.deref().clone().into())
             }
-            Named(name) => {
+            Named {
+                name,
+                generic_replacements,
+            } => {
                 // symbol check
                 ctx.scopes
-                    .find(&Symbol::new_struct_type(*name), Some(self.span))
+                    .find(
+                        &Symbol::new_struct_type(
+                            *name,
+                            generic_replacements
+                                .iter()
+                                .map(|it| it.ty.deref().clone())
+                                .collect(),
+                        ),
+                        Some(self.span),
+                    )
                     .or_else(|_| {
                         ctx.scopes.find(
                             &Symbol::new_generic_placeholder_type(*name),

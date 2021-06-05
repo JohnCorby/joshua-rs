@@ -14,9 +14,19 @@ T `+`<T>(T a, T b) {
     ret c
 }
 
-void bruh<T>(T a) {
-    bruh<T>(a)
+void bruh<T>(T a) bruh<T>(a)
+
+
+
+
+
+struct Hello<T> {
+    T field
 }
+
+void take(Hello<i8> arg) {}
+//void take_cooler<T>(Hello<T> arg) {}
+
 
 i32 main() {
     f(1 as i8)
@@ -30,6 +40,18 @@ i32 main() {
 
     bruh<i8>(1 as i8)
     bruh<i8>(1 as i8)
+
+
+
+
+
+
+    Hello<i8> hello
+    take(hello)
+
+
+
+
 
     ret 0 as i32
 }

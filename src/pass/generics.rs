@@ -7,7 +7,8 @@ use crate::pass::ty::Type;
 use crate::pass::type_check::TypeCheck;
 use crate::scope::{Scopes, Symbol};
 use crate::span::Span;
-use crate::util::interned_str::{Intern, InternedStr};
+use crate::util::interned_str::InternedStr;
+use crate::util::to_string;
 use std::collections::HashMap;
 use std::ops::Deref;
 
@@ -100,7 +101,7 @@ impl FuncCall<'i> {
         if let Symbol::GenericFunc {
             span,
             mut ty_node,
-            mut name,
+            name,
             mut generic_placeholders,
             mut args,
             body,
@@ -134,23 +135,16 @@ impl FuncCall<'i> {
             }
             generic_placeholders.clear();
 
-            name = format!(
-                "{}<{}>",
-                name,
-                self.generic_replacements
-                    .iter()
-                    .map(|it| it.ty.func_name())
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            )
-            .intern(ctx);
-
             // add symbol if non-existent
             if ctx
                 .scopes
                 .find(
                     &Symbol::new_func(
                         name,
+                        self.generic_replacements
+                            .iter()
+                            .map(|it| it.ty.deref().clone())
+                            .collect(),
                         args.iter()
                             .map(|it| it.ty_node.ty.deref().clone())
                             .collect(),
@@ -165,6 +159,11 @@ impl FuncCall<'i> {
                     Symbol::Func {
                         ty: ty_node.ty.deref().clone(),
                         name,
+                        generic_replacements: self
+                            .generic_replacements
+                            .iter()
+                            .map(|it| it.ty.deref().clone())
+                            .collect(),
                         arg_types: args
                             .iter()
                             .map(|it| it.ty_node.ty.deref().clone())
@@ -205,6 +204,7 @@ impl FuncCall<'i> {
 
 impl Scopes<'i> {
     /// find a generic func fuzzily
+    /// todo integrate this into Scopes::find so we can just use that
     pub fn find_generic_func(
         &self,
         name: InternedStr<'i>,
@@ -250,19 +250,13 @@ impl Scopes<'i> {
         }
         err(
             &format!(
-                "could not find generic func name `{}` with arg_types ({}) \
-                that matches generic replacements ({})",
-                name,
-                arg_types
-                    .iter()
-                    .map(|it| it.to_string())
-                    .collect::<Vec<_>>()
-                    .join(", "),
-                generic_replacements
-                    .iter()
-                    .map(|it| it.to_string())
-                    .collect::<Vec<_>>()
-                    .join(", ")
+                "could not find {}",
+                to_string(
+                    "generic func symbol",
+                    &name,
+                    generic_replacements,
+                    Some(arg_types)
+                )
             ),
             span,
         )
