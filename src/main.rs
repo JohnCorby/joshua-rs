@@ -1,16 +1,9 @@
-//!todo immediate
-//! - "type-hint"s via `Option<Type>` passed thru `Expr::type_check`
-//!
 //!todo
-//! - "build scope" pass which will add _____Type and Func symbols to the scope uhhhhh well it's a stack now so we can't pre-build this. darn
+//! - some type inference
+//! - generic inference
 //! - structs/funcs in funcs, this one will be painful
 //! - interned string: a tiny bit more refactoring?
-//! - generics: make a different thing (i.e. can't call normal func w generic func call and vice versa)
-//! - generics inference
-//! - generics: `add` function duplication
-//! - generics: ...and much more. just remember it, will ya?
-//! - TESTS
-//! - "mir" thingy for c, might make replacement easier; or at least just a way to gen funcs/structs outside of where we are lol
+//! - "build scope" pass which will add _____Type and Func symbols to the scope uhhhhh well it's a stack now so we can't pre-build this. darn
 //!todo
 //! - methods
 //! - get literals to actually work, you might just have to brute force it, or not idk. you might be able to use generics for this instead :)
