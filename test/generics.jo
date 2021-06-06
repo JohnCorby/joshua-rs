@@ -27,7 +27,7 @@ str str_new(ptr<u8> ptr) {
     result.len = 1
 
     u8 chr = 0
-    <{ ${chr} = *${ptr} }>
+    chr = <{ *${ptr} }> as u8
     until(chr == 0 as u8) {
         result.len = result.len + 1 as u64
         <{ ${ptr}++ }>
