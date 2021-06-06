@@ -9,6 +9,7 @@ pub enum Type<'i> {
     Primitive(PrimitiveType),
     /// fixme merge these into generics when we get type inference
     Literal(LiteralType),
+    CCode,
     Struct(CtxStr<'i>),
     /// replaced with concrete type on specialization
     GenericPlaceholder(CtxStr<'i>),
@@ -109,7 +110,6 @@ impl PrimitiveType {
 pub enum LiteralType {
     Float,
     Int,
-    CCode,
 }
 impl LiteralType {
     pub const fn ty(&self) -> Type<'static> {

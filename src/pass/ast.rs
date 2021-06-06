@@ -88,12 +88,6 @@ pub enum CCodePart<'i> {
     Expr(Expr<'i>),
 }
 
-impl CCode<'i> {
-    pub const fn ty(&self) -> Type<'i> {
-        LiteralType::CCode.ty()
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct Expr<'i> {
     pub span: Span<'i>,

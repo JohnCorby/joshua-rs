@@ -24,10 +24,9 @@ struct str {
 str str_new(ptr<u8> ptr) {
     str result
     result.ptr = ptr
-    result.len = 1
+    result.len = 1 as u64
 
-    u8 chr = 0
-    chr = <{ *${ptr} }> as u8
+    auto chr = <{ *${ptr} }> as u8
     until(chr == 0 as u8) {
         result.len = result.len + 1 as u64
         <{ ${ptr}++ }>
@@ -72,7 +71,7 @@ i32 main() {
 //    str.ptr = "hello"
 //    str.len = 6
     str str = str_new("beautiful")
-    str_debug_print(str)
+    str.str_debug_print()
 //    ptr<u8> ptr = "hello"
 //    <{ puts(${ptr}) }>
 

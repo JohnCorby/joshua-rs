@@ -261,9 +261,9 @@ impl Expr<'i> {
                 thing.type_check(ctx, Some(&ty_node.ty))?;
 
                 // symbol check
-                // fixme literal casting is hacky as shit
-                if let Type::Literal(_) = *thing.ty {
-                    // casting will always work for literals
+                // fixme hacky as shit
+                if matches!(*thing.ty, Type::Literal(_) | Type::CCode) {
+                    // casting will always work
                     ty_node.ty.deref().clone()
                 } else {
                     let name = format!("as {}", ty_node.ty.code_name()).into_ctx(ctx);
@@ -311,24 +311,7 @@ impl Expr<'i> {
                     }
                 }
             }
-            Literal(literal) => {
-                use super::ty::LiteralType::*;
-                use PrimitiveType::*;
-                use Type::*;
-                match (literal.ty(), type_hint.cloned()) {
-                    (Literal(Int), Some(ty @ Primitive(I8))) => ty,
-                    (Literal(Int), Some(ty @ Primitive(U8))) => ty,
-                    (Literal(Int), Some(ty @ Primitive(I16))) => ty,
-                    (Literal(Int), Some(ty @ Primitive(U16))) => ty,
-                    (Literal(Int), Some(ty @ Primitive(I32))) => ty,
-                    (Literal(Int), Some(ty @ Primitive(U32))) => ty,
-                    (Literal(Int), Some(ty @ Primitive(I64))) => ty,
-                    (Literal(Int), Some(ty @ Primitive(U64))) => ty,
-                    (Literal(Float), Some(ty @ Primitive(F32))) => ty,
-                    (Literal(Float), Some(ty @ Primitive(F64))) => ty,
-                    (ty, _) => ty,
-                }
-            }
+            Literal(literal) => literal.ty(),
             FuncCall(func_call) => {
                 func_call.type_check(ctx)?;
                 func_call.ty.deref().clone()
@@ -341,7 +324,7 @@ impl Expr<'i> {
             }
             CCode(c_code) => {
                 c_code.type_check(ctx)?;
-                c_code.ty()
+                Type::CCode
             }
         });
         Ok(())

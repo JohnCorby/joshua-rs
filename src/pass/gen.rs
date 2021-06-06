@@ -208,8 +208,8 @@ impl Gen<'i> for Expr<'i> {
         use ExprKind::*;
         match self.kind {
             Cast { thing, ty_node } => {
-                // fixme literal casting is hacky as shit
-                if let Type::Literal(_) = *thing.ty {
+                // fixme hacky as shit
+                if matches!(*thing.ty, Type::Literal(_) | Type::CCode) {
                     ctx.o.push('(');
                     ty_node.gen(ctx);
                     ctx.o.push_str(") ");
