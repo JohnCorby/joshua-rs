@@ -104,10 +104,9 @@ impl Ctx<'_> {
             .unwrap()
             .visit::<Program<'_>>(self)
             .0;
-        for define in &defines {
+        for define in defines.iter() {
             define.type_check(self).unwrap();
+            self.extra_defines.push(define.clone());
         }
-
-        self.extra_defines.extend(defines);
     }
 }

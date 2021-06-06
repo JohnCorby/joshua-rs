@@ -2,7 +2,8 @@ use crate::context::Ctx;
 use crate::error::unexpected_kind;
 use crate::parse::{Kind, Node, Nodes};
 use crate::pass::ast::*;
-use crate::util::interned_str::{Intern, InternedStr};
+use crate::util::ctx_str::{CtxStr, IntoCtx};
+use std::rc::Rc;
 
 pub trait Visit<'i> {
     fn visit(node: Node<'i>, ctx: &mut Ctx<'i>) -> Self;
@@ -13,14 +14,14 @@ impl Node<'i> {
         V::visit(self, ctx)
     }
 
-    pub fn visit_ident(&self, ctx: &mut Ctx<'i>) -> InternedStr<'i> {
+    pub fn visit_ident(&self, ctx: &mut Ctx<'i>) -> CtxStr<'i> {
         debug_assert_eq!(self.kind(), Kind::ident);
         let str = self.str();
         str.strip_prefix('`')
             .unwrap_or(str)
             .strip_suffix('`')
             .unwrap_or(str)
-            .intern(ctx)
+            .into_ctx(ctx)
     }
 }
 
@@ -40,7 +41,8 @@ impl Visit<'i> for Program<'i> {
                     Kind::EOI => None,
                     _ => Some(node.visit(ctx)),
                 })
-                .collect(),
+                .collect::<Vec<_>>()
+                .into(),
         )
     }
 }
@@ -60,8 +62,9 @@ impl Visit<'i> for Define<'i> {
                         .unwrap()
                         .children_checked(Kind::generic_placeholders)
                         .map(|node| node.visit_ident(ctx))
-                        .collect(),
-                    body: nodes.visit_rest(ctx),
+                        .collect::<Vec<_>>()
+                        .into(),
+                    body: nodes.visit_rest(ctx).into(),
                 }
             }
             Kind::func_define => {
@@ -74,7 +77,8 @@ impl Visit<'i> for Define<'i> {
                     .unwrap()
                     .children_checked(Kind::generic_placeholders)
                     .map(|node| node.visit_ident(ctx))
-                    .collect();
+                    .collect::<Vec<_>>()
+                    .into();
                 let mut args = vec![];
                 while nodes.peek().is_some() && nodes.peek().unwrap().kind() == Kind::var_define {
                     args.push(nodes.next().unwrap().visit(ctx))
@@ -85,7 +89,7 @@ impl Visit<'i> for Define<'i> {
                     ty_node,
                     name,
                     generic_placeholders,
-                    args,
+                    args: args.into(),
                     body,
                 }
             }
@@ -169,7 +173,7 @@ impl Visit<'i> for Statement<'i> {
 
 impl Visit<'i> for Block<'i> {
     fn visit(node: Node<'i>, ctx: &mut Ctx<'i>) -> Self {
-        Self(node.children_checked(Kind::block).visit_rest(ctx))
+        Self(node.children_checked(Kind::block).visit_rest(ctx).into())
     }
 }
 
@@ -179,12 +183,13 @@ impl Visit<'i> for CCode<'i> {
             node.children_checked(Kind::c_code)
                 .into_iter()
                 .map(|node| match node.kind() {
-                    Kind::c_code_str => CCodePart::String(node.str()),
+                    Kind::c_code_str => CCodePart::String(node.str().into_ctx(ctx)),
                     Kind::expr => CCodePart::Expr(node.visit(ctx)),
 
                     _ => unexpected_kind(node),
                 })
-                .collect(),
+                .collect::<Vec<_>>()
+                .into(),
         )
     }
 }
@@ -202,13 +207,13 @@ impl Visit<'i> for Expr<'i> {
                 let mut left = nodes.next().unwrap().visit::<Expr<'i>>(ctx);
                 while let Some(op) = nodes.next() {
                     let old_left = left.clone();
-                    let op = op.str().intern(ctx);
+                    let op = op.str().into_ctx(ctx);
                     let right = nodes.next().unwrap().visit::<Expr<'i>>(ctx);
                     left.kind = FuncCall(self::FuncCall {
                         span,
                         name: op,
-                        generic_replacements: vec![],
-                        args: vec![old_left, right],
+                        generic_replacements: Default::default(),
+                        args: vec![old_left, right].into(),
                         ty: Default::default(),
                     })
                 }
@@ -221,13 +226,13 @@ impl Visit<'i> for Expr<'i> {
 
                 let mut thing = rev_nodes.next().unwrap().visit::<Expr<'i>>(ctx);
                 for op in rev_nodes {
-                    let op = op.str().intern(ctx);
+                    let op = op.str().into_ctx(ctx);
                     let old_thing = thing.clone();
                     thing.kind = FuncCall(self::FuncCall {
                         span,
                         name: op,
-                        generic_replacements: vec![],
-                        args: vec![old_thing],
+                        generic_replacements: Default::default(),
+                        args: vec![old_thing].into(),
                         ty: Default::default(),
                     })
                 }
@@ -259,7 +264,11 @@ impl Visit<'i> for Expr<'i> {
                         Kind::func_call => {
                             let receiver = left.clone();
                             let mut func_call = right.visit::<self::FuncCall<'i>>(ctx);
-                            func_call.args.insert(0, receiver);
+
+                            let mut args = Rc::try_unwrap(func_call.args).unwrap();
+                            args.insert(0, receiver);
+                            func_call.args = args.into();
+
                             FuncCall(func_call)
                         }
                         Kind::ident => Field {
@@ -305,22 +314,23 @@ impl Visit<'i> for FuncCall<'i> {
                 .unwrap()
                 .children_checked(Kind::generic_replacements)
                 .map(|node| node.visit(ctx))
-                .collect(),
-            args: nodes.visit_rest(ctx),
+                .collect::<Vec<_>>()
+                .into(),
+            args: nodes.visit_rest(ctx).into(),
             ty: Default::default(),
         }
     }
 }
 
 impl Visit<'i> for Literal<'i> {
-    fn visit(node: Node<'i>, _: &mut Ctx<'i>) -> Self {
+    fn visit(node: Node<'i>, ctx: &mut Ctx<'i>) -> Self {
         use Literal::*;
         match node.kind() {
             Kind::float_literal => Float(node.str().parse().unwrap()),
             Kind::int_literal => Int(node.str().parse().unwrap()),
             Kind::bool_literal => Bool(node.str().parse().unwrap()),
             Kind::char_literal => Char(node.children().next().unwrap().str().parse().unwrap()),
-            Kind::str_literal => Str(node.children().next().unwrap().str()),
+            Kind::str_literal => Str(node.children().next().unwrap().str().into_ctx(ctx)),
 
             _ => unexpected_kind(node),
         }
@@ -349,7 +359,8 @@ impl Visit<'i> for TypeNode<'i> {
                         .unwrap()
                         .children_checked(Kind::generic_replacements)
                         .map(|node| node.visit(ctx))
-                        .collect(),
+                        .collect::<Vec<_>>()
+                        .into(),
                 }
             }
             Kind::auto => Auto,

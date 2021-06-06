@@ -4,7 +4,7 @@ use crate::pass::ast::*;
 use crate::pass::ty::{PrimitiveType, Type};
 use crate::scope::Symbol;
 use crate::util::code_name;
-use crate::util::interned_str::Intern;
+use crate::util::ctx_str::IntoCtx;
 use std::collections::HashMap;
 use std::ops::Deref;
 
@@ -17,7 +17,7 @@ impl TypeCheck<'i> for Program<'i> {
     fn type_check(&self, ctx: &mut Ctx<'i>) -> Res<'i> {
         ctx.scopes.push(false, None);
         ctx.type_check_prelude();
-        for define in &self.0 {
+        for define in &*self.0 {
             define.type_check(ctx)?
         }
         ctx.scopes.pop();
@@ -36,7 +36,7 @@ impl TypeCheck<'i> for Define<'i> {
             } => {
                 if generic_placeholders.is_empty() {
                     ctx.scopes.push(false, None);
-                    for define in body {
+                    for define in &**body {
                         define.type_check(ctx)?
                     }
                     ctx.scopes.pop();
@@ -47,7 +47,7 @@ impl TypeCheck<'i> for Define<'i> {
                             name: *name,
                             field_types: {
                                 let mut field_types = HashMap::new();
-                                for define in body {
+                                for define in &**body {
                                     if let Var(VarDefine { name, ty_node, .. }) = &define.kind {
                                         if field_types
                                             .insert(*name, ty_node.ty.deref().clone())
@@ -57,7 +57,7 @@ impl TypeCheck<'i> for Define<'i> {
                                         }
                                     }
                                 }
-                                field_types
+                                field_types.into()
                             },
                         },
                         Some(self.span),
@@ -76,22 +76,21 @@ impl TypeCheck<'i> for Define<'i> {
                 if generic_placeholders.is_empty() {
                     ty_node.type_check(ctx)?;
                     ctx.scopes.push(false, Some(ty_node.ty.deref().clone()));
-                    for arg in args {
+                    for arg in &**args {
                         arg.type_check(ctx)?
                     }
 
                     // add symbol
                     let scope = ctx.scopes.0.pop().unwrap();
-                    let symbol_name = code_name(
-                        name,
-                        &[],
-                        Some(&args.iter().map(|it| &*it.ty_node.ty).collect::<Vec<_>>()),
-                    )
-                    .intern(ctx);
                     ctx.scopes.add(
                         Symbol::Func {
                             ty: ty_node.ty.deref().clone(),
-                            name: symbol_name,
+                            name: code_name(
+                                name,
+                                &[],
+                                Some(&args.iter().map(|it| &*it.ty_node.ty).collect::<Vec<_>>()),
+                            )
+                            .into_ctx(ctx),
                         },
                         Some(self.span),
                     )?;
@@ -234,7 +233,7 @@ impl TypeCheck<'i> for Statement<'i> {
 
 impl TypeCheck<'i> for Block<'i> {
     fn type_check(&self, ctx: &mut Ctx<'i>) -> Res<'i> {
-        for statement in &self.0 {
+        for statement in &*self.0 {
             statement.type_check(ctx)?
         }
         Ok(())
@@ -243,7 +242,7 @@ impl TypeCheck<'i> for Block<'i> {
 
 impl TypeCheck<'i> for CCode<'i> {
     fn type_check(&self, ctx: &mut Ctx<'i>) -> Res<'i> {
-        for part in &self.0 {
+        for part in &*self.0 {
             match part {
                 CCodePart::String(_) => {}
                 CCodePart::Expr(expr) => expr.type_check(ctx, None)?,
@@ -267,11 +266,10 @@ impl Expr<'i> {
                     // casting will always work for literals
                     ty_node.ty.deref().clone()
                 } else {
-                    let name = format!("as {}", ty_node.ty.code_name()).intern(ctx);
-                    let symbol_name = code_name(&name, &[], Some(&[&thing.ty])).intern(ctx);
-                    ctx.scopes
-                        .find(&Symbol::new_func(symbol_name), Some(self.span))?
-                        .ty()
+                    let name = format!("as {}", ty_node.ty.code_name()).into_ctx(ctx);
+                    let symbol =
+                        Symbol::new_func(code_name(&name, &[], Some(&[&thing.ty])).into_ctx(ctx));
+                    ctx.scopes.find(&symbol, Some(self.span))?.ty()
                 }
             }
             Field { receiver, var } => {
@@ -302,7 +300,12 @@ impl Expr<'i> {
                     Some(field_type) => field_type.clone(),
                     None => {
                         return err(
-                            &format!("no field named {} in {}", var, symbol),
+                            &format!(
+                                "no field named {} in {}",
+                                var,
+                                ctx.scopes
+                                    .find(&Symbol::new_struct_type(struct_name), Some(self.span))?
+                            ),
                             Some(self.span),
                         )
                     }
@@ -331,10 +334,10 @@ impl Expr<'i> {
 impl TypeCheck<'i> for FuncCall<'i> {
     fn type_check(&self, ctx: &mut Ctx<'i>) -> Res<'i> {
         if self.generic_replacements.is_empty() {
-            for replacement in &self.generic_replacements {
+            for replacement in &*self.generic_replacements {
                 replacement.type_check(ctx)?
             }
-            for arg in &self.args {
+            for arg in &*self.args {
                 arg.type_check(ctx, None)?;
                 // very lol
                 if matches!(*arg.ty, Type::GenericUnknown | Type::GenericPlaceholder(_)) {
@@ -343,16 +346,20 @@ impl TypeCheck<'i> for FuncCall<'i> {
                 }
             }
 
-            let symbol_name = code_name(
-                &self.name,
-                &[],
-                Some(&self.args.iter().map(|it| &*it.ty).collect::<Vec<_>>()),
-            )
-            .intern(ctx);
             self.ty.init(
                 // symbol check
                 ctx.scopes
-                    .find(&Symbol::new_func(symbol_name), Some(self.span))?
+                    .find(
+                        &Symbol::new_func(
+                            code_name(
+                                &self.name,
+                                &[],
+                                Some(&self.args.iter().map(|it| &*it.ty).collect::<Vec<_>>()),
+                            )
+                            .into_ctx(ctx),
+                        ),
+                        Some(self.span),
+                    )?
                     .ty(),
             );
             Ok(())
@@ -376,15 +383,16 @@ impl TypeCheck<'i> for TypeNode<'i> {
                 generic_replacements,
             } => {
                 // symbol check
-                let struct_symbol_name = code_name(
-                    name,
-                    &[], // todo generic find or add
-                    None,
-                )
-                .intern(ctx);
                 ctx.scopes
                     .find(
-                        &Symbol::new_struct_type(struct_symbol_name),
+                        &Symbol::new_struct_type(
+                            code_name(
+                                name,
+                                &[], // todo generic find or add
+                                None,
+                            )
+                            .into_ctx(ctx),
+                        ),
                         Some(self.span),
                     )
                     .or_else(|_| {

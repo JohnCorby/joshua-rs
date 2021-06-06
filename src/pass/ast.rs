@@ -1,12 +1,12 @@
 use crate::error::{err, Res};
 use crate::pass::ty::{LiteralType, PrimitiveType, Type};
 use crate::span::Span;
-use crate::util::interned_str::InternedStr;
+use crate::util::ctx_str::CtxStr;
 use crate::util::late_init::LateInit;
 use std::rc::Rc;
 
 #[derive(Debug, Clone)]
-pub struct Program<'i>(pub Vec<Define<'i>>);
+pub struct Program<'i>(pub Rc<Vec<Define<'i>>>);
 
 #[derive(Debug, Clone)]
 pub struct Define<'i> {
@@ -17,15 +17,15 @@ pub struct Define<'i> {
 #[derive(Debug, Clone)]
 pub enum DefineKind<'i> {
     Struct {
-        name: InternedStr<'i>,
-        generic_placeholders: Vec<InternedStr<'i>>,
-        body: Vec<Define<'i>>,
+        name: CtxStr<'i>,
+        generic_placeholders: Rc<Vec<CtxStr<'i>>>,
+        body: Rc<Vec<Define<'i>>>,
     },
     Func {
         ty_node: TypeNode<'i>,
-        name: InternedStr<'i>,
-        generic_placeholders: Vec<InternedStr<'i>>,
-        args: Vec<VarDefine<'i>>,
+        name: CtxStr<'i>,
+        generic_placeholders: Rc<Vec<CtxStr<'i>>>,
+        args: Rc<Vec<VarDefine<'i>>>,
         body: Block<'i>,
     },
     Var(VarDefine<'i>),
@@ -37,7 +37,7 @@ pub enum DefineKind<'i> {
 pub struct VarDefine<'i> {
     pub span: Span<'i>,
     pub ty_node: TypeNode<'i>,
-    pub name: InternedStr<'i>,
+    pub name: CtxStr<'i>,
     pub value: Option<Expr<'i>>,
 }
 
@@ -65,7 +65,7 @@ pub enum StatementKind<'i> {
     For {
         init: VarDefine<'i>,
         cond: Expr<'i>,
-        update: Box<Statement<'i>>,
+        update: Rc<Statement<'i>>,
         block: Block<'i>,
     },
     ExprAssign {
@@ -77,14 +77,14 @@ pub enum StatementKind<'i> {
 }
 
 #[derive(Debug, Clone)]
-pub struct Block<'i>(pub Vec<Statement<'i>>);
+pub struct Block<'i>(pub Rc<Vec<Statement<'i>>>);
 
 #[derive(Debug, Clone)]
-pub struct CCode<'i>(pub Vec<CCodePart<'i>>);
+pub struct CCode<'i>(pub Rc<Vec<CCodePart<'i>>>);
 
 #[derive(Debug, Clone)]
 pub enum CCodePart<'i> {
-    String(&'i str),
+    String(CtxStr<'i>),
     Expr(Expr<'i>),
 }
 
@@ -104,19 +104,19 @@ pub struct Expr<'i> {
 #[derive(Debug, Clone)]
 pub enum ExprKind<'i> {
     Cast {
-        thing: Box<Expr<'i>>,
+        thing: Rc<Expr<'i>>,
         ty_node: TypeNode<'i>,
     },
 
     Field {
-        receiver: Box<Expr<'i>>,
-        var: InternedStr<'i>,
+        receiver: Rc<Expr<'i>>,
+        var: CtxStr<'i>,
     },
 
     // primary
     Literal(Literal<'i>),
     FuncCall(FuncCall<'i>),
-    Var(InternedStr<'i>),
+    Var(CtxStr<'i>),
 
     CCode(CCode<'i>),
 }
@@ -137,9 +137,9 @@ impl Expr<'i> {
 #[derive(Debug, Clone)]
 pub struct FuncCall<'i> {
     pub span: Span<'i>,
-    pub name: InternedStr<'i>,
-    pub generic_replacements: Vec<TypeNode<'i>>,
-    pub args: Vec<Expr<'i>>,
+    pub name: CtxStr<'i>,
+    pub generic_replacements: Rc<Vec<TypeNode<'i>>>,
+    pub args: Rc<Vec<Expr<'i>>>,
     pub ty: LateInit<Type<'i>>,
 }
 
@@ -149,7 +149,7 @@ pub enum Literal<'i> {
     Int(i64),
     Bool(bool),
     Char(char),
-    Str(&'i str),
+    Str(CtxStr<'i>),
 }
 
 impl Literal<'i> {
@@ -165,25 +165,20 @@ impl Literal<'i> {
     }
 }
 
-/// note: cloning is okay and cheap because it's Rc::clone
-#[derive(Debug, Clone, derivative::Derivative)]
-#[derivative(Hash, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct TypeNode<'i> {
-    #[derivative(Hash = "ignore", PartialEq = "ignore")]
     pub span: Span<'i>,
     pub kind: TypeKind<'i>,
-    #[derivative(Hash = "ignore", PartialEq = "ignore")]
     pub ty: LateInit<Type<'i>>,
 }
 
-/// note: cloning is okay and cheap because it's Rc::clone
-#[derive(Debug, Clone, Hash, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum TypeKind<'i> {
     Primitive(PrimitiveType),
     Ptr(Rc<TypeNode<'i>>),
     Named {
-        name: InternedStr<'i>,
-        generic_replacements: Vec<TypeNode<'i>>,
+        name: CtxStr<'i>,
+        generic_replacements: Rc<Vec<TypeNode<'i>>>,
     },
     Auto,
 }

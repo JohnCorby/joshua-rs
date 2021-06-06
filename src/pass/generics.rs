@@ -7,7 +7,7 @@ use crate::pass::ty::Type;
 use crate::pass::type_check::TypeCheck;
 use crate::scope::{Scopes, Symbol};
 use crate::span::Span;
-use crate::util::interned_str::{Intern, InternedStr};
+use crate::util::ctx_str::{CtxStr, IntoCtx};
 use crate::util::{code_name, to_string};
 use std::collections::HashMap;
 use std::ops::Deref;
@@ -26,13 +26,13 @@ impl Define<'i> {
 
                 ctx.scopes.push(false, None);
                 // add placeholders
-                for &placeholder in generic_placeholders {
+                for &placeholder in &**generic_placeholders {
                     ctx.scopes
                         .add(Symbol::GenericPlaceholderType(placeholder), Some(self.span))?;
                 }
                 ty_node.type_check(ctx)?;
                 ctx.scopes.push(false, Some(ty_node.ty.deref().clone()));
-                for arg in args {
+                for arg in &**args {
                     arg.type_check(ctx)?
                 }
                 body.type_check(ctx)?;
@@ -47,14 +47,15 @@ impl Define<'i> {
                         arg_types: args
                             .iter()
                             .map(|it| it.ty_node.ty.deref().clone())
-                            .collect::<Vec<_>>(),
+                            .collect::<Vec<_>>()
+                            .into(),
 
                         span: self.span,
                         ty_node: ty_node.clone(),
                         name: *name,
                         generic_placeholders: generic_placeholders.clone(),
                         args: args.clone(),
-                        body: body.clone().into(),
+                        body: body.clone(),
 
                         scopes_index: ctx.scopes.0.len(),
                     },
@@ -66,16 +67,16 @@ impl Define<'i> {
     }
 }
 
-type GenericMap<'i> = HashMap<InternedStr<'i>, TypeNode<'i>>;
+type GenericMap<'i> = HashMap<CtxStr<'i>, TypeNode<'i>>;
 
 impl FuncCall<'i> {
     pub fn type_check_generic(&self, ctx: &mut Ctx<'i>) -> Res<'i> {
         debug_assert!(!self.generic_replacements.is_empty());
 
-        for replacement in &self.generic_replacements {
+        for replacement in &*self.generic_replacements {
             replacement.type_check(ctx)?
         }
-        for arg in &self.args {
+        for arg in &*self.args {
             arg.type_check(ctx, None)?;
             // very lol
             if matches!(*arg.ty, Type::GenericUnknown | Type::GenericPlaceholder(_)) {
@@ -102,9 +103,9 @@ impl FuncCall<'i> {
             span,
             mut ty_node,
             name,
-            mut generic_placeholders,
-            mut args,
-            body,
+            generic_placeholders,
+            args,
+            mut body,
 
             scopes_index,
             ..
@@ -126,29 +127,33 @@ impl FuncCall<'i> {
             ty_node.replace_generics(&generic_map);
             ty_node.type_check(ctx)?;
             ctx.scopes.push(false, Some(ty_node.ty.deref().clone()));
-            for (arg, call_arg) in args.iter_mut().zip(&self.args) {
+            let mut args = args.deref().clone();
+            for (arg, call_arg) in args.iter_mut().zip(&*self.args) {
                 arg.replace_generics(&generic_map);
                 arg.type_check(ctx)?;
 
                 // make sure the args actually match
                 call_arg.ty.check(&*arg.ty_node.ty, Some(call_arg.span))?;
             }
-            generic_placeholders.clear();
 
             // add symbol if non-existent
-            let symbol_name = code_name(
-                &name,
-                &self
-                    .generic_replacements
-                    .iter()
-                    .map(|it| &*it.ty)
-                    .collect::<Vec<_>>(),
-                Some(&args.iter().map(|it| &*it.ty_node.ty).collect::<Vec<_>>()),
-            )
-            .intern(ctx);
             if ctx
                 .scopes
-                .find(&Symbol::new_func(symbol_name), Some(self.span))
+                .find(
+                    &Symbol::new_func(
+                        code_name(
+                            &name,
+                            &self
+                                .generic_replacements
+                                .iter()
+                                .map(|it| &*it.ty)
+                                .collect::<Vec<_>>(),
+                            Some(&args.iter().map(|it| &*it.ty_node.ty).collect::<Vec<_>>()),
+                        )
+                        .into_ctx(ctx),
+                    ),
+                    Some(self.span),
+                )
                 .is_err()
             {
                 // add symbol
@@ -156,38 +161,46 @@ impl FuncCall<'i> {
                 ctx.scopes.add(
                     Symbol::Func {
                         ty: ty_node.ty.deref().clone(),
-                        name: symbol_name,
+                        name: code_name(
+                            &name,
+                            &self
+                                .generic_replacements
+                                .iter()
+                                .map(|it| &*it.ty)
+                                .collect::<Vec<_>>(),
+                            Some(&args.iter().map(|it| &*it.ty_node.ty).collect::<Vec<_>>()),
+                        )
+                        .into_ctx(ctx),
                     },
                     Some(self.span),
                 )?;
                 ctx.scopes.0.push(scope);
 
-                let mut body = body.deref().clone(); // this clones the Block, not Rc, oh well
                 body.replace_generics(&generic_map);
                 body.type_check(ctx)?;
                 ctx.scopes.check_return_called(Some(self.span))?;
 
                 // push a define ast so it will be generated properly
-                let define_name = code_name(
-                    &name,
-                    &self
-                        .generic_replacements
-                        .iter()
-                        .map(|it| &*it.ty)
-                        .collect::<Vec<_>>(),
-                    None,
-                )
-                .intern(ctx);
-                ctx.extra_defines.push(Define {
+                let define = Define {
                     span,
                     kind: DefineKind::Func {
                         ty_node: ty_node.clone(),
-                        name: define_name,
-                        generic_placeholders,
-                        args,
+                        name: code_name(
+                            &name,
+                            &self
+                                .generic_replacements
+                                .iter()
+                                .map(|it| &*it.ty)
+                                .collect::<Vec<_>>(),
+                            None,
+                        )
+                        .into_ctx(ctx),
+                        generic_placeholders: Default::default(),
+                        args: args.into(),
                         body,
                     },
-                });
+                };
+                ctx.extra_defines.push(define);
             }
 
             ctx.scopes.pop();
@@ -203,10 +216,9 @@ impl FuncCall<'i> {
 
 impl Scopes<'i> {
     /// find a generic func fuzzily
-    /// todo integrate this into Scopes::find so we can just use that
     pub fn find_generic_func(
         &self,
-        name: InternedStr<'i>,
+        name: CtxStr<'i>,
         generic_replacements: &[&Type<'i>],
         arg_types: &[&Type<'i>],
         span: Option<Span<'i>>,
@@ -231,7 +243,7 @@ impl Scopes<'i> {
                     if arg_types.len() != other_arg_types.len() {
                         return false;
                     }
-                    for (&ty, other_ty) in arg_types.iter().zip(other_arg_types) {
+                    for (&ty, other_ty) in arg_types.iter().zip(&**other_arg_types) {
                         if let Type::GenericPlaceholder(_) = other_ty {
                             // generic other_ty will always match ty, so don't return false
                         } else if ty != other_ty {
@@ -264,15 +276,21 @@ impl Scopes<'i> {
 
 trait ReplaceGenerics<'i> {
     /// replaces generic placeholders with real types
+    ///
+    /// since this is mutable, it actually clones stuff out of Rc, modifying it and then putting it back in new Rc
+    /// therefore, it is the only pass to do real cloning, because it legit edits the ast
+    ///
     /// note: this resets types, so you gotta type_check again
     fn replace_generics(&mut self, generic_map: &GenericMap<'i>);
 }
 
 impl ReplaceGenerics<'i> for Program<'i> {
     fn replace_generics(&mut self, generic_map: &GenericMap<'i>) {
-        for define in &mut self.0 {
+        let mut new_defines = self.0.deref().clone();
+        for define in &mut new_defines {
             define.replace_generics(generic_map)
         }
+        self.0 = new_defines.into()
     }
 }
 
@@ -281,9 +299,11 @@ impl ReplaceGenerics<'i> for Define<'i> {
         use DefineKind::*;
         match &mut self.kind {
             Struct { body, .. } => {
-                for define in body {
+                let mut new_body = body.deref().deref().clone();
+                for define in &mut new_body {
                     define.replace_generics(generic_map)
                 }
+                *body = new_body.into();
             }
             Func {
                 ty_node,
@@ -293,12 +313,14 @@ impl ReplaceGenerics<'i> for Define<'i> {
                 ..
             } => {
                 ty_node.replace_generics(generic_map);
-                for arg in args {
+                let mut new_args = args.deref().deref().clone();
+                for arg in &mut new_args {
                     arg.replace_generics(generic_map)
                 }
+                *args = new_args.into();
                 body.replace_generics(generic_map);
 
-                generic_placeholders.clear()
+                *generic_placeholders = Default::default()
             }
             Var(var_define) => var_define.replace_generics(generic_map),
             CCode(c_code) => c_code.replace_generics(generic_map),
@@ -349,7 +371,9 @@ impl ReplaceGenerics<'i> for Statement<'i> {
             } => {
                 init.replace_generics(generic_map);
                 cond.replace_generics(generic_map);
-                update.replace_generics(generic_map);
+                let mut new_update = update.deref().deref().clone();
+                new_update.replace_generics(generic_map);
+                *update = new_update.into();
                 block.replace_generics(generic_map);
             }
             ExprAssign { lvalue, rvalue } => {
@@ -364,20 +388,24 @@ impl ReplaceGenerics<'i> for Statement<'i> {
 
 impl ReplaceGenerics<'i> for Block<'i> {
     fn replace_generics(&mut self, generic_map: &GenericMap<'i>) {
-        for statement in &mut self.0 {
+        let mut new_statements = self.0.deref().clone();
+        for statement in &mut new_statements {
             statement.replace_generics(generic_map)
         }
+        self.0 = new_statements.into()
     }
 }
 
 impl ReplaceGenerics<'i> for CCode<'i> {
     fn replace_generics(&mut self, generic_map: &GenericMap<'i>) {
-        for part in &mut self.0 {
+        let mut new_parts = self.0.deref().clone();
+        for part in &mut new_parts {
             match part {
                 CCodePart::String(_) => {}
                 CCodePart::Expr(expr) => expr.replace_generics(generic_map),
             }
         }
+        self.0 = new_parts.into()
     }
 }
 
@@ -386,10 +414,16 @@ impl ReplaceGenerics<'i> for Expr<'i> {
         use ExprKind::*;
         match &mut self.kind {
             Cast { thing, ty_node } => {
-                thing.replace_generics(generic_map);
+                let mut new_thing = thing.deref().deref().clone();
+                new_thing.replace_generics(generic_map);
+                *thing = new_thing.into();
                 ty_node.replace_generics(generic_map);
             }
-            Field { receiver, .. } => receiver.replace_generics(generic_map),
+            Field { receiver, .. } => {
+                let mut new_receiver = receiver.deref().deref().clone();
+                new_receiver.replace_generics(generic_map);
+                *receiver = new_receiver.into()
+            }
             Literal(_) => {}
             FuncCall(func_call) => func_call.replace_generics(generic_map),
             Var(_) => {}
@@ -402,12 +436,16 @@ impl ReplaceGenerics<'i> for Expr<'i> {
 
 impl ReplaceGenerics<'i> for FuncCall<'i> {
     fn replace_generics(&mut self, generic_map: &GenericMap<'i>) {
-        for replacement in &mut self.generic_replacements {
+        let mut new_replacements = self.generic_replacements.deref().clone();
+        for replacement in &mut new_replacements {
             replacement.replace_generics(generic_map)
         }
-        for arg in &mut self.args {
+        self.generic_replacements = new_replacements.into();
+        let mut new_args = self.args.deref().clone();
+        for arg in &mut new_args {
             arg.replace_generics(generic_map)
         }
+        self.args = new_args.into();
 
         self.ty = Default::default();
     }

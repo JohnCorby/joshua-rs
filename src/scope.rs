@@ -7,12 +7,13 @@ use crate::pass::ast::{Block, TypeNode};
 use crate::pass::ast::{Define, VarDefine};
 use crate::pass::ty::{PrimitiveType, Type};
 use crate::span::Span;
-use crate::util::interned_str::InternedStr;
+use crate::util::ctx_str::CtxStr;
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::Deref;
 use std::rc::Rc;
 
+#[allow(clippy::too_many_arguments)]
 #[derive(Debug, Clone, derivative::Derivative, derive_new::new)]
 #[derivative(Hash, PartialEq)]
 pub enum Symbol<'i> {
@@ -20,39 +21,39 @@ pub enum Symbol<'i> {
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         #[new(default)]
         ty: Type<'i>,
-        name: InternedStr<'i>,
+        name: CtxStr<'i>,
     },
     Var {
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         #[new(default)]
         ty: Type<'i>,
-        name: InternedStr<'i>,
+        name: CtxStr<'i>,
     },
     StructType {
-        name: InternedStr<'i>,
+        name: CtxStr<'i>,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         #[new(default)]
-        field_types: HashMap<InternedStr<'i>, Type<'i>>,
+        field_types: Rc<HashMap<CtxStr<'i>, Type<'i>>>,
     },
-    GenericPlaceholderType(InternedStr<'i>),
+    GenericPlaceholderType(CtxStr<'i>),
     GenericFunc {
         // cached for faster access
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         ty: Type<'i>,
-        arg_types: Vec<Type<'i>>,
+        arg_types: Rc<Vec<Type<'i>>>,
 
         // copied from func define
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         span: Span<'i>,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         ty_node: TypeNode<'i>,
-        name: InternedStr<'i>,
+        name: CtxStr<'i>,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
-        generic_placeholders: Vec<InternedStr<'i>>,
+        generic_placeholders: Rc<Vec<CtxStr<'i>>>,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
-        args: Vec<VarDefine<'i>>,
+        args: Rc<Vec<VarDefine<'i>>>,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
-        body: Rc<Block<'i>>,
+        body: Block<'i>,
 
         // codegen info
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
@@ -66,9 +67,9 @@ pub enum Symbol<'i> {
         // copied from struct define
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         span: Span<'i>,
-        name: InternedStr<'i>,
+        name: CtxStr<'i>,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
-        generic_placeholders: Vec<InternedStr<'i>>,
+        generic_placeholders: Rc<Vec<CtxStr<'i>>>,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         body: Rc<Vec<Define<'i>>>,
 

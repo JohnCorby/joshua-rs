@@ -1,18 +1,17 @@
 use crate::error::{err, Res};
 use crate::span::Span;
-use crate::util::interned_str::InternedStr;
+use crate::util::ctx_str::CtxStr;
 use std::fmt::{Display, Formatter};
 use std::rc::Rc;
 
-/// note: cloning is okay and cheap because it's Rc::clone
 #[derive(Debug, Clone, Hash, PartialEq)]
 pub enum Type<'i> {
     Primitive(PrimitiveType),
     /// fixme merge these into generics when we get type inference
     Literal(LiteralType),
-    Struct(InternedStr<'i>),
+    Struct(CtxStr<'i>),
     /// replaced with concrete type on specialization
-    GenericPlaceholder(InternedStr<'i>),
+    GenericPlaceholder(CtxStr<'i>),
     Ptr(Rc<Type<'i>>),
     /// for inferring with var define and probably other stuff later
     Auto,

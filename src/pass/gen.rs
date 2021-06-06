@@ -1,9 +1,10 @@
 use crate::context::Ctx;
 use crate::pass::ast::*;
 use crate::pass::ty::Type;
-use crate::util::interned_str::Intern;
+use crate::util::ctx_str::IntoCtx;
 use crate::util::Mangle;
 use std::ops::Deref;
+use std::rc::Rc;
 
 pub trait Gen<'i> {
     /// take fully initialized self and generate it into one of the ctx output sections
@@ -12,7 +13,7 @@ pub trait Gen<'i> {
 
 impl Gen<'i> for Program<'i> {
     fn gen(self, ctx: &mut Ctx<'i>) {
-        for define in self.0 {
+        for define in Rc::try_unwrap(self.0).unwrap() {
             define.gen(ctx);
         }
     }
@@ -35,7 +36,7 @@ impl Gen<'i> for Define<'i> {
                     ctx.o.push_str("struct ");
                     ctx.o.push_str(&name.mangle());
                     ctx.o.push_str(" {\n");
-                    for define in body {
+                    for define in Rc::try_unwrap(body).unwrap() {
                         define.gen(ctx);
                     }
                     ctx.o.push_str("};\n");
@@ -64,7 +65,7 @@ impl Gen<'i> for Define<'i> {
                         &[],
                     ));
                     ctx.o.push('(');
-                    for arg in args {
+                    for arg in Rc::try_unwrap(args).unwrap() {
                         arg.gen(ctx);
                         ctx.o.push_str(", ")
                     }
@@ -155,7 +156,7 @@ impl Gen<'i> for Statement<'i> {
 
                 cond.gen(ctx);
                 ctx.o.push_str("; ");
-                update.gen(ctx);
+                Rc::try_unwrap(update).unwrap().gen(ctx);
                 ctx.o.pop(); // for update statement's semicolon
                 ctx.o.pop(); // for update statement's newline
                 ctx.o.push_str(") ");
@@ -182,7 +183,7 @@ impl Gen<'i> for Statement<'i> {
 impl Gen<'i> for Block<'i> {
     fn gen(self, ctx: &mut Ctx<'i>) {
         ctx.o.push_str("{\n");
-        for statement in self.0 {
+        for statement in Rc::try_unwrap(self.0).unwrap() {
             statement.gen(ctx);
         }
         ctx.o.push_str("}\n");
@@ -192,9 +193,9 @@ impl Gen<'i> for Block<'i> {
 impl Gen<'i> for CCode<'i> {
     fn gen(self, ctx: &mut Ctx<'i>) {
         ctx.o.push_str("/*<{*/");
-        for part in self.0 {
+        for part in Rc::try_unwrap(self.0).unwrap() {
             match part {
-                CCodePart::String(str) => ctx.o.push_str(str),
+                CCodePart::String(str) => ctx.o.push_str(&str),
                 CCodePart::Expr(expr) => expr.gen(ctx),
             }
         }
@@ -212,13 +213,13 @@ impl Gen<'i> for Expr<'i> {
                     ctx.o.push('(');
                     ty_node.gen(ctx);
                     ctx.o.push_str(") ");
-                    thing.gen(ctx);
+                    Rc::try_unwrap(thing).unwrap().gen(ctx);
                 } else {
                     self::FuncCall {
                         span: self.span,
-                        name: format!("as {}", ty_node.ty.code_name()).intern(ctx),
-                        generic_replacements: vec![],
-                        args: vec![*thing],
+                        name: format!("as {}", ty_node.ty.code_name()).into_ctx(ctx),
+                        generic_replacements: Default::default(),
+                        args: vec![Rc::try_unwrap(thing).unwrap()].into(),
                         ty: Default::default(),
                     }
                     .gen(ctx);
@@ -226,7 +227,7 @@ impl Gen<'i> for Expr<'i> {
             }
 
             Field { receiver, var } => {
-                receiver.gen(ctx);
+                Rc::try_unwrap(receiver).unwrap().gen(ctx);
                 ctx.o.push('.');
                 ctx.o.push_str(&var.mangle());
             }
@@ -253,7 +254,7 @@ impl Gen<'i> for FuncCall<'i> {
             ),
         );
         ctx.o.push('(');
-        for arg in self.args {
+        for arg in Rc::try_unwrap(self.args).unwrap() {
             arg.gen(ctx);
             ctx.o.push_str(", ")
         }

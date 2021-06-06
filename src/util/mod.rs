@@ -1,8 +1,8 @@
 use crate::pass::ty::Type;
 use std::fmt::Write;
 
+pub mod ctx_str;
 pub mod frozen_vec;
-pub mod interned_str;
 pub mod late_init;
 
 /// make a proper name out of stuff
