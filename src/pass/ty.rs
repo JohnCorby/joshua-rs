@@ -83,11 +83,11 @@ pub enum PrimitiveType {
     Void,
 }
 impl PrimitiveType {
-    pub fn ty(&self) -> Type<'_> {
+    pub const fn ty(&self) -> Type<'_> {
         Type::Primitive(*self)
     }
 
-    pub fn c_type(&self) -> &str {
+    pub const fn c_type(&self) -> &str {
         use PrimitiveType::*;
         match self {
             I8 => "signed char",
@@ -114,7 +114,7 @@ pub enum LiteralType {
     CCode,
 }
 impl LiteralType {
-    pub fn ty(&self) -> Type<'_> {
+    pub const fn ty(&self) -> Type<'_> {
         Type::Literal(*self)
     }
 }

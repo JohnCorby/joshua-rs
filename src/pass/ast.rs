@@ -89,7 +89,7 @@ pub enum CCodePart<'i> {
 }
 
 impl CCode<'i> {
-    pub fn ty(&self) -> Type<'i> {
+    pub const fn ty(&self) -> Type<'i> {
         LiteralType::CCode.ty()
     }
 }
@@ -160,7 +160,7 @@ impl Literal<'i> {
             Int(_) => LiteralType::Int.ty(),
             Bool(_) => PrimitiveType::Bool.ty(),
             Char(_) => PrimitiveType::Char.ty(),
-            Str(_) => todo!("usage of string literals is not yet supported"),
+            Str(_) => Type::Ptr(PrimitiveType::Char.ty().into()),
         }
     }
 }
