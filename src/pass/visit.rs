@@ -2,7 +2,7 @@ use crate::context::Ctx;
 use crate::error::unexpected_kind;
 use crate::parse::{Kind, Node, Nodes};
 use crate::pass::ast::*;
-use crate::util::interned_str::Intern;
+use crate::util::interned_str::{Intern, InternedStr};
 
 pub trait Visit<'i> {
     fn visit(node: Node<'i>, ctx: &mut Ctx<'i>) -> Self;
@@ -11,6 +11,16 @@ pub trait Visit<'i> {
 impl Node<'i> {
     pub fn visit<V: Visit<'i>>(self, ctx: &mut Ctx<'i>) -> V {
         V::visit(self, ctx)
+    }
+
+    pub fn visit_ident(&self, ctx: &mut Ctx<'i>) -> InternedStr<'i> {
+        debug_assert_eq!(self.kind(), Kind::ident);
+        let str = self.str();
+        str.strip_prefix('`')
+            .unwrap_or(str)
+            .strip_suffix('`')
+            .unwrap_or(str)
+            .intern(ctx)
     }
 }
 

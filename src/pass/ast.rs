@@ -1,11 +1,8 @@
-use crate::context::Ctx;
 use crate::error::{err, Res};
-use crate::parse::{Kind, Node};
 use crate::pass::ty::{LiteralType, PrimitiveType, Type};
 use crate::span::Span;
-use crate::util::interned_str::{Intern, InternedStr};
+use crate::util::interned_str::InternedStr;
 use crate::util::late_init::LateInit;
-use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
 #[derive(Debug, Clone)]
@@ -168,34 +165,15 @@ impl Literal<'i> {
     }
 }
 
-impl Node<'i> {
-    pub fn visit_ident(&self, ctx: &mut Ctx<'i>) -> InternedStr<'i> {
-        debug_assert_eq!(self.kind(), Kind::ident);
-        let str = self.str();
-        str.strip_prefix('`')
-            .unwrap_or(str)
-            .strip_suffix('`')
-            .unwrap_or(str)
-            .intern(ctx)
-    }
-}
-
 /// note: cloning is okay and cheap because it's Rc::clone
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, derivative::Derivative)]
+#[derivative(Hash, PartialEq)]
 pub struct TypeNode<'i> {
+    #[derivative(Hash = "ignore", PartialEq = "ignore")]
     pub span: Span<'i>,
     pub kind: TypeKind<'i>,
+    #[derivative(Hash = "ignore", PartialEq = "ignore")]
     pub ty: LateInit<Type<'i>>,
-}
-impl PartialEq for TypeNode<'_> {
-    fn eq(&self, other: &Self) -> bool {
-        self.kind == other.kind
-    }
-}
-impl Hash for TypeNode<'_> {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.kind.hash(state)
-    }
 }
 
 /// note: cloning is okay and cheap because it's Rc::clone
