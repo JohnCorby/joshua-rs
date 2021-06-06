@@ -44,7 +44,7 @@ impl Gen<'i> for Define<'i> {
                     let new_o = std::mem::replace(&mut ctx.o, old_o);
                     ctx.structs = new_o;
                 } else {
-                    todo!()
+                    todo!("generic struct define gen")
                 }
             }
             Func {
@@ -274,7 +274,7 @@ impl Gen<'i> for Literal<'i> {
             Int(value) => value.to_string(),
             Bool(value) => (value as u8).to_string(),
             Char(value) => format!("'{}'", value),
-            Str(value) => format!("\"{}\"", value),
+            StrZ(value) => format!("\"{}\"", value), // fixme maybe we dont want these being a ptr to a global and zero terminated? oh well
         })
     }
 }

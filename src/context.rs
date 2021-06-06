@@ -83,12 +83,18 @@ impl Ctx<'_> {
             &[I8, U8, I16, U16, I32, U32, I64, U64],
             None,
         );
-        op_funcs(&mut i, &["<", "<=", ">", ">="], 2, num_prims, Some(Bool));
+        op_funcs(
+            &mut i,
+            &["<", "<=", ">", ">=", "==", "!="],
+            2,
+            num_prims,
+            Some(Bool),
+        );
         op_funcs(&mut i, &["==", "!="], 2, &[Bool], Some(Bool));
 
         // unary
         op_funcs(&mut i, &["-"], 1, num_prims, None);
-        op_funcs(&mut i, &["!"], 1, &[Bool], Some(Bool));
+        op_funcs(&mut i, &["!"], 1, &[Bool], None);
 
         // cast
         for &ret_ty in num_prims {

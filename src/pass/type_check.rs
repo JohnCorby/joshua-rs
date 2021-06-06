@@ -63,7 +63,7 @@ impl TypeCheck<'i> for Define<'i> {
                         Some(self.span),
                     )?;
                 } else {
-                    todo!()
+                    todo!("generic struct define type check")
                 }
             }
             Func {
@@ -267,13 +267,18 @@ impl Expr<'i> {
                     ty_node.ty.deref().clone()
                 } else {
                     let name = format!("as {}", ty_node.ty.code_name()).into_ctx(ctx);
-                    let symbol =
-                        Symbol::new_func(code_name(&name, &[], Some(&[&thing.ty])).into_ctx(ctx));
-                    ctx.scopes.find(&symbol, Some(self.span))?.ty()
+                    ctx.scopes
+                        .find(
+                            &Symbol::new_func(
+                                code_name(&name, &[], Some(&[&thing.ty])).into_ctx(ctx),
+                            ),
+                            Some(self.span),
+                        )?
+                        .ty()
                 }
             }
             Field { receiver, var } => {
-                receiver.type_check(ctx, type_hint)?;
+                receiver.type_check(ctx, None)?;
 
                 // field check
                 let struct_name = *match &*receiver.ty {
@@ -300,18 +305,30 @@ impl Expr<'i> {
                     Some(field_type) => field_type.clone(),
                     None => {
                         return err(
-                            &format!(
-                                "no field named {} in {}",
-                                var,
-                                ctx.scopes
-                                    .find(&Symbol::new_struct_type(struct_name), Some(self.span))?
-                            ),
+                            &format!("no field named {} in {}", var, symbol),
                             Some(self.span),
                         )
                     }
                 }
             }
-            Literal(literal) => literal.ty(),
+            Literal(literal) => {
+                use super::ty::LiteralType::*;
+                use PrimitiveType::*;
+                use Type::*;
+                match (literal.ty(), type_hint.cloned()) {
+                    (Literal(Int), Some(ty @ Primitive(I8))) => ty,
+                    (Literal(Int), Some(ty @ Primitive(U8))) => ty,
+                    (Literal(Int), Some(ty @ Primitive(I16))) => ty,
+                    (Literal(Int), Some(ty @ Primitive(U16))) => ty,
+                    (Literal(Int), Some(ty @ Primitive(I32))) => ty,
+                    (Literal(Int), Some(ty @ Primitive(U32))) => ty,
+                    (Literal(Int), Some(ty @ Primitive(I64))) => ty,
+                    (Literal(Int), Some(ty @ Primitive(U64))) => ty,
+                    (Literal(Float), Some(ty @ Primitive(F32))) => ty,
+                    (Literal(Float), Some(ty @ Primitive(F64))) => ty,
+                    (ty, _) => ty,
+                }
+            }
             FuncCall(func_call) => {
                 func_call.type_check(ctx)?;
                 func_call.ty.deref().clone()

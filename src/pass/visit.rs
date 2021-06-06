@@ -330,7 +330,7 @@ impl Visit<'i> for Literal<'i> {
             Kind::int_literal => Int(node.str().parse().unwrap()),
             Kind::bool_literal => Bool(node.str().parse().unwrap()),
             Kind::char_literal => Char(node.children().next().unwrap().str().parse().unwrap()),
-            Kind::str_literal => Str(node.children().next().unwrap().str().into_ctx(ctx)),
+            Kind::str_literal => StrZ(node.children().next().unwrap().str().into_ctx(ctx)), // fixme you forgot to unescape you doofus
 
             _ => unexpected_kind(node),
         }

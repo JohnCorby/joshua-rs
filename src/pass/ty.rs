@@ -79,11 +79,10 @@ pub enum PrimitiveType {
     F32,
     F64,
     Bool,
-    Char,
     Void,
 }
 impl PrimitiveType {
-    pub const fn ty(&self) -> Type<'_> {
+    pub const fn ty(&self) -> Type<'static> {
         Type::Primitive(*self)
     }
 
@@ -101,7 +100,6 @@ impl PrimitiveType {
             F32 => "float",
             F64 => "double",
             Bool => "unsigned char",
-            Char => "unsigned char",
             Void => "void",
         }
     }
@@ -114,7 +112,7 @@ pub enum LiteralType {
     CCode,
 }
 impl LiteralType {
-    pub const fn ty(&self) -> Type<'_> {
+    pub const fn ty(&self) -> Type<'static> {
         Type::Literal(*self)
     }
 }

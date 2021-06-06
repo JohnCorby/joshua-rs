@@ -17,8 +17,33 @@ T `+`<T>(T a, T b) {
 void bruh<T>(T a) bruh<T>(a)
 
 
+struct str {
+    ptr<u8> ptr
+    u64 len
+}
+str str_new(ptr<u8> ptr) {
+    str result
+    result.ptr = ptr
+    result.len = 1
+
+    u8 chr = 0
+    <{ ${chr} = *${ptr} }>
+    until(chr == 0 as u8) {
+        result.len = result.len + 1 as u64
+        <{ ${ptr}++ }>
+        chr = <{ *${ptr} }> as u8
+    }
+
+    ret result
+}
+void str_debug_print(str str)
+    <{ printf("%p %i %s\n", ${str.ptr}, ${str.len}, ${str.ptr}) }>
 
 
+//struct sized_ptr<T> {
+//    ptr<T> ptr
+//    u64 len
+//}
 
 //struct Hello<T> {
 //    T field
@@ -38,11 +63,18 @@ i32 main() {
     S s
     `+`<S>(s, s)
 
-    bruh<i8>(1 as i8)
-    bruh<i8>(1 as i8)
+//    bruh<i8>(1 as i8)
+//    bruh<i8>(1 as i8)
 
 
 
+//    str str
+//    str.ptr = "hello"
+//    str.len = 6
+    str str = str_new("beautiful")
+    str_debug_print(str)
+//    ptr<u8> ptr = "hello"
+//    <{ puts(${ptr}) }>
 
 
 

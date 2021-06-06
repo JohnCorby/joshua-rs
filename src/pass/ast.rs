@@ -122,6 +122,7 @@ pub enum ExprKind<'i> {
 }
 
 impl Expr<'i> {
+    /// fixme what about methods returning pointers? what about all this other stuff?
     pub fn check_assignable(&self, span: Option<Span<'i>>) -> Res<'i> {
         use ExprKind::*;
         let is_assignable = matches!(self.kind, Field { .. } | Var(_));
@@ -149,7 +150,7 @@ pub enum Literal<'i> {
     Int(i64),
     Bool(bool),
     Char(char),
-    Str(CtxStr<'i>),
+    StrZ(CtxStr<'i>),
 }
 
 impl Literal<'i> {
@@ -159,8 +160,8 @@ impl Literal<'i> {
             Float(_) => LiteralType::Float.ty(),
             Int(_) => LiteralType::Int.ty(),
             Bool(_) => PrimitiveType::Bool.ty(),
-            Char(_) => PrimitiveType::Char.ty(),
-            Str(_) => Type::Ptr(PrimitiveType::Char.ty().into()),
+            Char(_) => PrimitiveType::U8.ty(),
+            StrZ(_) => Type::Ptr(PrimitiveType::U8.ty().into()),
         }
     }
 }

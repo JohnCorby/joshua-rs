@@ -19,17 +19,14 @@ pub fn compile_program(c_code: &str, path: &Path) -> ExitStatus {
         .arg(c_path)
         .arg("-o")
         .arg(out_path)
+        .arg("-Wall")
         // .arg("-Ofast")
-        // .arg("-Wall")
         .status()
         .unwrap();
     // std::fs::remove_file(c_path).unwrap();
+    if status.success() {
+        println!("running");
+        Command::new(out_path).status().unwrap();
+    }
     status
-
-    // println!("running");
-    // let status = Command::new(out_path).status().unwrap();
-    // if !status.success() {
-    //     return Err(NonZeroI32::new(status.code().unwrap()).unwrap());
-    // }
-    // Ok(())
 }
