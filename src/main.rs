@@ -1,12 +1,11 @@
 //!todo
+//! - methods
 //! - ways to use pointers
 //! - generic structs lol
 //! - generic inference
-//! - structs/funcs in funcs, this one will be painful
-//! - interned string: a tiny bit more refactoring?
-//! - "build scope" pass which will add _____Type and Func symbols to the scope uhhhhh well it's a stack now so we can't pre-build this. darn
 //!todo
-//! - methods
+//! - structs/funcs in funcs, this one will be painful
+//! - "build scope" pass which will add _____Type and Func symbols to the scope uhhhhh well it's a stack now so we can't pre-build this. darn
 //! - get literals to actually work, you might just have to brute force it, or not idk. you might be able to use generics for this instead :)
 //!todo
 //! - polymorphism??? inheritance???????

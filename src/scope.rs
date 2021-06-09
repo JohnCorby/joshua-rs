@@ -110,14 +110,13 @@ impl Display for Symbol<'_> {
 pub struct Scopes<'i>(pub Vec<Scope<'i>>);
 
 impl Scopes<'i> {
-    pub fn push(&mut self, in_loop: bool, func_return_type: Option<Type<'i>>) {
-        self.0.push(Scope {
-            in_loop,
-            func_return_type,
-            return_called: false,
-
-            symbols: Default::default(),
-        });
+    pub fn push(
+        &mut self,
+        name: Option<CtxStr<'i>>,
+        is_loop: bool,
+        func_return_type: Option<Type<'i>>,
+    ) {
+        self.0.push(Scope::new(name, is_loop, func_return_type))
     }
 
     pub fn pop(&mut self) {
@@ -125,23 +124,39 @@ impl Scopes<'i> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, derive_new::new)]
 pub struct Scope<'i> {
-    in_loop: bool,
+    name: Option<CtxStr<'i>>, // todo give name to ALL blocks, not just funcs and structs
+    is_loop: bool,
     func_return_type: Option<Type<'i>>,
+    #[new(default)]
     return_called: bool,
 
+    #[new(default)]
     pub symbols: HashSet<Symbol<'i>>,
 }
 
 impl Scopes<'i> {
+    /// attach `::` prefix to name
+    pub fn prefix_name(&self, name: &str) -> String {
+        let mut new_name = String::new();
+        for scope in self.0.iter().rev() {
+            if let Some(name) = scope.name {
+                new_name.push_str(&name);
+                new_name.push_str("::");
+            }
+        }
+        new_name.push_str(name);
+        new_name
+    }
+
     pub fn in_loop(&self) -> bool {
         for scope in self.0.iter().rev() {
             // accounts for inner functions
             if scope.func_return_type.is_some() {
                 return false;
             }
-            if scope.in_loop {
+            if scope.is_loop {
                 return true;
             }
         }
@@ -189,6 +204,7 @@ impl Scopes<'i> {
         Ok(())
     }
 
+    /// fixme include prefix name for funcs and structs
     pub fn find(&self, symbol: &Symbol<'i>, span: Option<Span<'i>>) -> Res<'i, &Symbol<'i>> {
         for scope in self.0.iter().rev() {
             if let Some(symbol) = scope.symbols.get(symbol) {

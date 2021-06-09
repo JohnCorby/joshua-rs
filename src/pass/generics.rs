@@ -24,14 +24,15 @@ impl Define<'i> {
             } => {
                 debug_assert!(!generic_placeholders.is_empty());
 
-                ctx.scopes.push(false, None);
+                ctx.scopes.push(None, false, None);
                 // add placeholders
                 for &placeholder in &**generic_placeholders {
                     ctx.scopes
                         .add(Symbol::GenericPlaceholderType(placeholder), Some(self.span))?;
                 }
                 ty_node.type_check(ctx)?;
-                ctx.scopes.push(false, Some(ty_node.ty.deref().clone()));
+                ctx.scopes
+                    .push(Some(*name), false, Some(ty_node.ty.deref().clone()));
                 for arg in &**args {
                     arg.type_check(ctx)?
                 }
@@ -52,7 +53,7 @@ impl Define<'i> {
 
                         span: self.span,
                         ty_node: ty_node.clone(),
-                        name: *name,
+                        name: ctx.scopes.prefix_name(name).into_ctx(ctx),
                         generic_placeholders: generic_placeholders.clone(),
                         args: args.clone(),
                         body: body.clone(),
@@ -86,7 +87,7 @@ impl FuncCall<'i> {
         }
 
         // find an associated generic func
-        let symbol = ctx
+        let generic_symbol = ctx
             .scopes
             .find_generic_func(
                 self.name,
@@ -109,7 +110,7 @@ impl FuncCall<'i> {
 
             scopes_index,
             ..
-        } = symbol
+        } = generic_symbol
         {
             // go to where the generic func was defined
             let scopes_after = ctx.scopes.0.split_off(scopes_index);
@@ -126,7 +127,11 @@ impl FuncCall<'i> {
             // oh well
             ty_node.replace_generics(&generic_map);
             ty_node.type_check(ctx)?;
-            ctx.scopes.push(false, Some(ty_node.ty.deref().clone()));
+            ctx.scopes.push(
+                Some(name /*fixme get rid of prefix*/),
+                false,
+                Some(ty_node.ty.deref().clone()),
+            );
             let mut args = args.deref().clone();
             for (arg, call_arg) in args.iter_mut().zip(&*self.args) {
                 arg.replace_generics(&generic_map);
@@ -137,43 +142,27 @@ impl FuncCall<'i> {
             }
 
             // add symbol if non-existent
+            let specialized_symbol = Symbol::Func {
+                ty: ty_node.ty.deref().clone(),
+                name: code_name(
+                    &name,
+                    &self
+                        .generic_replacements
+                        .iter()
+                        .map(|it| &*it.ty)
+                        .collect::<Vec<_>>(),
+                    Some(&args.iter().map(|it| &*it.ty_node.ty).collect::<Vec<_>>()),
+                )
+                .into_ctx(ctx),
+            };
             if ctx
                 .scopes
-                .find(
-                    &Symbol::new_func(
-                        code_name(
-                            &name,
-                            &self
-                                .generic_replacements
-                                .iter()
-                                .map(|it| &*it.ty)
-                                .collect::<Vec<_>>(),
-                            Some(&args.iter().map(|it| &*it.ty_node.ty).collect::<Vec<_>>()),
-                        )
-                        .into_ctx(ctx),
-                    ),
-                    Some(self.span),
-                )
+                .find(&specialized_symbol, Some(self.span))
                 .is_err()
             {
                 // add symbol
                 let scope = ctx.scopes.0.pop().unwrap();
-                ctx.scopes.add(
-                    Symbol::Func {
-                        ty: ty_node.ty.deref().clone(),
-                        name: code_name(
-                            &name,
-                            &self
-                                .generic_replacements
-                                .iter()
-                                .map(|it| &*it.ty)
-                                .collect::<Vec<_>>(),
-                            Some(&args.iter().map(|it| &*it.ty_node.ty).collect::<Vec<_>>()),
-                        )
-                        .into_ctx(ctx),
-                    },
-                    Some(self.span),
-                )?;
+                ctx.scopes.add(specialized_symbol, Some(self.span))?;
                 ctx.scopes.0.push(scope);
 
                 body.replace_generics(&generic_map);

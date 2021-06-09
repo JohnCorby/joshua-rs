@@ -20,6 +20,9 @@ void bruh<T>(T a) bruh<T>(a)
 struct str {
     ptr<u8> ptr
     u64 len
+
+    void debug_print() {}
+//        <{ printf("%p %i %s\n", ${this.ptr}, ${this.len}, ${this.ptr}) }>
 }
 str str_new(ptr<u8> ptr) {
     str result
@@ -35,8 +38,7 @@ str str_new(ptr<u8> ptr) {
 
     ret result
 }
-void str_debug_print(str str)
-    <{ printf("%p %i %s\n", ${str.ptr}, ${str.len}, ${str.ptr}) }>
+
 
 
 //struct sized_ptr<T> {
@@ -71,7 +73,7 @@ i32 main() {
 //    str.ptr = "hello"
 //    str.len = 6
     str str = str_new("beautiful")
-    str.str_debug_print()
+//    str.str_debug_print()
 //    ptr<u8> ptr = "hello"
 //    <{ puts(${ptr}) }>
 

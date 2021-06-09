@@ -15,7 +15,7 @@ pub trait TypeCheck<'i> {
 
 impl TypeCheck<'i> for Program<'i> {
     fn type_check(&self, ctx: &mut Ctx<'i>) -> Res<'i> {
-        ctx.scopes.push(false, None);
+        ctx.scopes.push(None, false, None);
         ctx.type_check_prelude();
         for define in &*self.0 {
             define.type_check(ctx)?
@@ -35,7 +35,7 @@ impl TypeCheck<'i> for Define<'i> {
                 body,
             } => {
                 if generic_placeholders.is_empty() {
-                    ctx.scopes.push(false, None);
+                    ctx.scopes.push(Some(*name), false, None);
                     for define in &**body {
                         define.type_check(ctx)?
                     }
@@ -44,7 +44,7 @@ impl TypeCheck<'i> for Define<'i> {
                     // add symbol
                     ctx.scopes.add(
                         Symbol::StructType {
-                            name: *name,
+                            name: ctx.scopes.prefix_name(name).into_ctx(ctx),
                             field_types: {
                                 let mut field_types = HashMap::new();
                                 for define in &**body {
@@ -75,18 +75,20 @@ impl TypeCheck<'i> for Define<'i> {
             } => {
                 if generic_placeholders.is_empty() {
                     ty_node.type_check(ctx)?;
-                    ctx.scopes.push(false, Some(ty_node.ty.deref().clone()));
+                    ctx.scopes
+                        .push(Some(*name), false, Some(ty_node.ty.deref().clone()));
                     for arg in &**args {
                         arg.type_check(ctx)?
                     }
 
                     // add symbol
                     let scope = ctx.scopes.0.pop().unwrap();
+                    dbg!(ctx.scopes.prefix_name(name));
                     ctx.scopes.add(
                         Symbol::Func {
                             ty: ty_node.ty.deref().clone(),
                             name: code_name(
-                                name,
+                                &ctx.scopes.prefix_name(name).into_ctx(ctx),
                                 &[],
                                 Some(&args.iter().map(|it| &*it.ty_node.ty).collect::<Vec<_>>()),
                             )
@@ -179,11 +181,11 @@ impl TypeCheck<'i> for Statement<'i> {
                 otherwise,
             } => {
                 cond.type_check(ctx, Some(&PrimitiveType::Bool.ty()))?;
-                ctx.scopes.push(false, None);
+                ctx.scopes.push(None, false, None);
                 then.type_check(ctx)?;
                 ctx.scopes.pop();
                 if let Some(otherwise) = otherwise {
-                    ctx.scopes.push(false, None);
+                    ctx.scopes.push(None, false, None);
                     otherwise.type_check(ctx)?;
                     ctx.scopes.pop();
                 }
@@ -193,7 +195,7 @@ impl TypeCheck<'i> for Statement<'i> {
             }
             Until { cond, block } => {
                 cond.type_check(ctx, Some(&PrimitiveType::Bool.ty()))?;
-                ctx.scopes.push(true, None);
+                ctx.scopes.push(None, true, None);
                 block.type_check(ctx)?;
                 ctx.scopes.pop();
 
@@ -206,7 +208,7 @@ impl TypeCheck<'i> for Statement<'i> {
                 update,
                 block,
             } => {
-                ctx.scopes.push(true, None);
+                ctx.scopes.push(None, true, None);
                 init.type_check(ctx)?;
                 cond.type_check(ctx, Some(&PrimitiveType::Bool.ty()))?;
                 update.type_check(ctx)?;
@@ -294,9 +296,10 @@ impl Expr<'i> {
                         )
                     }
                 };
-                let symbol = ctx
-                    .scopes
-                    .find(&Symbol::new_struct_type(struct_name), Some(self.span))?;
+                let symbol = ctx.scopes.find(
+                    &Symbol::new_struct_type(struct_name /*fixme remove prefix*/),
+                    Some(self.span),
+                )?;
                 let field_types = match &symbol {
                     Symbol::StructType { field_types, .. } => field_types,
                     _ => unreachable!(),

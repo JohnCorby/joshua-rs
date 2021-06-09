@@ -227,8 +227,13 @@ impl Gen<'i> for Expr<'i> {
             }
 
             Field { receiver, var } => {
+                let receiver_ty = receiver.ty.deref().clone();
                 Rc::try_unwrap(receiver).unwrap().gen(ctx);
-                ctx.o.push('.');
+                if let Type::Ptr(_) = receiver_ty {
+                    ctx.o.push_str("->") // fixme this does a deref... do we want that? maybe put a & to make it a pointer again
+                } else {
+                    ctx.o.push('.')
+                }
                 ctx.o.push_str(&var.mangle());
             }
 

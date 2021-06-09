@@ -14,6 +14,8 @@ statement = _{
     | iff
     | until
     | forr
+    | struct_define
+    | func_define
     | var_define
     | expr_assign
     | expr
@@ -33,7 +35,7 @@ var_define = { ty ~ ident ~ ("=" ~ expr)? }
 expr_assign = { expr ~ "=" ~ expr }
 
 
-struct_define = { "struct" ~ ident ~ generic_placeholders ~ "{" ~ var_define* ~ "}" }
+struct_define = { "struct" ~ ident ~ generic_placeholders ~ "{" ~ (func_define | var_define)* ~ "}" }
 
 
 iff = { "if" ~ "(" ~ expr ~ ")" ~ block ~ ("else" ~ block)? }
