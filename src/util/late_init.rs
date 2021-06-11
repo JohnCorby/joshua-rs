@@ -23,3 +23,9 @@ impl<T> Deref for LateInit<T> {
         self.0.get().expect("LateInit not initialized")
     }
 }
+
+impl<T> From<T> for LateInit<T> {
+    fn from(value: T) -> Self {
+        LateInit(OnceCell::from(value))
+    }
+}

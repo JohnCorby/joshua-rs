@@ -8,7 +8,7 @@ use crate::pass::type_check::TypeCheck;
 use crate::scope::{Scopes, Symbol};
 use crate::span::Span;
 use crate::util::ctx_str::{CtxStr, IntoCtx};
-use crate::util::{code_name, to_string};
+use crate::util::{IterExt, StrExt};
 use std::collections::HashMap;
 use std::ops::Deref;
 
@@ -17,6 +17,7 @@ impl Define<'i> {
         match &self.kind {
             DefineKind::Func {
                 ty_node,
+                nesting_prefix,
                 name,
                 generic_placeholders,
                 args,
@@ -30,16 +31,20 @@ impl Define<'i> {
                     ctx.scopes
                         .add(Symbol::GenericPlaceholderType(placeholder), Some(self.span))?;
                 }
+
                 ty_node.type_check(ctx)?;
                 ctx.scopes
                     .push(Some(*name), false, Some(ty_node.ty.deref().clone()));
                 for arg in &**args {
                     arg.type_check(ctx)?
                 }
+
                 body.type_check(ctx)?;
                 ctx.scopes.check_return_called(Some(self.span))?;
                 ctx.scopes.pop();
                 ctx.scopes.pop();
+
+                nesting_prefix.init(ctx.scopes.nesting_prefix().into());
 
                 // add symbol
                 ctx.scopes.add(
@@ -48,12 +53,13 @@ impl Define<'i> {
                         arg_types: args
                             .iter()
                             .map(|it| it.ty_node.ty.deref().clone())
-                            .collect::<Vec<_>>()
+                            .vec()
                             .into(),
 
                         span: self.span,
                         ty_node: ty_node.clone(),
-                        name: ctx.scopes.prefix_name(name).into_ctx(ctx),
+                        nesting_prefix: nesting_prefix.deref().clone(),
+                        name: *name,
                         generic_placeholders: generic_placeholders.clone(),
                         args: args.clone(),
                         body: body.clone(),
@@ -91,18 +97,15 @@ impl FuncCall<'i> {
             .scopes
             .find_generic_func(
                 self.name,
-                &self
-                    .generic_replacements
-                    .iter()
-                    .map(|it| &*it.ty)
-                    .collect::<Vec<_>>(),
-                &self.args.iter().map(|it| &*it.ty).collect::<Vec<_>>(),
+                &self.generic_replacements.iter().map(|it| &*it.ty).vec(),
+                &self.args.iter().map(|it| &*it.ty).vec(),
                 Some(self.span),
             )?
             .clone();
         if let Symbol::GenericFunc {
             span,
             mut ty_node,
+            nesting_prefix,
             name,
             generic_placeholders,
             args,
@@ -127,11 +130,8 @@ impl FuncCall<'i> {
             // oh well
             ty_node.replace_generics(&generic_map);
             ty_node.type_check(ctx)?;
-            ctx.scopes.push(
-                Some(name /*fixme get rid of prefix*/),
-                false,
-                Some(ty_node.ty.deref().clone()),
-            );
+            ctx.scopes
+                .push(Some(name), false, Some(ty_node.ty.deref().clone()));
             let mut args = args.deref().clone();
             for (arg, call_arg) in args.iter_mut().zip(&*self.args) {
                 arg.replace_generics(&generic_map);
@@ -144,16 +144,19 @@ impl FuncCall<'i> {
             // add symbol if non-existent
             let specialized_symbol = Symbol::Func {
                 ty: ty_node.ty.deref().clone(),
-                name: code_name(
-                    &name,
-                    &self
-                        .generic_replacements
-                        .iter()
-                        .map(|it| &*it.ty)
-                        .collect::<Vec<_>>(),
-                    Some(&args.iter().map(|it| &*it.ty_node.ty).collect::<Vec<_>>()),
-                )
-                .into_ctx(ctx),
+                nesting_prefix: nesting_prefix.clone(),
+                name,
+                generic_replacements: self
+                    .generic_replacements
+                    .iter()
+                    .map(|it| it.ty.deref().clone())
+                    .vec()
+                    .into(),
+                arg_types: args
+                    .iter()
+                    .map(|it| it.ty_node.ty.deref().clone())
+                    .vec()
+                    .into(),
             };
             if ctx
                 .scopes
@@ -174,16 +177,14 @@ impl FuncCall<'i> {
                     span,
                     kind: DefineKind::Func {
                         ty_node: ty_node.clone(),
-                        name: code_name(
-                            &name,
-                            &self
-                                .generic_replacements
-                                .iter()
-                                .map(|it| &*it.ty)
-                                .collect::<Vec<_>>(),
-                            None,
-                        )
-                        .into_ctx(ctx),
+                        nesting_prefix: nesting_prefix.clone().into(),
+                        name: name
+                            .encode(
+                                &[],
+                                &self.generic_replacements.iter().map(|it| &*it.ty).vec(),
+                                None,
+                            )
+                            .into_ctx(ctx),
                         generic_placeholders: Default::default(),
                         args: args.into(),
                         body,
@@ -193,6 +194,7 @@ impl FuncCall<'i> {
             }
 
             ctx.scopes.pop();
+            self.nesting_prefix.init(nesting_prefix);
             self.ty.init(ty_node.ty.deref().clone());
 
             ctx.scopes.0.extend(scopes_after);
@@ -251,12 +253,7 @@ impl Scopes<'i> {
         err(
             &format!(
                 "could not find {}",
-                to_string(
-                    "generic func symbol",
-                    &name,
-                    generic_replacements,
-                    Some(arg_types)
-                )
+                name.to_display("generic func symbol", generic_replacements, Some(arg_types))
             ),
             span,
         )
@@ -369,7 +366,7 @@ impl ReplaceGenerics<'i> for Statement<'i> {
                 lvalue.replace_generics(generic_map);
                 rvalue.replace_generics(generic_map)
             }
-            VarDefine(var_define) => var_define.replace_generics(generic_map),
+            Define(define) => define.replace_generics(generic_map),
             Expr(expr) => expr.replace_generics(generic_map),
         }
     }
@@ -402,11 +399,17 @@ impl ReplaceGenerics<'i> for Expr<'i> {
     fn replace_generics(&mut self, generic_map: &GenericMap<'i>) {
         use ExprKind::*;
         match &mut self.kind {
-            Cast { thing, ty_node } => {
+            Cast { thing, ty_node, .. } => {
                 let mut new_thing = thing.deref().deref().clone();
                 new_thing.replace_generics(generic_map);
                 *thing = new_thing.into();
                 ty_node.replace_generics(generic_map);
+            }
+            MethodCall {
+                receiver,
+                func_call,
+            } => {
+                todo!("replace generics method call")
             }
             Field { receiver, .. } => {
                 let mut new_receiver = receiver.deref().deref().clone();

@@ -3,8 +3,8 @@ use crate::error::{err, Res};
 use crate::pass::ast::*;
 use crate::pass::ty::{PrimitiveType, Type};
 use crate::scope::Symbol;
-use crate::util::code_name;
 use crate::util::ctx_str::IntoCtx;
+use crate::util::IterExt;
 use std::collections::HashMap;
 use std::ops::Deref;
 
@@ -30,6 +30,7 @@ impl TypeCheck<'i> for Define<'i> {
         use DefineKind::*;
         match &self.kind {
             Struct {
+                nesting_prefix,
                 name,
                 generic_placeholders,
                 body,
@@ -37,37 +38,48 @@ impl TypeCheck<'i> for Define<'i> {
                 if generic_placeholders.is_empty() {
                     ctx.scopes.push(Some(*name), false, None);
                     for define in &**body {
-                        define.type_check(ctx)?
+                        if matches!(define.kind, Var(_)) {
+                            define.type_check(ctx)?
+                        }
                     }
-                    ctx.scopes.pop();
 
                     // add symbol
+                    let scope = ctx.scopes.0.pop().unwrap();
+                    nesting_prefix.init(ctx.scopes.nesting_prefix().into());
                     ctx.scopes.add(
                         Symbol::StructType {
-                            name: ctx.scopes.prefix_name(name).into_ctx(ctx),
-                            field_types: {
-                                let mut field_types = HashMap::new();
-                                for define in &**body {
+                            nesting_prefix: nesting_prefix.deref().clone(),
+                            name: *name,
+                            generic_replacements: Default::default(),
+                            field_types: body
+                                .iter()
+                                .filter_map(|define| {
                                     if let Var(VarDefine { name, ty_node, .. }) = &define.kind {
-                                        if field_types
-                                            .insert(*name, ty_node.ty.deref().clone())
-                                            .is_some()
-                                        {
-                                            unreachable!()
-                                        }
+                                        Some((*name, ty_node.ty.deref().clone()))
+                                    } else {
+                                        None
                                     }
-                                }
-                                field_types.into()
-                            },
+                                })
+                                .collect::<HashMap<_, _>>()
+                                .into(),
                         },
                         Some(self.span),
                     )?;
+                    ctx.scopes.0.push(scope);
+
+                    for define in &**body {
+                        if matches!(define.kind, Func { .. }) {
+                            define.type_check(ctx)?
+                        }
+                    }
+                    ctx.scopes.pop();
                 } else {
                     todo!("generic struct define type check")
                 }
             }
             Func {
                 ty_node,
+                nesting_prefix,
                 name,
                 generic_placeholders,
                 args,
@@ -83,16 +95,18 @@ impl TypeCheck<'i> for Define<'i> {
 
                     // add symbol
                     let scope = ctx.scopes.0.pop().unwrap();
-                    dbg!(ctx.scopes.prefix_name(name));
+                    nesting_prefix.init(ctx.scopes.nesting_prefix().into());
                     ctx.scopes.add(
                         Symbol::Func {
                             ty: ty_node.ty.deref().clone(),
-                            name: code_name(
-                                &ctx.scopes.prefix_name(name).into_ctx(ctx),
-                                &[],
-                                Some(&args.iter().map(|it| &*it.ty_node.ty).collect::<Vec<_>>()),
-                            )
-                            .into_ctx(ctx),
+                            nesting_prefix: nesting_prefix.deref().clone(),
+                            name: *name,
+                            generic_replacements: Default::default(),
+                            arg_types: args
+                                .iter()
+                                .map(|it| it.ty_node.ty.deref().clone())
+                                .vec()
+                                .into(),
                         },
                         Some(self.span),
                     )?;
@@ -226,7 +240,7 @@ impl TypeCheck<'i> for Statement<'i> {
                 lvalue.check_assignable(Some(self.span))?;
                 rvalue.ty.check(&lvalue.ty, Some(self.span))?;
             }
-            VarDefine(var_define) => var_define.type_check(ctx)?,
+            Define(define) => define.type_check(ctx)?,
             Expr(expr) => expr.type_check(ctx, None)?,
         }
         Ok(())
@@ -258,7 +272,11 @@ impl Expr<'i> {
     pub fn type_check(&self, ctx: &mut Ctx<'i>, type_hint: Option<&Type<'i>>) -> Res<'i> {
         use ExprKind::*;
         self.ty.init(match &self.kind {
-            Cast { thing, ty_node } => {
+            Cast {
+                nesting_prefix,
+                thing,
+                ty_node,
+            } => {
                 ty_node.type_check(ctx)?;
                 thing.type_check(ctx, Some(&ty_node.ty))?;
 
@@ -268,23 +286,40 @@ impl Expr<'i> {
                     // casting will always work
                     ty_node.ty.deref().clone()
                 } else {
-                    let name = format!("as {}", ty_node.ty.code_name()).into_ctx(ctx);
-                    ctx.scopes
-                        .find(
-                            &Symbol::new_func(
-                                code_name(&name, &[], Some(&[&thing.ty])).into_ctx(ctx),
-                            ),
-                            Some(self.span),
-                        )?
-                        .ty()
+                    let name = format!("as {}", ty_node.ty.encoded_name()).into_ctx(ctx);
+                    let symbol = ctx.scopes.find(
+                        &Symbol::new_func(
+                            name,
+                            Default::default(),
+                            vec![thing.ty.deref().clone()].into(),
+                        ),
+                        Some(self.span),
+                    )?;
+                    match symbol {
+                        Symbol::Func {
+                            nesting_prefix: other_nesting_prefix,
+                            ..
+                        } => nesting_prefix.init(other_nesting_prefix.clone()),
+                        _ => unreachable!(),
+                    }
+                    symbol.ty()
                 }
+            }
+            MethodCall {
+                receiver,
+                func_call,
+            } => {
+                todo!("type check method call")
             }
             Field { receiver, var } => {
                 receiver.type_check(ctx, None)?;
 
                 // field check
-                let struct_name = *match &*receiver.ty {
-                    Type::Struct(name) => name,
+                let symbol = match &*receiver.ty {
+                    Type::Struct {
+                        name,
+                        generic_replacements,
+                    } => Symbol::new_struct_type(*name, generic_replacements.clone()),
                     Type::GenericPlaceholder(_) => {
                         self.ty.init(Type::GenericUnknown);
                         return Ok(());
@@ -296,10 +331,7 @@ impl Expr<'i> {
                         )
                     }
                 };
-                let symbol = ctx.scopes.find(
-                    &Symbol::new_struct_type(struct_name /*fixme remove prefix*/),
-                    Some(self.span),
-                )?;
+                let symbol = ctx.scopes.find(&symbol, Some(self.span))?;
                 let field_types = match &symbol {
                     Symbol::StructType { field_types, .. } => field_types,
                     _ => unreachable!(),
@@ -349,22 +381,26 @@ impl TypeCheck<'i> for FuncCall<'i> {
                 }
             }
 
-            self.ty.init(
-                // symbol check
-                ctx.scopes
-                    .find(
-                        &Symbol::new_func(
-                            code_name(
-                                &self.name,
-                                &[],
-                                Some(&self.args.iter().map(|it| &*it.ty).collect::<Vec<_>>()),
-                            )
-                            .into_ctx(ctx),
-                        ),
-                        Some(self.span),
-                    )?
-                    .ty(),
-            );
+            // symbol check
+            let symbol = ctx.scopes.find(
+                &Symbol::new_func(
+                    self.name,
+                    Default::default(),
+                    self.args
+                        .iter()
+                        .map(|it| it.ty.deref().clone())
+                        .vec()
+                        .into(),
+                ),
+                Some(self.span),
+            )?;
+            match symbol {
+                Symbol::Func { nesting_prefix, .. } => {
+                    self.nesting_prefix.init(nesting_prefix.clone())
+                }
+                _ => unreachable!(),
+            };
+            self.ty.init(symbol.ty());
             Ok(())
         } else {
             self.type_check_generic(ctx)
@@ -389,12 +425,8 @@ impl TypeCheck<'i> for TypeNode<'i> {
                 ctx.scopes
                     .find(
                         &Symbol::new_struct_type(
-                            code_name(
-                                name,
-                                &[], // todo generic find or add
-                                None,
-                            )
-                            .into_ctx(ctx),
+                            *name,
+                            Default::default(), // todo generic find or add
                         ),
                         Some(self.span),
                     )

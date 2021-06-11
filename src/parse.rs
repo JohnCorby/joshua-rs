@@ -1,5 +1,7 @@
 use crate::error::{IntoErr, Res};
 use crate::span::Span;
+use crate::util::ctx_str::CtxStr;
+use crate::util::IterExt;
 use console::style;
 use pest::error::Error;
 use pest::iterators::{Pair, Pairs};
@@ -34,8 +36,8 @@ impl Node<'i> {
     pub fn span(&self) -> Span<'i> {
         self.0.as_span().into()
     }
-    pub fn str(&self) -> &'i str {
-        self.0.as_str()
+    pub fn str(&self) -> CtxStr<'i> {
+        self.0.as_str().into()
     }
 
     /// check that a node matches a kind, and then return its inner nodes
@@ -63,11 +65,7 @@ impl Display for Node<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let kind = style(self.kind());
         let str = style(self.str());
-        let children = self
-            .clone()
-            .children()
-            .map(|node| node.to_string())
-            .collect::<Vec<_>>();
+        let children = self.clone().children().map(|node| node.to_string()).vec();
         if children.is_empty() {
             write!(f, "{:?}({:?})", kind.red(), str.blue())
         } else if children.len() == 1 {
@@ -102,10 +100,7 @@ impl Display for Nodes<'_> {
         write!(
             f,
             "[{}]",
-            self.clone()
-                .map(|node| node.to_string())
-                .collect::<Vec<_>>()
-                .join(", ")
+            self.clone().map(|node| node.to_string()).vec().join(", ")
         )
     }
 }

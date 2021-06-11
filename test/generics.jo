@@ -21,22 +21,24 @@ struct str {
     ptr<u8> ptr
     u64 len
 
-    void debug_print() {}
-//        <{ printf("%p %i %s\n", ${this.ptr}, ${this.len}, ${this.ptr}) }>
-}
-str str_new(ptr<u8> ptr) {
-    str result
-    result.ptr = ptr
-    result.len = 1 as u64
+    // FIXME since these are created in struct "scope", they get destroyed out of the struct and so are useless, oops
+    str new(ptr<u8> ptr) {
+        str result
+        result.ptr = ptr
+        result.len = 1 as u64
 
-    auto chr = <{ *${ptr} }> as u8
-    until(chr == 0 as u8) {
-        result.len = result.len + 1 as u64
-        <{ ${ptr}++ }>
-        chr = <{ *${ptr} }> as u8
+        auto chr = <{ *${ptr} }> as u8
+        until(chr == 0 as u8) {
+            result.len = result.len + 1 as u64
+                    <{ ${ptr}++ }>
+            chr = <{ *${ptr} }> as u8
+        }
+
+        ret result
     }
 
-    ret result
+    void debug_print(str this)
+        <{ printf("%p %i %s\n", ${this.ptr}, ${this.len}, ${this.ptr}) }>
 }
 
 
@@ -72,8 +74,8 @@ i32 main() {
 //    str str
 //    str.ptr = "hello"
 //    str.len = 6
-    str str = str_new("beautiful")
-//    str.str_debug_print()
+    str str = `str::new`("beautiful")
+    str.debug_print()
 //    ptr<u8> ptr = "hello"
 //    <{ puts(${ptr}) }>
 

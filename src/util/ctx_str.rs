@@ -8,13 +8,13 @@ use std::ops::Deref;
 #[derive(Debug, Copy, Clone, Default, Hash, Ord, PartialOrd, Eq, PartialEq)]
 pub struct CtxStr<'i>(&'i str);
 
+impl From<&'i str> for CtxStr<'i> {
+    fn from(s: &'i str) -> Self {
+        Self(s)
+    }
+}
 pub trait IntoCtx<'i> {
     fn into_ctx(self, ctx: &Ctx<'i>) -> CtxStr<'i>;
-}
-impl IntoCtx<'i> for &'i str {
-    fn into_ctx(self, _: &Ctx<'i>) -> CtxStr<'i> {
-        CtxStr(self)
-    }
 }
 impl IntoCtx<'i> for String {
     fn into_ctx(self, ctx: &Ctx<'i>) -> CtxStr<'i> {
@@ -22,7 +22,7 @@ impl IntoCtx<'i> for String {
             .iter()
             .find(|&input| input == self)
             .unwrap_or_else(|| ctx.new_i(self))
-            .into_ctx(ctx)
+            .into()
     }
 }
 

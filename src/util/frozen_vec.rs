@@ -147,7 +147,7 @@ fn test_iteration() {
     let vec = vec!["a", "b", "c", "d"];
     let frozen: FrozenVec<_> = vec.clone().into();
 
-    assert_eq!(vec, frozen.iter().collect::<Vec<_>>());
+    assert_eq!(vec, frozen.iter().vec());
     for (e1, e2) in vec.iter().zip(frozen.iter()) {
         assert_eq!(*e1, e2);
     }

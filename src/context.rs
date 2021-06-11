@@ -16,9 +16,10 @@ pub struct Ctx<'i> {
 
     /// general buffer, eventually this should be empty as everything is transferred to the Strings below
     pub o: String,
-    pub structs: String,
-    pub global_vars: String,
+    pub struct_declares: String,
     pub func_declares: String,
+    pub global_vars: String,
+    pub struct_defines: String,
     pub func_defines: String,
 }
 
@@ -30,9 +31,10 @@ impl Ctx<'i> {
             extra_defines: Default::default(),
 
             o: Default::default(),
-            structs: Default::default(),
-            global_vars: Default::default(),
+            struct_declares: Default::default(),
             func_declares: Default::default(),
+            global_vars: Default::default(),
+            struct_defines: Default::default(),
             func_defines: Default::default(),
         }
     }

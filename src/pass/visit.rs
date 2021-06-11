@@ -3,7 +3,7 @@ use crate::error::unexpected_kind;
 use crate::parse::{Kind, Node, Nodes};
 use crate::pass::ast::*;
 use crate::util::ctx_str::{CtxStr, IntoCtx};
-use std::rc::Rc;
+use crate::util::IterExt;
 
 pub trait Visit<'i> {
     fn visit(node: Node<'i>, ctx: &mut Ctx<'i>) -> Self;
@@ -14,13 +14,14 @@ impl Node<'i> {
         V::visit(self, ctx)
     }
 
-    pub fn visit_ident(&self, ctx: &mut Ctx<'i>) -> CtxStr<'i> {
+    fn visit_ident(&self, ctx: &mut Ctx<'i>) -> CtxStr<'i> {
         debug_assert_eq!(self.kind(), Kind::ident);
         let str = self.str();
         str.strip_prefix('`')
-            .unwrap_or(str)
+            .unwrap_or(&str)
             .strip_suffix('`')
-            .unwrap_or(str)
+            .unwrap_or(&str)
+            .to_string()
             .into_ctx(ctx)
     }
 }
@@ -41,7 +42,7 @@ impl Visit<'i> for Program<'i> {
                     Kind::EOI => None,
                     _ => Some(node.visit(ctx)),
                 })
-                .collect::<Vec<_>>()
+                .vec()
                 .into(),
         )
     }
@@ -56,13 +57,14 @@ impl Visit<'i> for Define<'i> {
                 let mut nodes = node.children();
 
                 Struct {
+                    nesting_prefix: Default::default(),
                     name: nodes.next().unwrap().visit_ident(ctx),
                     generic_placeholders: nodes
                         .next()
                         .unwrap()
                         .children_checked(Kind::generic_placeholders)
                         .map(|node| node.visit_ident(ctx))
-                        .collect::<Vec<_>>()
+                        .vec()
                         .into(),
                     body: nodes.visit_rest(ctx).into(),
                 }
@@ -77,7 +79,7 @@ impl Visit<'i> for Define<'i> {
                     .unwrap()
                     .children_checked(Kind::generic_placeholders)
                     .map(|node| node.visit_ident(ctx))
-                    .collect::<Vec<_>>()
+                    .vec()
                     .into();
                 let mut args = vec![];
                 while nodes.peek().is_some() && nodes.peek().unwrap().kind() == Kind::var_define {
@@ -87,6 +89,7 @@ impl Visit<'i> for Define<'i> {
 
                 Func {
                     ty_node,
+                    nesting_prefix: Default::default(),
                     name,
                     generic_placeholders,
                     args: args.into(),
@@ -161,7 +164,8 @@ impl Visit<'i> for Statement<'i> {
                     rvalue: nodes.next().unwrap().visit(ctx),
                 }
             }
-            Kind::var_define => VarDefine(node.visit(ctx)),
+
+            Kind::struct_define | Kind::func_define | Kind::var_define => Define(node.visit(ctx)),
             Kind::expr => Expr(node.visit(ctx)),
 
             _ => unexpected_kind(node),
@@ -183,12 +187,12 @@ impl Visit<'i> for CCode<'i> {
             node.children_checked(Kind::c_code)
                 .into_iter()
                 .map(|node| match node.kind() {
-                    Kind::c_code_str => CCodePart::String(node.str().into_ctx(ctx)),
+                    Kind::c_code_str => CCodePart::String(node.str()),
                     Kind::expr => CCodePart::Expr(node.visit(ctx)),
 
                     _ => unexpected_kind(node),
                 })
-                .collect::<Vec<_>>()
+                .vec()
                 .into(),
         )
     }
@@ -207,10 +211,11 @@ impl Visit<'i> for Expr<'i> {
                 let mut left = nodes.next().unwrap().visit::<Expr<'i>>(ctx);
                 while let Some(op) = nodes.next() {
                     let old_left = left.clone();
-                    let op = op.str().into_ctx(ctx);
+                    let op = op.str();
                     let right = nodes.next().unwrap().visit::<Expr<'i>>(ctx);
                     left.kind = FuncCall(self::FuncCall {
                         span,
+                        nesting_prefix: Default::default(),
                         name: op,
                         generic_replacements: Default::default(),
                         args: vec![old_left, right].into(),
@@ -226,10 +231,11 @@ impl Visit<'i> for Expr<'i> {
 
                 let mut thing = rev_nodes.next().unwrap().visit::<Expr<'i>>(ctx);
                 for op in rev_nodes {
-                    let op = op.str().into_ctx(ctx);
+                    let op = op.str();
                     let old_thing = thing.clone();
                     thing.kind = FuncCall(self::FuncCall {
                         span,
+                        nesting_prefix: Default::default(),
                         name: op,
                         generic_replacements: Default::default(),
                         args: vec![old_thing].into(),
@@ -246,6 +252,7 @@ impl Visit<'i> for Expr<'i> {
                 let mut thing = nodes.next().unwrap().visit::<Expr<'i>>(ctx);
                 for ty_node in nodes {
                     thing.kind = Cast {
+                        nesting_prefix: Default::default(),
                         thing: thing.clone().into(),
                         ty_node: ty_node.visit(ctx),
                     }
@@ -260,19 +267,14 @@ impl Visit<'i> for Expr<'i> {
 
                 let mut left = nodes.next().unwrap().visit::<Expr<'i>>(ctx);
                 for right in nodes {
+                    let old_left = left.clone();
                     left.kind = match right.kind() {
-                        Kind::func_call => {
-                            let receiver = left.clone();
-                            let mut func_call = right.visit::<self::FuncCall<'i>>(ctx);
-
-                            let mut args = Rc::try_unwrap(func_call.args).unwrap();
-                            args.insert(0, receiver);
-                            func_call.args = args.into();
-
-                            FuncCall(func_call)
-                        }
+                        Kind::func_call => MethodCall {
+                            receiver: old_left.into(),
+                            func_call: right.visit(ctx),
+                        },
                         Kind::ident => Field {
-                            receiver: left.clone().into(),
+                            receiver: old_left.into(),
                             var: right.visit_ident(ctx),
                         },
 
@@ -308,13 +310,14 @@ impl Visit<'i> for FuncCall<'i> {
 
         Self {
             span,
+            nesting_prefix: Default::default(),
             name: nodes.next().unwrap().visit_ident(ctx),
             generic_replacements: nodes
                 .next()
                 .unwrap()
                 .children_checked(Kind::generic_replacements)
                 .map(|node| node.visit(ctx))
-                .collect::<Vec<_>>()
+                .vec()
                 .into(),
             args: nodes.visit_rest(ctx).into(),
             ty: Default::default(),
@@ -323,14 +326,14 @@ impl Visit<'i> for FuncCall<'i> {
 }
 
 impl Visit<'i> for Literal<'i> {
-    fn visit(node: Node<'i>, ctx: &mut Ctx<'i>) -> Self {
+    fn visit(node: Node<'i>, _: &mut Ctx<'i>) -> Self {
         use Literal::*;
         match node.kind() {
             Kind::float_literal => Float(node.str().parse().unwrap()),
             Kind::int_literal => Int(node.str().parse().unwrap()),
             Kind::bool_literal => Bool(node.str().parse().unwrap()),
             Kind::char_literal => Char(node.children().next().unwrap().str().parse().unwrap()),
-            Kind::str_literal => StrZ(node.children().next().unwrap().str().into_ctx(ctx)), // fixme you forgot to unescape you doofus
+            Kind::str_literal => StrZ(node.children().next().unwrap().str()), // fixme you forgot to unescape you doofus
 
             _ => unexpected_kind(node),
         }
@@ -359,7 +362,7 @@ impl Visit<'i> for TypeNode<'i> {
                         .unwrap()
                         .children_checked(Kind::generic_replacements)
                         .map(|node| node.visit(ctx))
-                        .collect::<Vec<_>>()
+                        .vec()
                         .into(),
                 }
             }

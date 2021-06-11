@@ -17,12 +17,14 @@ pub struct Define<'i> {
 #[derive(Debug, Clone)]
 pub enum DefineKind<'i> {
     Struct {
+        nesting_prefix: LateInit<Rc<Vec<CtxStr<'i>>>>,
         name: CtxStr<'i>,
         generic_placeholders: Rc<Vec<CtxStr<'i>>>,
         body: Rc<Vec<Define<'i>>>,
     },
     Func {
         ty_node: TypeNode<'i>,
+        nesting_prefix: LateInit<Rc<Vec<CtxStr<'i>>>>,
         name: CtxStr<'i>,
         generic_placeholders: Rc<Vec<CtxStr<'i>>>,
         args: Rc<Vec<VarDefine<'i>>>,
@@ -72,7 +74,7 @@ pub enum StatementKind<'i> {
         lvalue: Expr<'i>,
         rvalue: Expr<'i>,
     },
-    VarDefine(VarDefine<'i>),
+    Define(Define<'i>),
     Expr(Expr<'i>),
 }
 
@@ -98,10 +100,15 @@ pub struct Expr<'i> {
 #[derive(Debug, Clone)]
 pub enum ExprKind<'i> {
     Cast {
+        nesting_prefix: LateInit<Rc<Vec<CtxStr<'i>>>>,
         thing: Rc<Expr<'i>>,
         ty_node: TypeNode<'i>,
     },
 
+    MethodCall {
+        receiver: Rc<Expr<'i>>,
+        func_call: FuncCall<'i>,
+    },
     Field {
         receiver: Rc<Expr<'i>>,
         var: CtxStr<'i>,
@@ -132,6 +139,7 @@ impl Expr<'i> {
 #[derive(Debug, Clone)]
 pub struct FuncCall<'i> {
     pub span: Span<'i>,
+    pub nesting_prefix: LateInit<Rc<Vec<CtxStr<'i>>>>,
     pub name: CtxStr<'i>,
     pub generic_replacements: Rc<Vec<TypeNode<'i>>>,
     pub args: Rc<Vec<Expr<'i>>>,

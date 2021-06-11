@@ -8,6 +8,7 @@ use crate::pass::ast::{Define, VarDefine};
 use crate::pass::ty::{PrimitiveType, Type};
 use crate::span::Span;
 use crate::util::ctx_str::CtxStr;
+use crate::util::{IterExt, StrExt};
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::Deref;
@@ -21,7 +22,12 @@ pub enum Symbol<'i> {
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         #[new(default)]
         ty: Type<'i>,
+        #[derivative(Hash = "ignore", PartialEq = "ignore")]
+        #[new(default)]
+        nesting_prefix: Rc<Vec<CtxStr<'i>>>,
         name: CtxStr<'i>,
+        generic_replacements: Rc<Vec<Type<'i>>>,
+        arg_types: Rc<Vec<Type<'i>>>,
     },
     Var {
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
@@ -30,7 +36,11 @@ pub enum Symbol<'i> {
         name: CtxStr<'i>,
     },
     StructType {
+        #[derivative(Hash = "ignore", PartialEq = "ignore")]
+        #[new(default)]
+        nesting_prefix: Rc<Vec<CtxStr<'i>>>,
         name: CtxStr<'i>,
+        generic_replacements: Rc<Vec<Type<'i>>>,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         #[new(default)]
         field_types: Rc<HashMap<CtxStr<'i>, Type<'i>>>,
@@ -47,6 +57,8 @@ pub enum Symbol<'i> {
         span: Span<'i>,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         ty_node: TypeNode<'i>,
+        #[derivative(Hash = "ignore", PartialEq = "ignore")]
+        nesting_prefix: Rc<Vec<CtxStr<'i>>>,
         name: CtxStr<'i>,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         generic_placeholders: Rc<Vec<CtxStr<'i>>>,
@@ -67,6 +79,8 @@ pub enum Symbol<'i> {
         // copied from struct define
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         span: Span<'i>,
+        #[derivative(Hash = "ignore", PartialEq = "ignore")]
+        nesting_prefix: Rc<Vec<CtxStr<'i>>>,
         name: CtxStr<'i>,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         generic_placeholders: Rc<Vec<CtxStr<'i>>>,
@@ -86,7 +100,14 @@ impl Symbol<'i> {
             | Var { ty, .. }
             | GenericFunc { ty, .. }
             | GenericStruct { ty, .. } => ty.deref().clone(),
-            StructType { name, .. } => Type::Struct(*name),
+            StructType {
+                name,
+                generic_replacements,
+                ..
+            } => Type::Struct {
+                name: *name,
+                generic_replacements: generic_replacements.clone(),
+            },
             GenericPlaceholderType(name) => Type::GenericPlaceholder(*name),
         }
     }
@@ -97,9 +118,26 @@ impl Display for Symbol<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         use Symbol::*;
         match self {
-            Func { name, .. } => write!(f, "func symbol `{}`", name),
-            Var { name, .. } => write!(f, "var symbol `{}`", name),
-            StructType { name, .. } => write!(f, "struct type symbol `{}`", name),
+            Func {
+                name,
+                generic_replacements,
+                arg_types,
+                ..
+            } => f.write_str(&name.to_display(
+                "func symbol",
+                &generic_replacements.iter().vec(),
+                Some(&arg_types.iter().vec()),
+            )),
+            Var { name, .. } => f.write_str(&name.to_display("var symbol", &[], None)),
+            StructType {
+                name,
+                generic_replacements,
+                ..
+            } => f.write_str(&name.to_display(
+                "struct type symbol",
+                &generic_replacements.iter().vec(),
+                None,
+            )),
             // _ => write!(f, "internal symbol {:?}", self),
             _ => panic!("internal symbol {:?} should not be displayed", self),
         }
@@ -137,17 +175,9 @@ pub struct Scope<'i> {
 }
 
 impl Scopes<'i> {
-    /// attach `::` prefix to name
-    pub fn prefix_name(&self, name: &str) -> String {
-        let mut new_name = String::new();
-        for scope in self.0.iter().rev() {
-            if let Some(name) = scope.name {
-                new_name.push_str(&name);
-                new_name.push_str("::");
-            }
-        }
-        new_name.push_str(name);
-        new_name
+    /// use for initializing ast nodes
+    pub fn nesting_prefix(&self) -> Vec<CtxStr<'i>> {
+        self.0.iter().rev().filter_map(|scope| scope.name).collect()
     }
 
     pub fn in_loop(&self) -> bool {
