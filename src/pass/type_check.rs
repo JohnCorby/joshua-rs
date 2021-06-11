@@ -36,11 +36,9 @@ impl TypeCheck<'i> for Define<'i> {
                 body,
             } => {
                 if generic_placeholders.is_empty() {
-                    ctx.scopes.push(Some(*name), false, None);
-                    for define in &**body {
-                        if matches!(define.kind, Var(_)) {
-                            define.type_check(ctx)?
-                        }
+                    ctx.scopes.push(None, false, None);
+                    for define in body.iter().filter(|define| matches!(define.kind, Var(_))) {
+                        define.type_check(ctx)?
                     }
 
                     // add symbol
@@ -67,10 +65,22 @@ impl TypeCheck<'i> for Define<'i> {
                     )?;
                     ctx.scopes.0.push(scope);
 
-                    for define in &**body {
-                        if matches!(define.kind, Func { .. }) {
-                            define.type_check(ctx)?
+                    for define in body
+                        .iter()
+                        .filter(|define| matches!(define.kind, Func { .. }))
+                    {
+                        // attach struct name to func
+                        let mut define = define.clone();
+                        if let Func {
+                            name: func_name, ..
+                        } = &mut define.kind
+                        {
+                            *func_name = format!("{}::{}", name, func_name).into_ctx(ctx)
                         }
+                        // add func outside of struct
+                        let scope = ctx.scopes.0.pop().unwrap();
+                        define.type_check(ctx)?;
+                        ctx.scopes.0.push(scope);
                     }
                     ctx.scopes.pop();
                 } else {
@@ -282,7 +292,7 @@ impl Expr<'i> {
 
                 // symbol check
                 // fixme hacky as shit
-                if matches!(*thing.ty, Type::Literal(_) | Type::CCode) {
+                if let Type::Literal(_) | Type::CCode = *thing.ty {
                     // casting will always work
                     ty_node.ty.deref().clone()
                 } else {
@@ -295,12 +305,12 @@ impl Expr<'i> {
                         ),
                         Some(self.span),
                     )?;
-                    match symbol {
-                        Symbol::Func {
-                            nesting_prefix: other_nesting_prefix,
-                            ..
-                        } => nesting_prefix.init(other_nesting_prefix.clone()),
-                        _ => unreachable!(),
+                    if let Symbol::Func {
+                        nesting_prefix: other_nesting_prefix,
+                        ..
+                    } = symbol
+                    {
+                        nesting_prefix.init(other_nesting_prefix.clone())
                     }
                     symbol.ty()
                 }
@@ -336,7 +346,7 @@ impl Expr<'i> {
                     Symbol::StructType { field_types, .. } => field_types,
                     _ => unreachable!(),
                 };
-                match field_types.get(&var) {
+                match field_types.get(var) {
                     Some(field_type) => field_type.clone(),
                     None => {
                         return err(
@@ -375,7 +385,7 @@ impl TypeCheck<'i> for FuncCall<'i> {
             for arg in &*self.args {
                 arg.type_check(ctx, None)?;
                 // very lol
-                if matches!(*arg.ty, Type::GenericUnknown | Type::GenericPlaceholder(_)) {
+                if let Type::GenericUnknown | Type::GenericPlaceholder(_) = *arg.ty {
                     self.ty.init(Type::GenericUnknown);
                     return Ok(());
                 }
@@ -394,12 +404,9 @@ impl TypeCheck<'i> for FuncCall<'i> {
                 ),
                 Some(self.span),
             )?;
-            match symbol {
-                Symbol::Func { nesting_prefix, .. } => {
-                    self.nesting_prefix.init(nesting_prefix.clone())
-                }
-                _ => unreachable!(),
-            };
+            if let Symbol::Func { nesting_prefix, .. } = symbol {
+                self.nesting_prefix.init(nesting_prefix.clone())
+            }
             self.ty.init(symbol.ty());
             Ok(())
         } else {

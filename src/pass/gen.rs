@@ -215,7 +215,7 @@ impl Gen<'i> for Expr<'i> {
                 ty_node,
             } => {
                 // fixme hacky as shit
-                if matches!(*thing.ty, Type::Literal(_) | Type::CCode) {
+                if let Type::Literal(_) | Type::CCode = *thing.ty {
                     ctx.o.push('(');
                     ty_node.gen(ctx);
                     ctx.o.push_str(") ");

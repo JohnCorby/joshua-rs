@@ -150,11 +150,12 @@ pub struct Scopes<'i>(pub Vec<Scope<'i>>);
 impl Scopes<'i> {
     pub fn push(
         &mut self,
-        name: Option<CtxStr<'i>>,
+        nesting_name: Option<CtxStr<'i>>,
         is_loop: bool,
         func_return_type: Option<Type<'i>>,
     ) {
-        self.0.push(Scope::new(name, is_loop, func_return_type))
+        self.0
+            .push(Scope::new(nesting_name, is_loop, func_return_type))
     }
 
     pub fn pop(&mut self) {
@@ -164,7 +165,7 @@ impl Scopes<'i> {
 
 #[derive(Debug, derive_new::new)]
 pub struct Scope<'i> {
-    name: Option<CtxStr<'i>>, // todo give name to ALL blocks, not just funcs and structs
+    nesting_name: Option<CtxStr<'i>>, // todo give name to ALL blocks, not just funcs
     is_loop: bool,
     func_return_type: Option<Type<'i>>,
     #[new(default)]
@@ -177,7 +178,11 @@ pub struct Scope<'i> {
 impl Scopes<'i> {
     /// use for initializing ast nodes
     pub fn nesting_prefix(&self) -> Vec<CtxStr<'i>> {
-        self.0.iter().rev().filter_map(|scope| scope.name).collect()
+        self.0
+            .iter()
+            .rev()
+            .filter_map(|scope| scope.nesting_name)
+            .collect()
     }
 
     pub fn in_loop(&self) -> bool {

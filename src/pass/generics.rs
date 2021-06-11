@@ -8,7 +8,7 @@ use crate::pass::type_check::TypeCheck;
 use crate::scope::{Scopes, Symbol};
 use crate::span::Span;
 use crate::util::ctx_str::{CtxStr, IntoCtx};
-use crate::util::{IterExt, StrExt};
+use crate::util::{IterExt, RcExt, StrExt};
 use std::collections::HashMap;
 use std::ops::Deref;
 
@@ -34,7 +34,7 @@ impl Define<'i> {
 
                 ty_node.type_check(ctx)?;
                 ctx.scopes
-                    .push(Some(*name), false, Some(ty_node.ty.deref().clone()));
+                    .push(None, false, Some(ty_node.ty.deref().clone()));
                 for arg in &**args {
                     arg.type_check(ctx)?
                 }
@@ -86,7 +86,7 @@ impl FuncCall<'i> {
         for arg in &*self.args {
             arg.type_check(ctx, None)?;
             // very lol
-            if matches!(*arg.ty, Type::GenericUnknown | Type::GenericPlaceholder(_)) {
+            if let Type::GenericUnknown | Type::GenericPlaceholder(_) = *arg.ty {
                 self.ty.init(Type::GenericUnknown);
                 return Ok(());
             }
@@ -272,11 +272,11 @@ trait ReplaceGenerics<'i> {
 
 impl ReplaceGenerics<'i> for Program<'i> {
     fn replace_generics(&mut self, generic_map: &GenericMap<'i>) {
-        let mut new_defines = self.0.deref().clone();
-        for define in &mut new_defines {
-            define.replace_generics(generic_map)
-        }
-        self.0 = new_defines.into()
+        self.0.modify(|defines| {
+            for define in defines {
+                define.replace_generics(generic_map)
+            }
+        })
     }
 }
 
@@ -284,13 +284,11 @@ impl ReplaceGenerics<'i> for Define<'i> {
     fn replace_generics(&mut self, generic_map: &GenericMap<'i>) {
         use DefineKind::*;
         match &mut self.kind {
-            Struct { body, .. } => {
-                let mut new_body = body.deref().deref().clone();
-                for define in &mut new_body {
+            Struct { body, .. } => body.modify(|body| {
+                for define in body {
                     define.replace_generics(generic_map)
                 }
-                *body = new_body.into();
-            }
+            }),
             Func {
                 ty_node,
                 generic_placeholders,
@@ -299,11 +297,11 @@ impl ReplaceGenerics<'i> for Define<'i> {
                 ..
             } => {
                 ty_node.replace_generics(generic_map);
-                let mut new_args = args.deref().deref().clone();
-                for arg in &mut new_args {
-                    arg.replace_generics(generic_map)
-                }
-                *args = new_args.into();
+                args.modify(|args| {
+                    for arg in args {
+                        arg.replace_generics(generic_map)
+                    }
+                });
                 body.replace_generics(generic_map);
 
                 *generic_placeholders = Default::default()
@@ -357,9 +355,7 @@ impl ReplaceGenerics<'i> for Statement<'i> {
             } => {
                 init.replace_generics(generic_map);
                 cond.replace_generics(generic_map);
-                let mut new_update = update.deref().deref().clone();
-                new_update.replace_generics(generic_map);
-                *update = new_update.into();
+                update.modify(|update| update.replace_generics(generic_map));
                 block.replace_generics(generic_map);
             }
             ExprAssign { lvalue, rvalue } => {
@@ -374,24 +370,24 @@ impl ReplaceGenerics<'i> for Statement<'i> {
 
 impl ReplaceGenerics<'i> for Block<'i> {
     fn replace_generics(&mut self, generic_map: &GenericMap<'i>) {
-        let mut new_statements = self.0.deref().clone();
-        for statement in &mut new_statements {
-            statement.replace_generics(generic_map)
-        }
-        self.0 = new_statements.into()
+        self.0.modify(|statements| {
+            for statement in statements {
+                statement.replace_generics(generic_map)
+            }
+        })
     }
 }
 
 impl ReplaceGenerics<'i> for CCode<'i> {
     fn replace_generics(&mut self, generic_map: &GenericMap<'i>) {
-        let mut new_parts = self.0.deref().clone();
-        for part in &mut new_parts {
-            match part {
-                CCodePart::String(_) => {}
-                CCodePart::Expr(expr) => expr.replace_generics(generic_map),
+        self.0.modify(|parts| {
+            for part in parts {
+                match part {
+                    CCodePart::String(_) => {}
+                    CCodePart::Expr(expr) => expr.replace_generics(generic_map),
+                }
             }
-        }
-        self.0 = new_parts.into()
+        })
     }
 }
 
@@ -400,9 +396,7 @@ impl ReplaceGenerics<'i> for Expr<'i> {
         use ExprKind::*;
         match &mut self.kind {
             Cast { thing, ty_node, .. } => {
-                let mut new_thing = thing.deref().deref().clone();
-                new_thing.replace_generics(generic_map);
-                *thing = new_thing.into();
+                thing.modify(|thing| thing.replace_generics(generic_map));
                 ty_node.replace_generics(generic_map);
             }
             MethodCall {
@@ -412,9 +406,7 @@ impl ReplaceGenerics<'i> for Expr<'i> {
                 todo!("replace generics method call")
             }
             Field { receiver, .. } => {
-                let mut new_receiver = receiver.deref().deref().clone();
-                new_receiver.replace_generics(generic_map);
-                *receiver = new_receiver.into()
+                receiver.modify(|receiver| receiver.replace_generics(generic_map))
             }
             Literal(_) => {}
             FuncCall(func_call) => func_call.replace_generics(generic_map),
@@ -428,16 +420,16 @@ impl ReplaceGenerics<'i> for Expr<'i> {
 
 impl ReplaceGenerics<'i> for FuncCall<'i> {
     fn replace_generics(&mut self, generic_map: &GenericMap<'i>) {
-        let mut new_replacements = self.generic_replacements.deref().clone();
-        for replacement in &mut new_replacements {
-            replacement.replace_generics(generic_map)
-        }
-        self.generic_replacements = new_replacements.into();
-        let mut new_args = self.args.deref().clone();
-        for arg in &mut new_args {
-            arg.replace_generics(generic_map)
-        }
-        self.args = new_args.into();
+        self.generic_replacements.modify(|replacements| {
+            for replacement in replacements {
+                replacement.replace_generics(generic_map)
+            }
+        });
+        self.args.modify(|args| {
+            for arg in args {
+                arg.replace_generics(generic_map)
+            }
+        });
 
         self.ty = Default::default();
     }

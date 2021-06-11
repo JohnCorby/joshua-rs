@@ -1,6 +1,7 @@
 use crate::pass::ty::Type;
 use crate::util::ctx_str::CtxStr;
 use std::fmt::Write;
+use std::ops::Deref;
 use std::rc::Rc;
 
 pub mod ctx_str;
@@ -118,7 +119,7 @@ impl StrExt for str {
         arg_types: Option<&[&Type<'_>]>,
     ) -> String {
         // don't mangle func main (entry point)
-        if arg_types.is_some() && arg_types.unwrap().is_empty() && self == "main" {
+        if matches!(arg_types, Some([])) && self == "main" {
             self.into()
         } else {
             let encoded = self.encode(nesting_prefix, generic_replacements, arg_types);
@@ -139,9 +140,10 @@ pub trait RcExt<T> {
     /// shorthand for `Rc::try_unwrap(self).unwrap()`
     fn unwrap(self) -> T;
 
-    // fn map<U>(&mut self, f: impl FnMut(&mut T))
-    // where
-    //     T: Clone;
+    /// clone `T`, modify it, and then put a new `Rc` in `self`
+    fn modify(&mut self, f: impl Fn(&mut T))
+    where
+        T: Clone;
 }
 impl<T> RcExt<T> for Rc<T> {
     fn unwrap(self) -> T {
@@ -149,12 +151,12 @@ impl<T> RcExt<T> for Rc<T> {
             .unwrap_or_else(|_| panic!("tried to unwrap Rc when there are still multiple refs"))
     }
 
-    // fn map<U>(&mut self, f: impl FnMut(&mut T))
-    // where
-    //     T: Clone,
-    // {
-    //     let mut t = (**self).clone();
-    //     f(&mut t);
-    //     *self = Rc::new(t)
-    // }
+    fn modify(&mut self, f: impl Fn(&mut T))
+    where
+        T: Clone,
+    {
+        let mut t = self.deref().deref().clone();
+        f(&mut t);
+        *self = t.into();
+    }
 }
