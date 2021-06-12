@@ -17,14 +17,15 @@ pub struct Define<'i> {
 #[derive(Debug, Clone)]
 pub enum DefineKind<'i> {
     Struct {
-        nesting_prefix: LateInit<Rc<Vec<CtxStr<'i>>>>,
+        nesting_prefix: Rc<LateInit<Vec<CtxStr<'i>>>>,
         name: CtxStr<'i>,
         generic_placeholders: Rc<Vec<CtxStr<'i>>>,
         body: Rc<Vec<Define<'i>>>,
     },
     Func {
         ty_node: TypeNode<'i>,
-        nesting_prefix: LateInit<Rc<Vec<CtxStr<'i>>>>,
+        nesting_prefix: Rc<LateInit<Vec<CtxStr<'i>>>>,
+        name_struct_prefix: Rc<LateInit<CtxStr<'i>>>,
         name: CtxStr<'i>,
         generic_placeholders: Rc<Vec<CtxStr<'i>>>,
         args: Rc<Vec<VarDefine<'i>>>,
@@ -94,13 +95,13 @@ pub enum CCodePart<'i> {
 pub struct Expr<'i> {
     pub span: Span<'i>,
     pub kind: ExprKind<'i>,
-    pub ty: LateInit<Type<'i>>,
+    pub ty: Rc<LateInit<Type<'i>>>,
 }
 
 #[derive(Debug, Clone)]
 pub enum ExprKind<'i> {
     Cast {
-        nesting_prefix: LateInit<Rc<Vec<CtxStr<'i>>>>,
+        nesting_prefix: Rc<LateInit<Vec<CtxStr<'i>>>>,
         thing: Rc<Expr<'i>>,
         ty_node: TypeNode<'i>,
     },
@@ -139,11 +140,11 @@ impl Expr<'i> {
 #[derive(Debug, Clone)]
 pub struct FuncCall<'i> {
     pub span: Span<'i>,
-    pub nesting_prefix: LateInit<Rc<Vec<CtxStr<'i>>>>,
+    pub nesting_prefix: Rc<LateInit<Vec<CtxStr<'i>>>>,
     pub name: CtxStr<'i>,
     pub generic_replacements: Rc<Vec<TypeNode<'i>>>,
     pub args: Rc<Vec<Expr<'i>>>,
-    pub ty: LateInit<Type<'i>>,
+    pub ty: Rc<LateInit<Type<'i>>>,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -172,7 +173,7 @@ impl Literal<'i> {
 pub struct TypeNode<'i> {
     pub span: Span<'i>,
     pub kind: TypeKind<'i>,
-    pub ty: LateInit<Type<'i>>,
+    pub ty: Rc<LateInit<Type<'i>>>,
 }
 
 #[derive(Debug, Clone)]

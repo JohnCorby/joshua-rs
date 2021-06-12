@@ -66,8 +66,8 @@ i32 main() {
     S s
     `+`<S>(s, s)
 
-//    bruh<i8>(1 as i8)
-//    bruh<i8>(1 as i8)
+    bruh<i8>(1 as i8)
+    bruh<i8>(1 as i8)
 
 
 

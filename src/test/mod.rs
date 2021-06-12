@@ -37,5 +37,5 @@ fn check(i: &str) {
 
 #[test]
 fn funcs() {
-    check(include_str!("../../test/generics.jo"))
+    check(include_str!("../../test/test2.jo"))
 }

@@ -2,20 +2,20 @@ use crate::context::Ctx;
 use crate::error::{err, Res};
 use crate::pass::ast::*;
 use crate::pass::ty::{PrimitiveType, Type};
-use crate::scope::Symbol;
+use crate::scope::{Scope, Symbol};
 use crate::util::ctx_str::IntoCtx;
-use crate::util::IterExt;
+use crate::util::{IterExt, RcExt};
 use std::collections::HashMap;
 use std::ops::Deref;
 
 pub trait TypeCheck<'i> {
-    /// type init, type checking, scope handling
+    /// type init, nesting prefix init, type check, symbol add, symbol check
     fn type_check(&self, ctx: &mut Ctx<'i>) -> Res<'i>;
 }
 
 impl TypeCheck<'i> for Program<'i> {
     fn type_check(&self, ctx: &mut Ctx<'i>) -> Res<'i> {
-        ctx.scopes.push(None, false, None);
+        ctx.scopes.push(Scope::new(None, false, None));
         ctx.type_check_prelude();
         for define in &*self.0 {
             define.type_check(ctx)?
@@ -36,53 +36,55 @@ impl TypeCheck<'i> for Define<'i> {
                 body,
             } => {
                 if generic_placeholders.is_empty() {
-                    ctx.scopes.push(None, false, None);
-                    for define in body.iter().filter(|define| matches!(define.kind, Var(_))) {
+                    let (var_defines, func_defines) =
+                        body.iter()
+                            .partition::<Vec<_>, _>(|&define| match define.kind {
+                                Var(_) => true,
+                                Func { .. } => false,
+                                _ => panic!("struct body shouldn't have {:?}", define),
+                            });
+
+                    ctx.scopes.push(Scope::new(None, false, None));
+                    for define in &var_defines {
                         define.type_check(ctx)?
                     }
+                    ctx.scopes.pop();
 
                     // add symbol
-                    let scope = ctx.scopes.0.pop().unwrap();
-                    nesting_prefix.init(ctx.scopes.nesting_prefix().into());
+                    nesting_prefix.init(ctx.scopes.nesting_prefix());
                     ctx.scopes.add(
                         Symbol::StructType {
-                            nesting_prefix: nesting_prefix.deref().clone(),
+                            nesting_prefix: nesting_prefix.deref().deref().clone().into(),
                             name: *name,
                             generic_replacements: Default::default(),
-                            field_types: body
-                                .iter()
-                                .filter_map(|define| {
-                                    if let Var(VarDefine { name, ty_node, .. }) = &define.kind {
-                                        Some((*name, ty_node.ty.deref().clone()))
-                                    } else {
-                                        None
+                            field_types: var_defines
+                                .into_iter()
+                                .map(|define| match &define.kind {
+                                    Var(VarDefine { name, ty_node, .. }) => {
+                                        (*name, ty_node.ty.deref().deref().clone())
                                     }
+                                    _ => unreachable!(),
                                 })
                                 .collect::<HashMap<_, _>>()
                                 .into(),
                         },
                         Some(self.span),
                     )?;
-                    ctx.scopes.0.push(scope);
 
-                    for define in body
-                        .iter()
-                        .filter(|define| matches!(define.kind, Func { .. }))
-                    {
+                    for define in func_defines {
                         // attach struct name to func
                         let mut define = define.clone();
                         if let Func {
-                            name: func_name, ..
+                            name_struct_prefix,
+                            name: func_name,
+                            ..
                         } = &mut define.kind
                         {
+                            name_struct_prefix.init(*name);
                             *func_name = format!("{}::{}", name, func_name).into_ctx(ctx)
                         }
-                        // add func outside of struct
-                        let scope = ctx.scopes.0.pop().unwrap();
                         define.type_check(ctx)?;
-                        ctx.scopes.0.push(scope);
                     }
-                    ctx.scopes.pop();
                 } else {
                     todo!("generic struct define type check")
                 }
@@ -94,33 +96,37 @@ impl TypeCheck<'i> for Define<'i> {
                 generic_placeholders,
                 args,
                 body,
+                ..
             } => {
                 if generic_placeholders.is_empty() {
                     ty_node.type_check(ctx)?;
-                    ctx.scopes
-                        .push(Some(*name), false, Some(ty_node.ty.deref().clone()));
+                    ctx.scopes.push(Scope::new(
+                        Some(*name),
+                        false,
+                        Some(ty_node.ty.deref().deref().clone()),
+                    ));
                     for arg in &**args {
                         arg.type_check(ctx)?
                     }
 
                     // add symbol
-                    let scope = ctx.scopes.0.pop().unwrap();
-                    nesting_prefix.init(ctx.scopes.nesting_prefix().into());
+                    let scope = ctx.scopes.pop();
+                    nesting_prefix.init(ctx.scopes.nesting_prefix());
                     ctx.scopes.add(
                         Symbol::Func {
-                            ty: ty_node.ty.deref().clone(),
-                            nesting_prefix: nesting_prefix.deref().clone(),
+                            ty: ty_node.ty.deref().deref().clone(),
+                            nesting_prefix: nesting_prefix.deref().deref().clone().into(),
                             name: *name,
                             generic_replacements: Default::default(),
                             arg_types: args
                                 .iter()
-                                .map(|it| it.ty_node.ty.deref().clone())
+                                .map(|it| it.ty_node.ty.deref().deref().clone())
                                 .vec()
                                 .into(),
                         },
                         Some(self.span),
                     )?;
-                    ctx.scopes.0.push(scope);
+                    ctx.scopes.push(scope);
 
                     body.type_check(ctx)?;
                     ctx.scopes.check_return_called(Some(self.span))?;
@@ -142,7 +148,7 @@ impl TypeCheck<'i> for VarDefine<'i> {
         if let TypeKind::Auto = self.ty_node.kind {
             if let Some(value) = &self.value {
                 value.type_check(ctx, None)?;
-                self.ty_node.ty.init(value.ty.deref().clone());
+                self.ty_node.ty.init(value.ty.deref().deref().clone());
 
                 // check matching
                 value.ty.check(&self.ty_node.ty, Some(self.span))?;
@@ -162,7 +168,7 @@ impl TypeCheck<'i> for VarDefine<'i> {
         // add symbol
         ctx.scopes.add(
             Symbol::Var {
-                ty: self.ty_node.ty.deref().clone(),
+                ty: self.ty_node.ty.deref().deref().clone(),
                 name: self.name,
             },
             Some(self.span),
@@ -185,7 +191,7 @@ impl TypeCheck<'i> for Statement<'i> {
                 ctx.scopes.return_called();
                 value
                     .as_ref()
-                    .map(|it| &*it.ty)
+                    .map(|it| &**it.ty)
                     .unwrap_or(&Type::Primitive(PrimitiveType::Void))
                     .check(ctx.scopes.func_return_type(), Some(self.span))?;
             }
@@ -205,11 +211,11 @@ impl TypeCheck<'i> for Statement<'i> {
                 otherwise,
             } => {
                 cond.type_check(ctx, Some(&PrimitiveType::Bool.ty()))?;
-                ctx.scopes.push(None, false, None);
+                ctx.scopes.push(Scope::new(None, false, None));
                 then.type_check(ctx)?;
                 ctx.scopes.pop();
                 if let Some(otherwise) = otherwise {
-                    ctx.scopes.push(None, false, None);
+                    ctx.scopes.push(Scope::new(None, false, None));
                     otherwise.type_check(ctx)?;
                     ctx.scopes.pop();
                 }
@@ -219,7 +225,7 @@ impl TypeCheck<'i> for Statement<'i> {
             }
             Until { cond, block } => {
                 cond.type_check(ctx, Some(&PrimitiveType::Bool.ty()))?;
-                ctx.scopes.push(None, true, None);
+                ctx.scopes.push(Scope::new(None, true, None));
                 block.type_check(ctx)?;
                 ctx.scopes.pop();
 
@@ -232,7 +238,7 @@ impl TypeCheck<'i> for Statement<'i> {
                 update,
                 block,
             } => {
-                ctx.scopes.push(None, true, None);
+                ctx.scopes.push(Scope::new(None, true, None));
                 init.type_check(ctx)?;
                 cond.type_check(ctx, Some(&PrimitiveType::Bool.ty()))?;
                 update.type_check(ctx)?;
@@ -292,25 +298,26 @@ impl Expr<'i> {
 
                 // symbol check
                 // fixme hacky as shit
-                if let Type::Literal(_) | Type::CCode = *thing.ty {
+                if let Type::Literal(_) | Type::CCode = **thing.ty {
                     // casting will always work
-                    ty_node.ty.deref().clone()
+                    nesting_prefix.init(Default::default());
+                    ty_node.ty.deref().deref().clone()
                 } else {
                     let name = format!("as {}", ty_node.ty.encoded_name()).into_ctx(ctx);
                     let symbol = ctx.scopes.find(
                         &Symbol::new_func(
                             name,
                             Default::default(),
-                            vec![thing.ty.deref().clone()].into(),
+                            vec![thing.ty.deref().deref().clone()].into(),
                         ),
                         Some(self.span),
                     )?;
                     if let Symbol::Func {
-                        nesting_prefix: other_nesting_prefix,
+                        nesting_prefix: symbol_nesting_prefix,
                         ..
                     } = symbol
                     {
-                        nesting_prefix.init(other_nesting_prefix.clone())
+                        nesting_prefix.init(symbol_nesting_prefix.deref().clone())
                     }
                     symbol.ty()
                 }
@@ -319,13 +326,23 @@ impl Expr<'i> {
                 receiver,
                 func_call,
             } => {
-                todo!("type check method call")
+                let mut func_call = func_call.clone();
+                receiver.type_check(ctx, None)?;
+                func_call.name =
+                    format!("{}::{}", receiver.ty.encoded_name(), func_call.name).into_ctx(ctx);
+
+                let mut receiver = receiver.deref().clone();
+                receiver.ty = Default::default();
+                func_call.args.modify(|args| args.insert(0, receiver));
+
+                func_call.type_check(ctx, type_hint)?;
+                func_call.ty.deref().deref().clone()
             }
             Field { receiver, var } => {
                 receiver.type_check(ctx, None)?;
 
                 // field check
-                let symbol = match &*receiver.ty {
+                let symbol = match &**receiver.ty {
                     Type::Struct {
                         name,
                         generic_replacements,
@@ -358,8 +375,8 @@ impl Expr<'i> {
             }
             Literal(literal) => literal.ty(),
             FuncCall(func_call) => {
-                func_call.type_check(ctx)?;
-                func_call.ty.deref().clone()
+                func_call.type_check(ctx, type_hint)?;
+                func_call.ty.deref().deref().clone()
             }
             Var(name) => {
                 // symbol check
@@ -376,16 +393,13 @@ impl Expr<'i> {
     }
 }
 
-impl TypeCheck<'i> for FuncCall<'i> {
-    fn type_check(&self, ctx: &mut Ctx<'i>) -> Res<'i> {
+impl FuncCall<'i> {
+    pub fn type_check(&self, ctx: &mut Ctx<'i>, type_hint: Option<&Type<'i>>) -> Res<'i> {
         if self.generic_replacements.is_empty() {
-            for replacement in &*self.generic_replacements {
-                replacement.type_check(ctx)?
-            }
             for arg in &*self.args {
                 arg.type_check(ctx, None)?;
                 // very lol
-                if let Type::GenericUnknown | Type::GenericPlaceholder(_) = *arg.ty {
+                if let Type::GenericUnknown | Type::GenericPlaceholder(_) = **arg.ty {
                     self.ty.init(Type::GenericUnknown);
                     return Ok(());
                 }
@@ -398,14 +412,14 @@ impl TypeCheck<'i> for FuncCall<'i> {
                     Default::default(),
                     self.args
                         .iter()
-                        .map(|it| it.ty.deref().clone())
+                        .map(|it| it.ty.deref().deref().clone())
                         .vec()
                         .into(),
                 ),
                 Some(self.span),
             )?;
             if let Symbol::Func { nesting_prefix, .. } = symbol {
-                self.nesting_prefix.init(nesting_prefix.clone())
+                self.nesting_prefix.init(nesting_prefix.deref().clone())
             }
             self.ty.init(symbol.ty());
             Ok(())
@@ -422,7 +436,7 @@ impl TypeCheck<'i> for TypeNode<'i> {
             Primitive(ty) => Type::Primitive(*ty),
             Ptr(inner) => {
                 inner.type_check(ctx)?;
-                Type::Ptr(inner.ty.deref().clone().into())
+                Type::Ptr(inner.ty.deref().deref().clone().into())
             }
             Named {
                 name,

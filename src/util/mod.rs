@@ -138,20 +138,20 @@ impl<T: Iterator> IterExt for T {}
 
 pub trait RcExt<T> {
     /// shorthand for `Rc::try_unwrap(self).unwrap()`
-    fn unwrap(self) -> T;
+    fn into_inner(self) -> T;
 
     /// clone `T`, modify it, and then put a new `Rc` in `self`
-    fn modify(&mut self, f: impl Fn(&mut T))
+    fn modify(&mut self, f: impl FnOnce(&mut T))
     where
         T: Clone;
 }
 impl<T> RcExt<T> for Rc<T> {
-    fn unwrap(self) -> T {
+    fn into_inner(self) -> T {
         Rc::try_unwrap(self)
             .unwrap_or_else(|_| panic!("tried to unwrap Rc when there are still multiple refs"))
     }
 
-    fn modify(&mut self, f: impl Fn(&mut T))
+    fn modify(&mut self, f: impl FnOnce(&mut T))
     where
         T: Clone,
     {

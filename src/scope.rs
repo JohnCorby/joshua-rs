@@ -148,18 +148,12 @@ impl Display for Symbol<'_> {
 pub struct Scopes<'i>(pub Vec<Scope<'i>>);
 
 impl Scopes<'i> {
-    pub fn push(
-        &mut self,
-        nesting_name: Option<CtxStr<'i>>,
-        is_loop: bool,
-        func_return_type: Option<Type<'i>>,
-    ) {
-        self.0
-            .push(Scope::new(nesting_name, is_loop, func_return_type))
+    pub fn push(&mut self, scope: Scope<'i>) {
+        self.0.push(scope)
     }
 
-    pub fn pop(&mut self) {
-        self.0.pop().expect("tried to pop an empty scope stack");
+    pub fn pop(&mut self) -> Scope<'i> {
+        self.0.pop().expect("tried to pop an empty scope stack")
     }
 }
 

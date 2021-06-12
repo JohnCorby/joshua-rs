@@ -90,6 +90,7 @@ impl Visit<'i> for Define<'i> {
                 Func {
                     ty_node,
                     nesting_prefix: Default::default(),
+                    name_struct_prefix: Default::default(),
                     name,
                     generic_placeholders,
                     args: args.into(),
