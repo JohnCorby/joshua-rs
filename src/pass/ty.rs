@@ -1,28 +1,9 @@
 use crate::error::{err, Res};
+use crate::pass::ast2::Type;
 use crate::span::Span;
-use crate::util::ctx_str::CtxStr;
 use crate::util::{IterExt, StrExt};
 use std::fmt::{Display, Formatter};
-use std::rc::Rc;
 
-#[derive(Debug, Clone, Hash, PartialEq)]
-pub enum Type<'i> {
-    Primitive(PrimitiveType),
-    /// fixme merge these into generics when we get type inference
-    Literal(LiteralType),
-    CCode,
-    Struct {
-        name: CtxStr<'i>,
-        generic_replacements: Rc<Vec<Type<'i>>>,
-    },
-    /// replaced with concrete type on specialization
-    GenericPlaceholder(CtxStr<'i>),
-    Ptr(Rc<Type<'i>>),
-    /// for inferring with var define and probably other stuff later
-    Auto,
-    /// for when we use generics and we don't know what types are yet (fields, func return types, etc)
-    GenericUnknown,
-}
 impl Type<'i> {
     pub fn check(&self, expected: &Self, span: Option<Span<'i>>) -> Res<'i> {
         // very lol
@@ -45,9 +26,11 @@ impl Type<'i> {
         match self {
             Primitive(ty) => ty.to_string(),
             Struct {
+                nesting_prefix,
                 name,
                 generic_replacements,
-            } => name.encode(&[], &generic_replacements.iter().vec(), None),
+            } => format!("{}{}", nesting_prefix, name)
+                .encode(&generic_replacements.iter().vec(), None),
             Ptr(ty) => format!("ptr<{}>", ty.encoded_name()),
             // _ => format!("{{{:?}}}", self),
             _ => panic!("internal type {:?} should not be used in func name", self),
@@ -66,9 +49,10 @@ impl Display for Type<'_> {
         match self {
             Primitive(ty) => write!(f, "primitive type {}", ty),
             Struct {
+                nesting_prefix,
                 name,
                 generic_replacements,
-            } => f.write_str(&name.to_display(
+            } => f.write_str(&format!("{}{}", nesting_prefix, name).to_display(
                 "struct type",
                 &generic_replacements.iter().vec(),
                 None,

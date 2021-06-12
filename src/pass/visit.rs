@@ -1,7 +1,8 @@
 use crate::context::Ctx;
 use crate::error::unexpected_kind;
 use crate::parse::{Kind, Node, Nodes};
-use crate::pass::ast::*;
+use crate::pass::ast1::*;
+use crate::pass::ast2::Literal;
 use crate::util::ctx_str::{CtxStr, IntoCtx};
 use crate::util::IterExt;
 
@@ -57,7 +58,6 @@ impl Visit<'i> for Define<'i> {
                 let mut nodes = node.children();
 
                 Struct {
-                    nesting_prefix: Default::default(),
                     name: nodes.next().unwrap().visit_ident(ctx),
                     generic_placeholders: nodes
                         .next()
@@ -88,9 +88,7 @@ impl Visit<'i> for Define<'i> {
                 let body = nodes.next().unwrap().visit(ctx);
 
                 Func {
-                    ty_node,
-                    nesting_prefix: Default::default(),
-                    name_struct_prefix: Default::default(),
+                    ty: ty_node,
                     name,
                     generic_placeholders,
                     args: args.into(),
@@ -115,7 +113,7 @@ impl Visit<'i> for VarDefine<'i> {
 
         Self {
             span,
-            ty_node: nodes.next().unwrap().visit(ctx),
+            ty: nodes.next().unwrap().visit(ctx),
             name: nodes.next().unwrap().visit_ident(ctx),
             value: nodes.next().map(|node| node.visit(ctx)),
         }
@@ -216,11 +214,9 @@ impl Visit<'i> for Expr<'i> {
                     let right = nodes.next().unwrap().visit::<Expr<'i>>(ctx);
                     left.kind = FuncCall(self::FuncCall {
                         span,
-                        nesting_prefix: Default::default(),
                         name: op,
                         generic_replacements: Default::default(),
                         args: vec![old_left, right].into(),
-                        ty: Default::default(),
                     })
                 }
 
@@ -236,11 +232,9 @@ impl Visit<'i> for Expr<'i> {
                     let old_thing = thing.clone();
                     thing.kind = FuncCall(self::FuncCall {
                         span,
-                        nesting_prefix: Default::default(),
                         name: op,
                         generic_replacements: Default::default(),
                         args: vec![old_thing].into(),
-                        ty: Default::default(),
                     })
                 }
 
@@ -253,9 +247,8 @@ impl Visit<'i> for Expr<'i> {
                 let mut thing = nodes.next().unwrap().visit::<Expr<'i>>(ctx);
                 for ty_node in nodes {
                     thing.kind = Cast {
-                        nesting_prefix: Default::default(),
                         thing: thing.clone().into(),
-                        ty_node: ty_node.visit(ctx),
+                        ty: ty_node.visit(ctx),
                     }
                 }
 
@@ -296,11 +289,7 @@ impl Visit<'i> for Expr<'i> {
             _ => unexpected_kind(node),
         };
 
-        Self {
-            span,
-            kind,
-            ty: Default::default(),
-        }
+        Self { span, kind }
     }
 }
 
@@ -311,7 +300,6 @@ impl Visit<'i> for FuncCall<'i> {
 
         Self {
             span,
-            nesting_prefix: Default::default(),
             name: nodes.next().unwrap().visit_ident(ctx),
             generic_replacements: nodes
                 .next()
@@ -321,7 +309,6 @@ impl Visit<'i> for FuncCall<'i> {
                 .vec()
                 .into(),
             args: nodes.visit_rest(ctx).into(),
-            ty: Default::default(),
         }
     }
 }
@@ -341,7 +328,7 @@ impl Visit<'i> for Literal<'i> {
     }
 }
 
-impl Visit<'i> for TypeNode<'i> {
+impl Visit<'i> for Type<'i> {
     fn visit(node: Node<'i>, ctx: &mut Ctx<'i>) -> Self {
         let node = node.children_checked(Kind::ty).next().unwrap();
         let span = node.span();
@@ -352,7 +339,7 @@ impl Visit<'i> for TypeNode<'i> {
                 .children()
                 .next()
                 .unwrap()
-                .visit::<TypeNode<'i>>(ctx)
+                .visit::<Type<'i>>(ctx)
                 .into()),
             Kind::named => {
                 let mut nodes = node.children();
@@ -372,10 +359,6 @@ impl Visit<'i> for TypeNode<'i> {
             _ => unexpected_kind(node),
         };
 
-        Self {
-            span,
-            kind: ty,
-            ty: Default::default(),
-        }
+        Self { span, kind: ty }
     }
 }

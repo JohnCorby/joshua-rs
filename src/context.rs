@@ -1,9 +1,10 @@
 use crate::parse::{Kind, Node};
-use crate::pass::ast::{Define, Program};
+use crate::pass::ast1::Program;
+use crate::pass::ast2::Define;
+use crate::pass::scope::Scopes;
 use crate::pass::ty::PrimitiveType;
-use crate::pass::type_check::TypeCheck;
-use crate::scope::Scopes;
 use crate::util::frozen_vec::FrozenVec;
+use crate::util::RcExt;
 
 /// stores general program context
 #[derive(Debug)]
@@ -111,10 +112,11 @@ impl Ctx<'_> {
         let defines = Node::parse(self.new_i(i), Kind::program)
             .unwrap()
             .visit::<Program<'_>>(self)
-            .0;
-        for define in defines.iter() {
-            define.type_check(self).unwrap();
-            self.extra_defines.push(define.clone());
+            .0
+            .into_inner();
+        for define in defines {
+            let define = define.type_check(self).unwrap();
+            self.extra_defines.push(define);
         }
     }
 }

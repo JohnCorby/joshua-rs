@@ -1,12 +1,11 @@
-use crate::pass::ty::Type;
-use crate::util::ctx_str::CtxStr;
+use crate::error::Res;
+use crate::pass::ast2::Type;
 use std::fmt::Write;
 use std::ops::Deref;
 use std::rc::Rc;
 
 pub mod ctx_str;
 pub mod frozen_vec;
-pub mod late_init;
 
 pub trait StrExt {
     /// gets verbose display name from stuff
@@ -18,19 +17,11 @@ pub trait StrExt {
     ) -> String;
 
     /// make a proper name out of stuff
-    fn encode(
-        &self,
-        nesting_prefix: &[CtxStr<'_>],
-        generic_replacements: &[&Type<'_>],
-        arg_types: Option<&[&Type<'_>]>,
-    ) -> String;
+    fn encode(&self, generic_replacements: &[&Type<'_>], arg_types: Option<&[&Type<'_>]>)
+        -> String;
 
-    fn mangle(
-        &self,
-        nesting_prefix: &[CtxStr<'_>],
-        generic_replacements: &[&Type<'_>],
-        arg_types: Option<&[&Type<'_>]>,
-    ) -> String;
+    fn mangle(&self, generic_replacements: &[&Type<'_>], arg_types: Option<&[&Type<'_>]>)
+        -> String;
 }
 impl StrExt for str {
     fn to_display(
@@ -73,7 +64,6 @@ impl StrExt for str {
 
     fn encode(
         &self,
-        nesting_prefix: &[CtxStr<'_>],
         generic_replacements: &[&Type<'_>],
         arg_types: Option<&[&Type<'_>]>,
     ) -> String {
@@ -101,20 +91,11 @@ impl StrExt for str {
         } else {
             String::new()
         };
-        let name = format!(
-            "{}{}",
-            nesting_prefix
-                .iter()
-                .map(|it| format!("{}::", it))
-                .collect::<String>(),
-            self
-        );
-        format!("{}{}{}", name, generic_replacements, arg_types)
+        format!("{}{}{}", self, generic_replacements, arg_types)
     }
 
     fn mangle(
         &self,
-        nesting_prefix: &[CtxStr<'_>],
         generic_replacements: &[&Type<'_>],
         arg_types: Option<&[&Type<'_>]>,
     ) -> String {
@@ -122,7 +103,7 @@ impl StrExt for str {
         if matches!(arg_types, Some([])) && self == "main" {
             self.into()
         } else {
-            let encoded = self.encode(nesting_prefix, generic_replacements, arg_types);
+            let encoded = self.encode(generic_replacements, arg_types);
             format!("{}/*{}*/", mangling::mangle(encoded.as_bytes()), encoded)
         }
     }
@@ -135,6 +116,14 @@ pub trait IterExt: Iterator + Sized {
     }
 }
 impl<T: Iterator> IterExt for T {}
+
+pub trait IterResExt<'i, T>: Iterator<Item = Res<'i, T>> + Sized {
+    /// shorthand for `self.collect::<Res<'i, Vec<_>>>()`
+    fn res_vec(self) -> Res<'i, Vec<T>> {
+        self.collect()
+    }
+}
+impl<T, I: Iterator<Item = Res<'i, T>>> IterResExt<'i, T> for I {}
 
 pub trait RcExt<T> {
     /// shorthand for `Rc::try_unwrap(self).unwrap()`

@@ -1,12 +1,14 @@
-use std::path::Path;
-use std::process::{Command, ExitStatus};
-
-pub mod ast;
+pub mod ast1;
+pub mod ast2;
 pub mod gen;
 pub mod generics;
+pub mod scope;
 pub mod ty;
 pub mod type_check;
 pub mod visit;
+
+use std::path::Path;
+use std::process::{Command, ExitStatus};
 
 /// take c code string, write it to a c file, and compile that file
 pub fn compile_program(c_code: &str, path: &Path) -> ExitStatus {

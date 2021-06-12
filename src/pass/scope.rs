@@ -3,9 +3,8 @@
 //! symbols allow us to check for existence and type of stuff we define
 
 use crate::error::{err, Res};
-use crate::pass::ast::{Block, TypeNode};
-use crate::pass::ast::{Define, VarDefine};
-use crate::pass::ty::{PrimitiveType, Type};
+use crate::pass::ast2::{Block, Define, Type, VarDefine};
+use crate::pass::ty::PrimitiveType;
 use crate::span::Span;
 use crate::util::ctx_str::CtxStr;
 use crate::util::{IterExt, StrExt};
@@ -24,7 +23,7 @@ pub enum Symbol<'i> {
         ty: Type<'i>,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         #[new(default)]
-        nesting_prefix: Rc<Vec<CtxStr<'i>>>,
+        nesting_prefix: CtxStr<'i>,
         name: CtxStr<'i>,
         generic_replacements: Rc<Vec<Type<'i>>>,
         arg_types: Rc<Vec<Type<'i>>>,
@@ -38,7 +37,7 @@ pub enum Symbol<'i> {
     StructType {
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         #[new(default)]
-        nesting_prefix: Rc<Vec<CtxStr<'i>>>,
+        nesting_prefix: CtxStr<'i>,
         name: CtxStr<'i>,
         generic_replacements: Rc<Vec<Type<'i>>>,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
@@ -46,6 +45,7 @@ pub enum Symbol<'i> {
         field_types: Rc<HashMap<CtxStr<'i>, Type<'i>>>,
     },
     GenericPlaceholderType(CtxStr<'i>),
+    #[allow(dead_code)]
     GenericFunc {
         // cached for faster access
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
@@ -54,11 +54,7 @@ pub enum Symbol<'i> {
 
         // copied from func define
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
-        span: Span<'i>,
-        #[derivative(Hash = "ignore", PartialEq = "ignore")]
-        ty_node: TypeNode<'i>,
-        #[derivative(Hash = "ignore", PartialEq = "ignore")]
-        nesting_prefix: Rc<Vec<CtxStr<'i>>>,
+        nesting_prefix: CtxStr<'i>,
         name: CtxStr<'i>,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         generic_placeholders: Rc<Vec<CtxStr<'i>>>,
@@ -71,6 +67,7 @@ pub enum Symbol<'i> {
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         scopes_index: usize,
     },
+    #[allow(dead_code)]
     GenericStruct {
         // cached for faster access
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
@@ -78,9 +75,7 @@ pub enum Symbol<'i> {
 
         // copied from struct define
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
-        span: Span<'i>,
-        #[derivative(Hash = "ignore", PartialEq = "ignore")]
-        nesting_prefix: Rc<Vec<CtxStr<'i>>>,
+        nesting_prefix: CtxStr<'i>,
         name: CtxStr<'i>,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         generic_placeholders: Rc<Vec<CtxStr<'i>>>,
@@ -101,10 +96,12 @@ impl Symbol<'i> {
             | GenericFunc { ty, .. }
             | GenericStruct { ty, .. } => ty.deref().clone(),
             StructType {
+                nesting_prefix,
                 name,
                 generic_replacements,
                 ..
             } => Type::Struct {
+                nesting_prefix: *nesting_prefix,
                 name: *name,
                 generic_replacements: generic_replacements.clone(),
             },
@@ -171,11 +168,11 @@ pub struct Scope<'i> {
 
 impl Scopes<'i> {
     /// use for initializing ast nodes
-    pub fn nesting_prefix(&self) -> Vec<CtxStr<'i>> {
+    pub fn nesting_prefix(&self) -> String {
         self.0
             .iter()
             .rev()
-            .filter_map(|scope| scope.nesting_name)
+            .filter_map(|scope| scope.nesting_name.map(|it| format!("{}$", it)))
             .collect()
     }
 

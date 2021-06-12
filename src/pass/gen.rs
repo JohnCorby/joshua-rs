@@ -1,96 +1,80 @@
+//! take fully initialized self and generate it into one of the ctx output sections
+
 use crate::context::Ctx;
-use crate::pass::ast::*;
-use crate::pass::ty::Type;
+use crate::pass::ast2::*;
 use crate::util::ctx_str::IntoCtx;
 use crate::util::{IterExt, RcExt, StrExt};
 use std::ops::Deref;
 
-pub trait Gen<'i> {
-    /// take fully initialized self and generate it into one of the ctx output sections
-    fn gen(self, ctx: &mut Ctx<'i>);
-}
-
-impl Gen<'i> for Program<'i> {
-    fn gen(self, ctx: &mut Ctx<'i>) {
+impl Program<'i> {
+    pub fn gen(self, ctx: &mut Ctx<'i>) {
         for define in self.0.into_inner() {
             define.gen(ctx);
         }
     }
 }
 
-impl Gen<'i> for Define<'i> {
-    fn gen(self, ctx: &mut Ctx<'i>) {
-        use DefineKind::*;
-        match self.kind {
+impl Define<'i> {
+    pub fn gen(self, ctx: &mut Ctx<'i>) {
+        use Define::*;
+        match self {
             Struct {
-                nesting_prefix,
-                name,
-                generic_placeholders,
+                full_name,
+                generic_replacements,
                 body,
             } => {
-                // only gen non-generic func
-                if generic_placeholders.is_empty() {
-                    let old_o = std::mem::take(&mut ctx.o);
+                let old_o = std::mem::take(&mut ctx.o);
 
-                    ctx.o.push_str("struct ");
-                    ctx.o.push_str(&name.mangle(&nesting_prefix, &[], None));
+                ctx.o.push_str("struct ");
+                ctx.o
+                    .push_str(&full_name.mangle(&generic_replacements.iter().vec(), None));
 
-                    ctx.struct_declares.push_str(&ctx.o);
-                    ctx.struct_declares.push_str(";\n");
+                ctx.struct_declares.push_str(&ctx.o);
+                ctx.struct_declares.push_str(";\n");
 
-                    ctx.o.push_str(" {\n");
-                    for define in body.into_inner() {
-                        define.gen(ctx);
-                    }
-                    ctx.o.push_str("};\n");
-
-                    let new_o = std::mem::replace(&mut ctx.o, old_o);
-                    ctx.struct_defines.push_str(&new_o);
-                } else {
-                    todo!("generic struct define gen")
+                ctx.o.push_str(" {\n");
+                for define in body.into_inner() {
+                    define.gen(ctx);
                 }
+                ctx.o.push_str("};\n");
+
+                let new_o = std::mem::replace(&mut ctx.o, old_o);
+                ctx.struct_defines.push_str(&new_o);
             }
             Func {
-                ty_node,
-                nesting_prefix,
-                name_struct_prefix,
-                name,
-                generic_placeholders,
+                ty,
+                full_name,
+                generic_replacements,
                 args,
                 body,
             } => {
-                // only gen non-generic func
-                if generic_placeholders.is_empty() {
-                    let old_o = std::mem::take(&mut ctx.o);
+                let old_o = std::mem::take(&mut ctx.o);
 
-                    ty_node.gen(ctx);
-                    ctx.o.push(' ');
-                    ctx.o
-                        .push_str(&format!("{}::{}", **name_struct_prefix, name).mangle(
-                            &nesting_prefix,
-                            &[],
-                            Some(&args.iter().map(|it| &**it.ty_node.ty).vec()),
-                        ));
-                    ctx.o.push('(');
-                    for arg in args.into_inner() {
-                        arg.gen(ctx);
-                        ctx.o.push_str(", ")
-                    }
-                    if ctx.o.ends_with(", ") {
-                        ctx.o.pop();
-                        ctx.o.pop();
-                    }
-                    ctx.o.push(')');
-
-                    ctx.func_declares.push_str(&ctx.o);
-                    ctx.func_declares.push_str(";\n");
-
-                    ctx.o.push(' ');
-                    body.gen(ctx);
-
-                    let new_o = std::mem::replace(&mut ctx.o, old_o);
-                    ctx.func_defines.push_str(&new_o);
+                ty.gen(ctx);
+                ctx.o.push(' ');
+                ctx.o.push_str(&full_name.mangle(
+                    &generic_replacements.iter().vec(),
+                    Some(&args.iter().map(|it| &it.ty).vec()),
+                ));
+                ctx.o.push('(');
+                for arg in args.into_inner() {
+                    arg.gen(ctx);
+                    ctx.o.push_str(", ")
                 }
+                if ctx.o.ends_with(", ") {
+                    ctx.o.pop();
+                    ctx.o.pop();
+                }
+                ctx.o.push(')');
+
+                ctx.func_declares.push_str(&ctx.o);
+                ctx.func_declares.push_str(";\n");
+
+                ctx.o.push(' ');
+                body.gen(ctx);
+
+                let new_o = std::mem::replace(&mut ctx.o, old_o);
+                ctx.func_defines.push_str(&new_o);
             }
             Var(var_define) => {
                 // fixme global variables stick around in ctx.o when they should go somewhere else, this will panic
@@ -106,11 +90,11 @@ impl Gen<'i> for Define<'i> {
     }
 }
 
-impl Gen<'i> for VarDefine<'i> {
-    fn gen(self, ctx: &mut Ctx<'i>) {
-        self.ty_node.gen(ctx);
+impl VarDefine<'i> {
+    pub fn gen(self, ctx: &mut Ctx<'i>) {
+        self.ty.gen(ctx);
         ctx.o.push(' ');
-        ctx.o.push_str(&self.name.mangle(&[], &[], None));
+        ctx.o.push_str(&self.name.mangle(&[], None));
         if let Some(value) = self.value {
             ctx.o.push_str(" = ");
             value.gen(ctx)
@@ -118,10 +102,10 @@ impl Gen<'i> for VarDefine<'i> {
     }
 }
 
-impl Gen<'i> for Statement<'i> {
-    fn gen(self, ctx: &mut Ctx<'i>) {
-        use StatementKind::*;
-        match self.kind {
+impl Statement<'i> {
+    pub fn gen(self, ctx: &mut Ctx<'i>) {
+        use Statement::*;
+        match self {
             Return(value) => {
                 ctx.o.push_str("return");
                 if let Some(value) = value {
@@ -184,8 +168,8 @@ impl Gen<'i> for Statement<'i> {
     }
 }
 
-impl Gen<'i> for Block<'i> {
-    fn gen(self, ctx: &mut Ctx<'i>) {
+impl Block<'i> {
+    pub fn gen(self, ctx: &mut Ctx<'i>) {
         ctx.o.push_str("{\n");
         for statement in self.0.into_inner() {
             statement.gen(ctx);
@@ -194,8 +178,8 @@ impl Gen<'i> for Block<'i> {
     }
 }
 
-impl Gen<'i> for CCode<'i> {
-    fn gen(self, ctx: &mut Ctx<'i>) {
+impl CCode<'i> {
+    pub fn gen(self, ctx: &mut Ctx<'i>) {
         ctx.o.push_str("/*<{*/");
         for part in self.0.into_inner() {
             match part {
@@ -207,26 +191,24 @@ impl Gen<'i> for CCode<'i> {
     }
 }
 
-impl Gen<'i> for Expr<'i> {
-    fn gen(self, ctx: &mut Ctx<'i>) {
+impl Expr<'i> {
+    pub fn gen(self, ctx: &mut Ctx<'i>) {
         use ExprKind::*;
         match self.kind {
             Cast {
                 nesting_prefix,
                 thing,
-                ty_node,
             } => {
                 // fixme hacky as shit
-                if let Type::Literal(_) | Type::CCode = **thing.ty {
+                if let Type::Literal(_) | Type::CCode = thing.ty {
                     ctx.o.push('(');
-                    ty_node.gen(ctx);
+                    self.ty.gen(ctx);
                     ctx.o.push_str(") ");
                     thing.into_inner().gen(ctx);
                 } else {
                     self::FuncCall {
-                        span: self.span,
-                        nesting_prefix,
-                        name: format!("as {}", ty_node.ty.encoded_name()).into_ctx(ctx),
+                        full_name: format!("{}as {}", nesting_prefix, self.ty.encoded_name())
+                            .into_ctx(ctx),
                         generic_replacements: Default::default(),
                         args: vec![thing.into_inner()].into(),
                         ty: Default::default(),
@@ -235,45 +217,32 @@ impl Gen<'i> for Expr<'i> {
                 }
             }
 
-            MethodCall {
-                receiver,
-                func_call,
-            } => {
-                let mut func_call = func_call.clone();
-                func_call.name =
-                    format!("{}::{}", receiver.ty.encoded_name(), func_call.name).into_ctx(ctx);
-                func_call
-                    .args
-                    .modify(|args| args.insert(0, receiver.into_inner()));
-
-                func_call.gen(ctx)
-            }
             Field { receiver, var } => {
-                let receiver_ty = receiver.ty.deref().deref().clone();
-                receiver.into_inner().gen(ctx);
+                let receiver = receiver.into_inner();
+                let receiver_ty = receiver.ty.clone();
+                receiver.gen(ctx);
                 if let Type::Ptr(_) = receiver_ty {
                     ctx.o.push_str("->") // fixme this does a deref... do we want that? maybe put a & to make it a pointer again
                 } else {
                     ctx.o.push('.')
                 }
-                ctx.o.push_str(&var.mangle(&[], &[], None));
+                ctx.o.push_str(&var.mangle(&[], None));
             }
 
             Literal(literal) => literal.gen(ctx),
             FuncCall(func_call) => func_call.gen(ctx),
-            Var(name) => ctx.o.push_str(&name.mangle(&[], &[], None)),
+            Var(name) => ctx.o.push_str(&name.mangle(&[], None)),
 
             CCode(c_code) => c_code.gen(ctx),
         }
     }
 }
 
-impl Gen<'i> for FuncCall<'i> {
-    fn gen(self, ctx: &mut Ctx<'i>) {
-        ctx.o.push_str(&self.name.mangle(
-            &self.nesting_prefix,
-            &self.generic_replacements.iter().map(|it| &**it.ty).vec(),
-            Some(&self.args.iter().map(|it| &**it.ty).vec()),
+impl FuncCall<'i> {
+    pub fn gen(self, ctx: &mut Ctx<'i>) {
+        ctx.o.push_str(&self.full_name.mangle(
+            &self.generic_replacements.iter().vec(),
+            Some(&self.args.iter().map(|it| &it.ty).vec()),
         ));
         ctx.o.push('(');
         for arg in self.args.into_inner() {
@@ -288,8 +257,8 @@ impl Gen<'i> for FuncCall<'i> {
     }
 }
 
-impl Gen<'i> for Literal<'i> {
-    fn gen(self, ctx: &mut Ctx<'i>) {
+impl Literal<'i> {
+    pub fn gen(self, ctx: &mut Ctx<'i>) {
         use Literal::*;
         ctx.o.push_str(&match self {
             Float(value) => value.to_string(),
@@ -301,20 +270,18 @@ impl Gen<'i> for Literal<'i> {
     }
 }
 
-impl Gen<'i> for TypeNode<'i> {
-    fn gen(self, ctx: &mut Ctx<'i>) {
+impl Type<'i> {
+    pub fn gen(self, ctx: &mut Ctx<'i>) {
         use Type::*;
-        if let TypeKind::Ptr(inner) = self.kind {
-            inner.deref().clone().gen(ctx);
-            ctx.o.push('*');
-            return;
-        }
-        match &**self.ty {
+        match self {
+            Ptr(inner) => {
+                inner.deref().clone().gen(ctx);
+                ctx.o.push('*');
+            }
             Primitive(ty) => ctx.o.push_str(ty.c_type()),
             Struct { .. } => {
                 ctx.o.push_str("struct ");
-                ctx.o
-                    .push_str(&self.ty.encoded_name().mangle(&[], &[], None))
+                ctx.o.push_str(&self.encoded_name().mangle(&[], None))
             }
             ty => panic!("tried to gen {}", ty),
         }

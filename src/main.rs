@@ -21,10 +21,8 @@
 use crate::context::Ctx;
 use crate::error::{Err, Res};
 use crate::parse::{Kind, Node};
+use crate::pass::ast1::Program;
 use crate::pass::compile_program;
-use crate::pass::gen::Gen;
-use crate::pass::type_check::TypeCheck;
-use pass::ast::Program;
 use std::env::args;
 use std::path::PathBuf;
 
@@ -32,7 +30,6 @@ mod context;
 mod error;
 mod parse;
 mod pass;
-mod scope;
 mod span;
 mod test;
 mod util;
@@ -54,7 +51,7 @@ fn main() {
         println!("visiting");
         let program = node.visit::<Program<'_>>(ctx);
         println!("type checking");
-        program.type_check(ctx)?;
+        let program = program.type_check(ctx)?;
         debug_assert!(ctx.scopes.0.is_empty());
         println!("generating");
         for define in std::mem::take(&mut ctx.extra_defines) {

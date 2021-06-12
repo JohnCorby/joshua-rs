@@ -1,20 +1,20 @@
 void f(i8 a) {}
 void f(i8 a, i8 b) {}
 
-void f<T>(T a) {}
-void f<T>(T a, T b) {}
+//void f<T>(T a) {}
+//void f<T>(T a, T b) {}
 
 struct S {
     i32 n
 }
 
-T `+`<T>(T a, T b) {
-    T c
-    c.n = a.n + b.n
-    ret c
-}
+//T `+`<T>(T a, T b) {
+//    T c
+//    c.n = a.n + b.n
+//    ret c
+//}
 
-void bruh<T>(T a) bruh<T>(a)
+//void bruh<T>(T a) bruh<T>(a)
 
 
 struct str {
@@ -60,14 +60,14 @@ i32 main() {
     f(1 as i8)
     f(1 as i8, 2 as i8)
 
-    f<i16>(1 as i16)
-    f<i16>(1 as i16, 2 as i16)
+//    f<i16>(1 as i16)
+//    f<i16>(1 as i16, 2 as i16)
 
-    S s
-    `+`<S>(s, s)
+//    S s
+//    `+`<S>(s, s)
 
-    bruh<i8>(1 as i8)
-    bruh<i8>(1 as i8)
+//    bruh<i8>(1 as i8)
+//    bruh<i8>(1 as i8)
 
 
 

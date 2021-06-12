@@ -1,33 +1,23 @@
-use crate::error::{err, Res};
-use crate::pass::ty::{LiteralType, PrimitiveType, Type};
-use crate::span::Span;
+//! post-type-checked
+
+use crate::pass::ty::{LiteralType, PrimitiveType};
 use crate::util::ctx_str::CtxStr;
-use crate::util::late_init::LateInit;
 use std::rc::Rc;
 
 #[derive(Debug, Clone)]
 pub struct Program<'i>(pub Rc<Vec<Define<'i>>>);
 
 #[derive(Debug, Clone)]
-pub struct Define<'i> {
-    pub span: Span<'i>,
-    pub kind: DefineKind<'i>,
-}
-
-#[derive(Debug, Clone)]
-pub enum DefineKind<'i> {
+pub enum Define<'i> {
     Struct {
-        nesting_prefix: Rc<LateInit<Vec<CtxStr<'i>>>>,
-        name: CtxStr<'i>,
-        generic_placeholders: Rc<Vec<CtxStr<'i>>>,
+        full_name: CtxStr<'i>,
+        generic_replacements: Rc<Vec<Type<'i>>>,
         body: Rc<Vec<Define<'i>>>,
     },
     Func {
-        ty_node: TypeNode<'i>,
-        nesting_prefix: Rc<LateInit<Vec<CtxStr<'i>>>>,
-        name_struct_prefix: Rc<LateInit<CtxStr<'i>>>,
-        name: CtxStr<'i>,
-        generic_placeholders: Rc<Vec<CtxStr<'i>>>,
+        ty: Type<'i>,
+        full_name: CtxStr<'i>,
+        generic_replacements: Rc<Vec<Type<'i>>>,
         args: Rc<Vec<VarDefine<'i>>>,
         body: Block<'i>,
     },
@@ -38,21 +28,13 @@ pub enum DefineKind<'i> {
 
 #[derive(Debug, Clone)]
 pub struct VarDefine<'i> {
-    pub span: Span<'i>,
-    pub ty_node: TypeNode<'i>,
+    pub ty: Type<'i>,
     pub name: CtxStr<'i>,
     pub value: Option<Expr<'i>>,
 }
 
 #[derive(Debug, Clone)]
-pub struct Statement<'i> {
-    pub span: Span<'i>,
-    pub kind: StatementKind<'i>,
-}
-
-#[derive(Debug, Clone)]
-#[allow(clippy::large_enum_variant)]
-pub enum StatementKind<'i> {
+pub enum Statement<'i> {
     Return(Option<Expr<'i>>),
     Break,
     Continue,
@@ -93,23 +75,17 @@ pub enum CCodePart<'i> {
 
 #[derive(Debug, Clone)]
 pub struct Expr<'i> {
-    pub span: Span<'i>,
     pub kind: ExprKind<'i>,
-    pub ty: Rc<LateInit<Type<'i>>>,
+    pub ty: Type<'i>,
 }
 
 #[derive(Debug, Clone)]
 pub enum ExprKind<'i> {
     Cast {
-        nesting_prefix: Rc<LateInit<Vec<CtxStr<'i>>>>,
+        nesting_prefix: CtxStr<'i>,
         thing: Rc<Expr<'i>>,
-        ty_node: TypeNode<'i>,
     },
 
-    MethodCall {
-        receiver: Rc<Expr<'i>>,
-        func_call: FuncCall<'i>,
-    },
     Field {
         receiver: Rc<Expr<'i>>,
         var: CtxStr<'i>,
@@ -123,28 +99,12 @@ pub enum ExprKind<'i> {
     CCode(CCode<'i>),
 }
 
-impl Expr<'i> {
-    /// fixme what about methods returning pointers? what about all this other stuff?
-    pub fn check_assignable(&self, span: Option<Span<'i>>) -> Res<'i> {
-        use ExprKind::*;
-        let is_assignable = matches!(self.kind, Field { .. } | Var(_));
-
-        if !is_assignable {
-            err("expr is not assignable", span)
-        } else {
-            Ok(())
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct FuncCall<'i> {
-    pub span: Span<'i>,
-    pub nesting_prefix: Rc<LateInit<Vec<CtxStr<'i>>>>,
-    pub name: CtxStr<'i>,
-    pub generic_replacements: Rc<Vec<TypeNode<'i>>>,
+    pub full_name: CtxStr<'i>,
+    pub generic_replacements: Rc<Vec<Type<'i>>>,
     pub args: Rc<Vec<Expr<'i>>>,
-    pub ty: Rc<LateInit<Type<'i>>>,
+    pub ty: Type<'i>,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -169,20 +129,24 @@ impl Literal<'i> {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct TypeNode<'i> {
-    pub span: Span<'i>,
-    pub kind: TypeKind<'i>,
-    pub ty: Rc<LateInit<Type<'i>>>,
-}
-
-#[derive(Debug, Clone)]
-pub enum TypeKind<'i> {
+#[derive(Debug, Clone, derivative::Derivative, derive_new::new)]
+#[derivative(Hash, PartialEq)]
+pub enum Type<'i> {
     Primitive(PrimitiveType),
-    Ptr(Rc<TypeNode<'i>>),
-    Named {
+    /// fixme merge these into generics when we get type inference
+    Literal(LiteralType),
+    CCode,
+    Struct {
+        #[derivative(Hash = "ignore", PartialEq = "ignore")]
+        nesting_prefix: CtxStr<'i>,
         name: CtxStr<'i>,
-        generic_replacements: Rc<Vec<TypeNode<'i>>>,
+        generic_replacements: Rc<Vec<Type<'i>>>,
     },
+    /// replaced with concrete type on specialization
+    GenericPlaceholder(CtxStr<'i>),
+    Ptr(Rc<Type<'i>>),
+    /// for inferring with var define and probably other stuff later
     Auto,
+    /// for when we use generics and we don't know what types are yet (fields, func return types, etc)
+    GenericUnknown,
 }
