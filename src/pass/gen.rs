@@ -208,11 +208,13 @@ impl Expr<'i> {
                     ctx.o.push_str(") ");
                     thing.into_inner().gen(ctx);
                 } else {
-                    self::FuncCall {
-                        full_name: format!("{}as {}", nesting_prefix, self.ty.encoded_name())
-                            .into_ctx(ctx),
-                        generic_replacements: Default::default(),
-                        args: vec![thing.into_inner()].into(),
+                    self::Expr {
+                        kind: self::ExprKind::FuncCall {
+                            full_name: format!("{}as {}", nesting_prefix, self.ty.encoded_name())
+                                .into_ctx(ctx),
+                            generic_replacements: Default::default(),
+                            args: vec![thing.into_inner()].into(),
+                        },
                         ty: Default::default(),
                     }
                     .gen(ctx);
@@ -232,30 +234,30 @@ impl Expr<'i> {
             }
 
             Literal(literal) => literal.gen(ctx),
-            FuncCall(func_call) => func_call.gen(ctx),
+            FuncCall {
+                full_name,
+                generic_replacements,
+                args,
+            } => {
+                ctx.o.push_str(&full_name.mangle(
+                    &generic_replacements.iter().vec(),
+                    Some(&args.iter().map(|it| &it.ty).vec()),
+                ));
+                ctx.o.push('(');
+                for arg in args.into_inner() {
+                    arg.gen(ctx);
+                    ctx.o.push_str(", ")
+                }
+                if ctx.o.ends_with(", ") {
+                    ctx.o.pop();
+                    ctx.o.pop();
+                }
+                ctx.o.push(')');
+            }
             Var(name) => ctx.o.push_str(&name.mangle(&[], None)),
 
             CCode(c_code) => c_code.gen(ctx),
         }
-    }
-}
-
-impl FuncCall<'i> {
-    pub fn gen(self, ctx: &mut Ctx<'i>) {
-        ctx.o.push_str(&self.full_name.mangle(
-            &self.generic_replacements.iter().vec(),
-            Some(&self.args.iter().map(|it| &it.ty).vec()),
-        ));
-        ctx.o.push('(');
-        for arg in self.args.into_inner() {
-            arg.gen(ctx);
-            ctx.o.push_str(", ")
-        }
-        if ctx.o.ends_with(", ") {
-            ctx.o.pop();
-            ctx.o.pop();
-        }
-        ctx.o.push(')');
     }
 }
 

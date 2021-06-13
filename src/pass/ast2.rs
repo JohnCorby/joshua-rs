@@ -96,18 +96,14 @@ pub enum ExprKind<'i> {
 
     // primary
     Literal(Literal<'i>),
-    FuncCall(FuncCall<'i>),
+    FuncCall {
+        full_name: CtxStr<'i>,
+        generic_replacements: Rc<Vec<Type<'i>>>,
+        args: Rc<Vec<Expr<'i>>>,
+    },
     Var(CtxStr<'i>),
 
     CCode(CCode<'i>),
-}
-
-#[derive(Debug, Clone)]
-pub struct FuncCall<'i> {
-    pub full_name: CtxStr<'i>,
-    pub generic_replacements: Rc<Vec<Type<'i>>>,
-    pub args: Rc<Vec<Expr<'i>>>,
-    pub ty: Type<'i>,
 }
 
 #[derive(Debug, Copy, Clone)]

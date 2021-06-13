@@ -387,11 +387,7 @@ impl Expr<'i> {
                 func_call.name =
                     format!("{}::{}", receiver.ty.encoded_name(), func_call.name).into_ctx(ctx);
 
-                let func_call = func_call.type_check(ctx, type_hint)?;
-                ast2::Expr {
-                    ty: func_call.ty.clone(),
-                    kind: ast2::ExprKind::FuncCall(func_call),
-                }
+                func_call.type_check(ctx, type_hint)?
             }
             Field { receiver, var } => {
                 let receiver = receiver.deref().clone().type_check(ctx, None)?;
@@ -437,13 +433,7 @@ impl Expr<'i> {
                 kind: ast2::ExprKind::Literal(literal),
                 ty: literal.ty(),
             },
-            FuncCall(func_call) => {
-                let func_call = func_call.type_check(ctx, type_hint)?;
-                ast2::Expr {
-                    ty: func_call.ty.clone(),
-                    kind: ast2::ExprKind::FuncCall(func_call),
-                }
-            }
+            FuncCall(func_call) => func_call.type_check(ctx, type_hint)?,
             Var(name) => {
                 // symbol check
                 let ty = ctx
@@ -468,7 +458,7 @@ impl FuncCall<'i> {
         self,
         ctx: &mut Ctx<'i>,
         type_hint: Option<&ast2::Type<'i>>,
-    ) -> Res<'i, ast2::FuncCall<'i>> {
+    ) -> Res<'i, ast2::Expr<'i>> {
         if self.generic_replacements.is_empty() {
             let args = self
                 .args
@@ -490,10 +480,12 @@ impl FuncCall<'i> {
                 Symbol::Func { nesting_prefix, .. } => nesting_prefix,
                 _ => unreachable!(),
             };
-            Ok(ast2::FuncCall {
-                full_name: format!("{}{}", nesting_prefix, self.name).into_ctx(ctx),
-                generic_replacements: Default::default(),
-                args: args.into(),
+            Ok(ast2::Expr {
+                kind: ast2::ExprKind::FuncCall {
+                    full_name: format!("{}{}", nesting_prefix, self.name).into_ctx(ctx),
+                    generic_replacements: Default::default(),
+                    args: args.into(),
+                },
                 ty: symbol.ty(),
             })
         } else {

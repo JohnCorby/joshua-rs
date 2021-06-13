@@ -85,7 +85,7 @@ impl Define<'i> {
 
 impl FuncCall<'i> {
     /// `FuncCall::type_check` but for generic funcs
-    pub fn type_check_generic(self, ctx: &mut Ctx<'i>) -> Res<'i, ast2::FuncCall<'i>> {
+    pub fn type_check_generic(self, ctx: &mut Ctx<'i>) -> Res<'i, ast2::Expr<'i>> {
         debug_assert!(!self.generic_replacements.is_empty());
 
         let generic_replacements: Rc<Vec<ast2::Type<'i>>> = self
@@ -193,10 +193,12 @@ impl FuncCall<'i> {
             ctx.scopes.pop();
 
             ctx.scopes.0.extend(scopes_after);
-            Ok(ast2::FuncCall {
-                full_name: format!("{}{}", nesting_prefix, name).into_ctx(ctx),
-                generic_replacements,
-                args: args.into(),
+            Ok(ast2::Expr {
+                kind: ast2::ExprKind::FuncCall {
+                    full_name: format!("{}{}", nesting_prefix, name).into_ctx(ctx),
+                    generic_replacements,
+                    args: args.into(),
+                },
                 ty,
             })
         } else {
