@@ -6,12 +6,6 @@ use std::fmt::{Display, Formatter};
 
 impl Type<'i> {
     pub fn check(&self, expected: &Self, span: Option<Span<'i>>) -> Res<'i> {
-        // very lol
-        if matches!(self, Type::GenericUnknown | Type::GenericPlaceholder(_))
-            || matches!(expected, Type::GenericUnknown | Type::GenericPlaceholder(_))
-        {
-            return Ok(());
-        }
         let actual = self;
         if expected == actual {
             Ok(())

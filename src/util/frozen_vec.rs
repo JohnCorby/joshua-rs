@@ -141,16 +141,3 @@ impl<'a, T: StableDeref> IntoIterator for &'a FrozenVec<T> {
         Iter { vec: self, idx: 0 }
     }
 }
-
-#[test]
-fn test_iteration() {
-    let vec = vec!["a", "b", "c", "d"];
-    let frozen: FrozenVec<_> = vec.clone().into();
-
-    assert_eq!(vec, frozen.iter().vec());
-    for (e1, e2) in vec.iter().zip(frozen.iter()) {
-        assert_eq!(*e1, e2);
-    }
-
-    assert_eq!(vec.len(), frozen.iter().count())
-}

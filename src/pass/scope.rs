@@ -3,7 +3,8 @@
 //! symbols allow us to check for existence and type of stuff we define
 
 use crate::error::{err, Res};
-use crate::pass::ast2::{Block, Define, Type, VarDefine};
+use crate::pass::ast1;
+use crate::pass::ast2::Type;
 use crate::pass::ty::PrimitiveType;
 use crate::span::Span;
 use crate::util::ctx_str::CtxStr;
@@ -45,42 +46,32 @@ pub enum Symbol<'i> {
         field_types: Rc<HashMap<CtxStr<'i>, Type<'i>>>,
     },
     GenericPlaceholderType(CtxStr<'i>),
-    #[allow(dead_code)]
     GenericFunc {
         // cached for faster access
-        #[derivative(Hash = "ignore", PartialEq = "ignore")]
-        ty: Type<'i>,
         arg_types: Rc<Vec<Type<'i>>>,
 
         // copied from func define
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
-        nesting_prefix: CtxStr<'i>,
+        ty: ast1::Type<'i>,
         name: CtxStr<'i>,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         generic_placeholders: Rc<Vec<CtxStr<'i>>>,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
-        args: Rc<Vec<VarDefine<'i>>>,
+        args: Rc<Vec<ast1::VarDefine<'i>>>,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
-        body: Block<'i>,
+        body: ast1::Block<'i>,
 
         // codegen info
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         scopes_index: usize,
     },
-    #[allow(dead_code)]
     GenericStruct {
-        // cached for faster access
-        #[derivative(Hash = "ignore", PartialEq = "ignore")]
-        ty: Type<'i>,
-
         // copied from struct define
-        #[derivative(Hash = "ignore", PartialEq = "ignore")]
-        nesting_prefix: CtxStr<'i>,
         name: CtxStr<'i>,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         generic_placeholders: Rc<Vec<CtxStr<'i>>>,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
-        body: Rc<Vec<Define<'i>>>,
+        body: Rc<Vec<ast1::Define<'i>>>,
 
         // codegen info
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
@@ -91,10 +82,7 @@ impl Symbol<'i> {
     pub fn ty(&self) -> Type<'i> {
         use Symbol::*;
         match self {
-            Func { ty, .. }
-            | Var { ty, .. }
-            | GenericFunc { ty, .. }
-            | GenericStruct { ty, .. } => ty.deref().clone(),
+            Func { ty, .. } | Var { ty, .. } => ty.deref().clone(),
             StructType {
                 nesting_prefix,
                 name,
@@ -106,6 +94,9 @@ impl Symbol<'i> {
                 generic_replacements: generic_replacements.clone(),
             },
             GenericPlaceholderType(name) => Type::GenericPlaceholder(*name),
+            GenericFunc { .. } | GenericStruct { .. } => {
+                panic!("generic funcs/structs don't have types")
+            }
         }
     }
 }

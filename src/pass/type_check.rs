@@ -9,6 +9,7 @@ use crate::pass::ty::PrimitiveType;
 use crate::util::ctx_str::IntoCtx;
 use crate::util::{IterExt, IterResExt, RcExt};
 use std::collections::HashMap;
+use std::ops::Deref;
 
 impl Program<'i> {
     pub fn type_check(self, ctx: &mut Ctx<'i>) -> Res<'i, ast2::Program<'i>> {
@@ -16,8 +17,8 @@ impl Program<'i> {
         ctx.type_check_prelude();
         let defines = self
             .0
-            .into_inner()
-            .into_iter()
+            .iter()
+            .cloned()
             .map(|define| define.type_check(ctx))
             .res_vec()?;
         ctx.scopes.pop();
@@ -28,21 +29,21 @@ impl Program<'i> {
 impl Define<'i> {
     pub fn type_check(self, ctx: &mut Ctx<'i>) -> Res<'i, ast2::Define<'i>> {
         use DefineKind::*;
-        Ok(match self.kind {
+        Ok(match self.kind.clone() {
             Struct {
                 name,
                 generic_placeholders,
                 body,
             } => {
                 if generic_placeholders.is_empty() {
-                    let (var_defines, func_defines) = body
-                        .into_inner()
-                        .into_iter()
-                        .partition::<Vec<_>, _>(|define| match define.kind {
-                            Var(_) => true,
-                            Func { .. } => false,
-                            _ => panic!("struct body shouldn't have {:?}", define),
-                        });
+                    let (var_defines, func_defines) =
+                        body.iter()
+                            .cloned()
+                            .partition::<Vec<_>, _>(|define| match define.kind {
+                                Var(_) => true,
+                                Func { .. } => false,
+                                _ => panic!("struct body shouldn't have {:?}", define),
+                            });
 
                     ctx.scopes.push(Scope::new(None, false, None));
                     let var_defines = var_defines
@@ -52,14 +53,15 @@ impl Define<'i> {
                     ctx.scopes.pop();
 
                     // add symbol
+                    let nesting_prefix = ctx.scopes.nesting_prefix().into_ctx(ctx);
                     ctx.scopes.add(
                         Symbol::StructType {
-                            nesting_prefix: ctx.scopes.nesting_prefix().into_ctx(ctx),
+                            nesting_prefix,
                             name,
                             generic_replacements: Default::default(),
                             field_types: var_defines
-                                .clone()
-                                .into_iter()
+                                .iter()
+                                .cloned()
                                 .map(|define| match define {
                                     ast2::Define::Var(ast2::VarDefine { name, ty, .. }) => {
                                         (name, ty)
@@ -91,12 +93,12 @@ impl Define<'i> {
                     body.extend(func_defines);
 
                     ast2::Define::Struct {
-                        full_name: name,
+                        full_name: format!("{}{}", nesting_prefix, name).into_ctx(ctx),
                         generic_replacements: Default::default(),
                         body: body.into(),
                     }
                 } else {
-                    todo!("generic struct define type check")
+                    self.type_check_generic(ctx)?
                 }
             }
             Func {
@@ -111,8 +113,8 @@ impl Define<'i> {
                     ctx.scopes
                         .push(Scope::new(Some(name), false, Some(ty.clone())));
                     let args = args
-                        .into_inner()
-                        .into_iter()
+                        .iter()
+                        .cloned()
                         .map(|arg| arg.type_check(ctx))
                         .res_vec()?;
 
@@ -125,11 +127,10 @@ impl Define<'i> {
                             nesting_prefix,
                             name,
                             generic_replacements: Default::default(),
-                            arg_types: args.clone().into_iter().map(|it| it.ty).vec().into(),
+                            arg_types: args.iter().cloned().map(|it| it.ty).vec().into(),
                         },
                         Some(self.span),
                     )?;
-
                     ctx.scopes.push(scope);
 
                     let body = body.type_check(ctx)?;
@@ -144,7 +145,7 @@ impl Define<'i> {
                         body,
                     }
                 } else {
-                    todo!("self.type_check_generic(ctx)")
+                    self.type_check_generic(ctx)?
                 }
             }
             Var(var_define) => ast2::Define::Var(var_define.type_check(ctx)?),
@@ -274,7 +275,7 @@ impl Statement<'i> {
                 ctx.scopes.push(Scope::new(None, true, None));
                 let init = init.type_check(ctx)?;
                 let cond = cond.type_check(ctx, Some(&PrimitiveType::Bool.ty()))?;
-                let update = update.into_inner().type_check(ctx)?;
+                let update = update.deref().clone().type_check(ctx)?;
                 let block = block.type_check(ctx)?;
                 ctx.scopes.pop();
 
@@ -308,8 +309,8 @@ impl Statement<'i> {
 impl Block<'i> {
     pub fn type_check(self, ctx: &mut Ctx<'i>) -> Res<'i, ast2::Block<'i>> {
         self.0
-            .into_inner()
-            .into_iter()
+            .iter()
+            .cloned()
             .map(|statement| statement.type_check(ctx))
             .res_vec()
             .map(|statements| ast2::Block(statements.into()))
@@ -319,8 +320,8 @@ impl Block<'i> {
 impl CCode<'i> {
     pub fn type_check(self, ctx: &mut Ctx<'i>) -> Res<'i, ast2::CCode<'i>> {
         self.0
-            .into_inner()
-            .into_iter()
+            .iter()
+            .cloned()
             .map(|part| {
                 Ok(match part {
                     CCodePart::String(str) => ast2::CCodePart::String(str),
@@ -342,7 +343,7 @@ impl Expr<'i> {
         Ok(match self.kind {
             Cast { thing, ty } => {
                 let ty = ty.type_check(ctx)?;
-                let thing = thing.into_inner().type_check(ctx, Some(&ty))?;
+                let thing = thing.deref().clone().type_check(ctx, Some(&ty))?;
 
                 // symbol check
                 // fixme hacky as shit
@@ -358,9 +359,9 @@ impl Expr<'i> {
                     debug_assert_eq!(ty, symbol.ty());
                     match symbol {
                         Symbol::Func {
-                            nesting_prefix: other_nesting_prefix,
+                            nesting_prefix: symbol_nesting_prefix,
                             ..
-                        } => *other_nesting_prefix,
+                        } => *symbol_nesting_prefix,
                         _ => unreachable!(),
                     }
                 };
@@ -377,7 +378,7 @@ impl Expr<'i> {
                 receiver,
                 mut func_call,
             } => {
-                let receiver = receiver.into_inner();
+                let receiver = receiver.deref().clone();
                 func_call
                     .args
                     .modify(|args| args.insert(0, receiver.clone()));
@@ -387,15 +388,13 @@ impl Expr<'i> {
                     format!("{}::{}", receiver.ty.encoded_name(), func_call.name).into_ctx(ctx);
 
                 let func_call = func_call.type_check(ctx, type_hint)?;
-                let ty = func_call.ty.clone();
-
                 ast2::Expr {
+                    ty: func_call.ty.clone(),
                     kind: ast2::ExprKind::FuncCall(func_call),
-                    ty,
                 }
             }
             Field { receiver, var } => {
-                let receiver = receiver.into_inner().type_check(ctx, None)?;
+                let receiver = receiver.deref().clone().type_check(ctx, None)?;
 
                 // field check
                 let symbol = match receiver.ty.clone() {
@@ -404,15 +403,6 @@ impl Expr<'i> {
                         generic_replacements,
                         ..
                     } => Symbol::new_struct_type(name, generic_replacements),
-                    ast2::Type::GenericPlaceholder(_) => {
-                        return Ok(ast2::Expr {
-                            kind: ast2::ExprKind::Field {
-                                receiver: receiver.into(),
-                                var,
-                            },
-                            ty: ast2::Type::GenericUnknown,
-                        })
-                    }
                     ty => {
                         return err(
                             &format!("expected struct type, but got {}", ty),
@@ -482,24 +472,10 @@ impl FuncCall<'i> {
         if self.generic_replacements.is_empty() {
             let args = self
                 .args
-                .into_inner()
-                .into_iter()
+                .iter()
+                .cloned()
                 .map(|arg| arg.type_check(ctx, None))
                 .res_vec()?;
-            // very lol
-            if args.iter().any(|arg| {
-                matches!(
-                    arg.ty,
-                    ast2::Type::GenericUnknown | ast2::Type::GenericPlaceholder(_)
-                )
-            }) {
-                return Ok(ast2::FuncCall {
-                    full_name: self.name,
-                    generic_replacements: Default::default(),
-                    args: args.into(),
-                    ty: ast2::Type::GenericUnknown,
-                });
-            }
 
             // symbol check
             let symbol = ctx.scopes.find(
@@ -521,7 +497,7 @@ impl FuncCall<'i> {
                 ty: symbol.ty(),
             })
         } else {
-            todo!("self.type_check_generic(ctx)")
+            self.type_check_generic(ctx)
         }
     }
 }
@@ -530,33 +506,36 @@ impl Type<'i> {
     pub fn type_check(self, ctx: &mut Ctx<'i>) -> Res<'i, ast2::Type<'i>> {
         let span = self.span;
         use TypeKind::*;
-        Ok(match self.kind {
+        Ok(match self.kind.clone() {
             Primitive(ty) => ast2::Type::Primitive(ty),
-            Ptr(inner) => ast2::Type::Ptr(inner.into_inner().type_check(ctx)?.into()),
+            Ptr(inner) => ast2::Type::Ptr(inner.deref().clone().type_check(ctx)?.into()),
             Named {
                 name,
                 generic_replacements,
             } => {
-                // symbol check
-                ctx.scopes
-                    .find(
-                        &Symbol::new_struct_type(
-                            name,
-                            Default::default(), // todo generic find or add
-                        ),
-                        Some(span),
-                    )
-                    .or_else(|_| {
-                        ctx.scopes
-                            .find(&Symbol::new_generic_placeholder_type(name), Some(span))
-                    })
-                    .or_else(|_| {
-                        err(
-                            &format!("could not find type symbol `{}`", name),
+                if generic_replacements.is_empty() {
+                    // symbol check
+                    ctx.scopes
+                        .find(
+                            &Symbol::new_struct_type(name, Default::default()),
                             Some(span),
                         )
-                    })?
-                    .ty()
+                        .map(|symbol| symbol)
+                        .or_else(|_| {
+                            ctx.scopes
+                                .find(&Symbol::new_generic_placeholder_type(name), Some(span))
+                        })
+                        .or_else(|_| {
+                            err(
+                                &format!("could not find type symbol `{}`", name),
+                                Some(span),
+                            )
+                        })?
+                        .ty()
+                } else {
+                    self.type_check_generic(ctx)?;
+                    todo!("Type::type_check_generic")
+                }
             }
             Auto => ast2::Type::Auto,
         })

@@ -24,6 +24,9 @@ pub enum Define<'i> {
     Var(VarDefine<'i>),
 
     CCode(CCode<'i>),
+
+    /// used for generic template that should not generate anything
+    NoGen,
 }
 
 #[derive(Debug, Clone)]
@@ -147,6 +150,4 @@ pub enum Type<'i> {
     Ptr(Rc<Type<'i>>),
     /// for inferring with var define and probably other stuff later
     Auto,
-    /// for when we use generics and we don't know what types are yet (fields, func return types, etc)
-    GenericUnknown,
 }

@@ -1,10 +1,11 @@
 pub mod ast1;
 pub mod ast2;
 pub mod gen;
-pub mod generics;
+pub mod replace_generics;
 pub mod scope;
 pub mod ty;
 pub mod type_check;
+pub mod type_check_generic;
 pub mod visit;
 
 use std::path::Path;

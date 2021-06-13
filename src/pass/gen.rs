@@ -86,6 +86,8 @@ impl Define<'i> {
                 c_code.gen(ctx);
                 ctx.o.push_str(";\n");
             }
+
+            NoGen => {}
         }
     }
 }
