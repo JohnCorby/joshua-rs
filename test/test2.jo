@@ -39,7 +39,7 @@ struct str {
     }
 
     void debug_print(str this)
-        <{ printf("%p %i %s\n", ${this.ptr}, ${this.len}, ${this.ptr}) }>
+        <{ printf("%p %u %s\n", ${this.ptr}, ${this.len}, ${this.ptr}) }>
 }
 
 
@@ -53,6 +53,14 @@ struct sized_ptr<T> {
         this.ptr = ptr
         this.len = len
         ret this
+    }
+
+    void debug_print(sized_ptr<T> this) {
+        for (auto i = 0 as u64; i < this.len; i = i + 1 as u64)
+            <{ printf("%x ", ${this.ptr}[${i}]) }>
+        for (auto i = 0 as u64; i < this.len; i = i + 1 as u64)
+            <{ printf("%c", ${this.ptr}[${i}]) }>
+        <{ printf("\n") }>
     }
 }
 
@@ -101,7 +109,9 @@ i32 main() {
 
 
 
-    sized_ptr<u8> sp
+    if (false) sized_ptr<u8> `makes specialization occur`
+    auto sp = `sized_ptr<u8>::new`("hello", 6 as u64)
+    sp.debug_print()
 
 
 

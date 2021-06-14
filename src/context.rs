@@ -1,6 +1,5 @@
 use crate::parse::{Kind, Node};
 use crate::pass::ast1::Program;
-use crate::pass::ast2::Define;
 use crate::pass::scope::Scopes;
 use crate::pass::ty::PrimitiveType;
 use crate::util::frozen_vec::FrozenVec;
@@ -12,8 +11,6 @@ pub struct Ctx<'i> {
     pub inputs: &'i FrozenVec<String>,
 
     pub scopes: Scopes<'i>,
-    /// note: these should already be type-checked when they're added
-    pub extra_defines: Vec<Define<'i>>, // fixme maybe make this a program, or put program in here?
 
     /// general buffer, eventually this should be empty as everything is transferred to the Strings below
     pub o: String,
@@ -29,7 +26,6 @@ impl Ctx<'i> {
         Self {
             inputs,
             scopes: Default::default(),
-            extra_defines: Default::default(),
 
             o: Default::default(),
             struct_declares: Default::default(),
@@ -116,7 +112,7 @@ impl Ctx<'_> {
             .into_inner();
         for define in defines {
             let define = define.type_check(self).unwrap();
-            self.extra_defines.push(define);
+            define.gen(self)
         }
     }
 }

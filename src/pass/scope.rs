@@ -220,7 +220,6 @@ impl Scopes<'i> {
         Ok(())
     }
 
-    /// fixme include prefix name for funcs and structs
     pub fn find(&self, symbol: &Symbol<'i>, span: Option<Span<'i>>) -> Res<'i, &Symbol<'i>> {
         for scope in self.0.iter().rev() {
             if let Some(symbol) = scope.symbols.get(symbol) {

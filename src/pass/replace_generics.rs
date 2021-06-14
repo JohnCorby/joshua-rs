@@ -172,7 +172,7 @@ impl Type<'i> {
                 name,
                 generic_replacements,
             } => {
-                // add placeholders (fixme: slow and repetitive)
+                // add placeholders (fixme: slow and gets called a decent amount)
                 ctx.scopes.push(Scope::new(None, false, None));
                 for &placeholder in generic_map.keys() {
                     ctx.scopes

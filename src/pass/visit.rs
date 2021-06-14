@@ -321,7 +321,7 @@ impl Visit<'i> for Literal<'i> {
             Kind::int_literal => Int(node.str().parse().unwrap()),
             Kind::bool_literal => Bool(node.str().parse().unwrap()),
             Kind::char_literal => Char(node.children().next().unwrap().str().parse().unwrap()),
-            Kind::str_literal => StrZ(node.children().next().unwrap().str()), // fixme you forgot to unescape you doofus
+            Kind::str_literal => StrZ(node.children().next().unwrap().str()), // todo maybe unescape this so we can actually count the characters?
 
             _ => unexpected_kind(node),
         }

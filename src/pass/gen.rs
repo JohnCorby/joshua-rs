@@ -11,6 +11,23 @@ impl Program<'i> {
         for define in self.0.into_inner() {
             define.gen(ctx);
         }
+        debug_assert!(ctx.o.is_empty());
+        ctx.o.clear();
+        ctx.o.push_str("#pragma region struct declares\n");
+        ctx.o.push_str(&ctx.struct_declares);
+        ctx.o.push_str("#pragma endregion struct declares\n");
+        ctx.o.push_str("#pragma region func declares\n");
+        ctx.o.push_str(&ctx.func_declares);
+        ctx.o.push_str("#pragma endregion func declares\n");
+        ctx.o.push_str("#pragma region global vars\n");
+        ctx.o.push_str(&ctx.global_vars);
+        ctx.o.push_str("#pragma endregion global vars\n");
+        ctx.o.push_str("#pragma region struct defines\n");
+        ctx.o.push_str(&ctx.struct_defines);
+        ctx.o.push_str("#pragma endregion struct defines\n");
+        ctx.o.push_str("#pragma region func defines\n");
+        ctx.o.push_str(&ctx.func_defines);
+        ctx.o.push_str("#pragma endregion func defines");
     }
 }
 
@@ -280,14 +297,14 @@ impl Type<'i> {
     pub fn gen(self, ctx: &mut Ctx<'i>) {
         use Type::*;
         match self {
-            Ptr(inner) => {
-                inner.deref().clone().gen(ctx);
-                ctx.o.push('*');
-            }
             Primitive(ty) => ctx.o.push_str(ty.c_type()),
             Struct { .. } => {
                 ctx.o.push_str("struct ");
                 ctx.o.push_str(&self.encoded_name().mangle(&[], None))
+            }
+            Ptr(inner) => {
+                inner.deref().clone().gen(ctx);
+                ctx.o.push('*');
             }
             ty => panic!("tried to gen {}", ty),
         }

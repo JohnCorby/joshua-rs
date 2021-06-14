@@ -1,6 +1,8 @@
 //! post-type-checked
 
+use crate::error::{err, Res};
 use crate::pass::ty::{LiteralType, PrimitiveType};
+use crate::span::Span;
 use crate::util::ctx_str::CtxStr;
 use std::rc::Rc;
 
@@ -106,6 +108,26 @@ pub enum ExprKind<'i> {
     CCode(CCode<'i>),
 }
 
+impl Expr<'i> {
+    pub fn check_assignable(&self, span: Option<Span<'i>>) -> Res<'i> {
+        use ExprKind::*;
+        let is_ptr = matches!(self.ty, Type::Ptr(_));
+        let is_non_void = self.ty != PrimitiveType::Void.ty();
+        let is_assignable = match self.kind {
+            Var(_) if is_non_void => true,
+            Field { .. } if is_non_void => true,
+            FuncCall { .. } if is_ptr => true,
+            _ => false,
+        };
+
+        if !is_assignable {
+            err("expr is not assignable", span)
+        } else {
+            Ok(())
+        }
+    }
+}
+
 #[derive(Debug, Copy, Clone)]
 pub enum Literal<'i> {
     Float(f64),
@@ -132,18 +154,19 @@ impl Literal<'i> {
 #[derivative(Hash, PartialEq)]
 pub enum Type<'i> {
     Primitive(PrimitiveType),
-    /// fixme merge these into generics when we get type inference
-    Literal(LiteralType),
-    CCode,
     Struct {
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         nesting_prefix: CtxStr<'i>,
         name: CtxStr<'i>,
         generic_replacements: Rc<Vec<Type<'i>>>,
     },
+    Ptr(Rc<Type<'i>>),
+
+    /// fixme merge these into generics when we get type inference
+    Literal(LiteralType),
     /// replaced with concrete type on specialization
     GenericPlaceholder(CtxStr<'i>),
-    Ptr(Rc<Type<'i>>),
     /// for inferring with var define and probably other stuff later
     Auto,
+    CCode,
 }

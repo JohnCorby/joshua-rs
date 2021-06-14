@@ -1,7 +1,6 @@
 //<{#include <stdio.h>}>
 
 
-// fixme recursion does not work. period. cuz symbol is added after entire body is type-checked
 T `+`<T>(T a, T b) {
 //    ret a + b
     ret `+`<T>(a, b)
@@ -11,8 +10,7 @@ T template_func<T>(T a) {
 //    ret a + a
     ret `+`<T>(a, a)
 }
-// fixme this will be found when doing `template_func<f32>(1 as f32)`
-//void template_func<T>(T a, T b) {}
+void template_func<T>(T a, T b) {}
 void template_func(i32 a) {}
 
 
@@ -52,16 +50,15 @@ im gimme_im() {
 
 
 /// pretend this is a method of baba_booey
-f32 kill_yourself(baba_booey this, i32 a, f32 b, bool c, char d) {
+f32 `baba_booey::kill_yourself`(baba_booey this, i32 a, f32 b, bool c) {
     <{puts("woah! this is the method kill_yourself of baba_booey")}>
 
     template_func<f32>(1 as f32)
-    // fixme?: this will just find the previously-generated template_func(f32)
     template_func<i8>(1 as i8)
 
     ret 11565 as f32
 }
-f32 kill_yourself(baba_booey this, i32 a, f32 b) {
+f32 `baba_booey::kill_yourself`(baba_booey this, i32 a, f32 b) {
     <{puts("woah! this is the method kill_yourself but the other one of baba_booey")}>
     ret 4915.95010 as f32
 }
@@ -97,8 +94,6 @@ i32 main() {
         f32 t8
         f64 t9
         bool t10
-        char t11
-//        void t12
     }
 
 
@@ -116,12 +111,11 @@ i32 main() {
     <{printf("ok.hello is %f\n", ${ok.hello})}>
     ok.hello = 1 as f32
     <{printf("ok.hello is %f\n", ${ok.hello})}>
-    f32 yo = gimme_im().pain.kill_yourself(1 as i32, 2.0 as f32, true, 'd')
+    f32 yo = gimme_im().pain.kill_yourself(1 as i32, 2.0 as f32, true)
     <{printf("yo is %f\n", ${yo})}>
     f32 yo2 = gimme_im().pain.kill_yourself(1 as i32, 2.0 as f32)
     <{printf("yo2 is %f\n", ${yo2})}>
 
-    (4 as i32).`raw ident`()
     `raw ident`(4 as i32)
     f32 `lets go` = ok + ok
     i32 two = `+`(1 as i32, 1 as i32)

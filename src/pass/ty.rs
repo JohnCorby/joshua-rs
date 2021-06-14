@@ -1,3 +1,5 @@
+//! helper stuff for `ast2::Type`
+
 use crate::error::{err, Res};
 use crate::pass::ast2::Type;
 use crate::span::Span;

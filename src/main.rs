@@ -1,10 +1,7 @@
 //!todo
-//! - methods
 //! - ways to use pointers
-//! - generic structs lol
 //! - generic inference
 //!todo
-//! - structs/funcs in funcs, this one will be painful
 //! - "build scope" pass which will add _____Type and Func symbols to the scope uhhhhh well it's a stack now so we can't pre-build this. darn
 //! - get literals to actually work, you might just have to brute force it, or not idk. you might be able to use generics for this instead :)
 //!todo
@@ -53,29 +50,8 @@ fn main() {
         let program = node.visit::<Program<'_>>(ctx);
         println!("type checking");
         let program = program.type_check(ctx)?;
-        debug_assert!(ctx.scopes.0.is_empty());
         println!("generating");
-        for define in std::mem::take(&mut ctx.extra_defines) {
-            define.gen(ctx);
-        }
         program.gen(ctx);
-        debug_assert!(ctx.o.is_empty());
-        ctx.o.clear();
-        ctx.o.push_str("#pragma region struct declares\n");
-        ctx.o.push_str(&ctx.struct_declares);
-        ctx.o.push_str("#pragma endregion struct declares\n");
-        ctx.o.push_str("#pragma region func declares\n");
-        ctx.o.push_str(&ctx.func_declares);
-        ctx.o.push_str("#pragma endregion func declares\n");
-        ctx.o.push_str("#pragma region global vars\n");
-        ctx.o.push_str(&ctx.global_vars);
-        ctx.o.push_str("#pragma endregion global vars\n");
-        ctx.o.push_str("#pragma region struct defines\n");
-        ctx.o.push_str(&ctx.struct_defines);
-        ctx.o.push_str("#pragma endregion struct defines\n");
-        ctx.o.push_str("#pragma region func defines\n");
-        ctx.o.push_str(&ctx.func_defines);
-        ctx.o.push_str("#pragma endregion func defines");
     };
     if let Err(err) = result {
         return eprintln!("Error: {}", err);

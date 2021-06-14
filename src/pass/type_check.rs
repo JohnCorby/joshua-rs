@@ -22,6 +22,7 @@ impl Program<'i> {
             .map(|define| define.type_check(ctx))
             .res_vec()?;
         ctx.scopes.pop();
+        debug_assert!(ctx.scopes.0.is_empty());
         Ok(ast2::Program(defines.into()))
     }
 }
@@ -155,6 +156,10 @@ impl Define<'i> {
 
 impl VarDefine<'i> {
     pub fn type_check(self, ctx: &mut Ctx<'i>) -> Res<'i, ast2::VarDefine<'i>> {
+        if let TypeKind::Primitive(PrimitiveType::Void) = self.ty.kind {
+            return err("vars can't have void type", Some(self.span));
+        }
+
         // special case for auto type, where lvalue is inferred from rvalue instead of the other way around
         let (ty, value) = if let TypeKind::Auto = self.ty.kind {
             if let Some(value) = self.value {
@@ -289,12 +294,11 @@ impl Statement<'i> {
                 }
             }
             ExprAssign { lvalue, rvalue } => {
-                lvalue.check_assignable(Some(self.span))?;
-
                 let lvalue = lvalue.type_check(ctx, None)?;
                 let rvalue = rvalue.type_check(ctx, Some(&lvalue.ty))?;
 
                 // check matching
+                lvalue.check_assignable(Some(self.span))?;
                 rvalue.ty.check(&lvalue.ty, Some(self.span))?;
 
                 ast2::Statement::ExprAssign { lvalue, rvalue }

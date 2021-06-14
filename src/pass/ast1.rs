@@ -1,6 +1,5 @@
 //! pre-type-checked
 
-use crate::error::{err, Res};
 use crate::pass::ast2::Literal;
 use crate::pass::ty::PrimitiveType;
 use crate::span::Span;
@@ -49,6 +48,7 @@ pub struct Statement<'i> {
     pub kind: StatementKind<'i>,
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone)]
 pub enum StatementKind<'i> {
     Return(Option<Expr<'i>>),
@@ -117,21 +117,6 @@ pub enum ExprKind<'i> {
     Var(CtxStr<'i>),
 
     CCode(CCode<'i>),
-}
-
-impl Expr<'i> {
-    /// fixme what about methods returning pointers? what about all this other stuff?
-    ///  at some point this will probably be ast2
-    pub fn check_assignable(&self, span: Option<Span<'i>>) -> Res<'i> {
-        use ExprKind::*;
-        let is_assignable = matches!(self.kind, Field { .. } | Var(_));
-
-        if !is_assignable {
-            err("expr is not assignable", span)
-        } else {
-            Ok(())
-        }
-    }
 }
 
 #[derive(Debug, Clone)]

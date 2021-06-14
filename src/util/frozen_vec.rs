@@ -73,8 +73,6 @@ impl<T: StableDeref> FrozenVec<T> {
     pub fn as_mut(&mut self) -> &mut Vec<T> {
         unsafe { &mut *self.vec.get() }
     }
-
-    // TODO add more
 }
 
 impl<T> Default for FrozenVec<T> {

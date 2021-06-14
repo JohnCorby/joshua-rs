@@ -1,4 +1,4 @@
-//! helper stuff for generic handling
+//! helper stuff for generic type checking
 
 use crate::context::Ctx;
 use crate::error::{err, Res};
@@ -208,13 +208,13 @@ impl Type<'i> {
                     let mut body = var_defines;
                     body.extend(func_defines);
 
-                    // push a define ast so it will be generated properly
-                    let define = ast2::Define::Struct {
+                    // make and generate the define
+                    ast2::Define::Struct {
                         full_name: format!("{}{}", nesting_prefix, name).into_ctx(ctx),
                         generic_replacements: generic_replacements.clone(),
                         body: body.into(),
-                    };
-                    ctx.extra_defines.push(define);
+                    }
+                    .gen(ctx);
                 }
 
                 ctx.scopes.0.extend(scopes_after);
@@ -324,15 +324,15 @@ impl FuncCall<'i> {
                 let body = body.type_check(ctx)?;
                 ctx.scopes.check_return_called(Some(self.span))?;
 
-                // push a define ast so it will be generated properly
-                let define = ast2::Define::Func {
+                // make and generate the define
+                ast2::Define::Func {
                     ty: ty.clone(),
                     full_name: format!("{}{}", nesting_prefix, name).into_ctx(ctx),
                     generic_replacements: generic_replacements.clone(),
                     args: symbol_args.into(),
                     body,
-                };
-                ctx.extra_defines.push(define);
+                }
+                .gen(ctx)
             }
 
             ctx.scopes.pop();

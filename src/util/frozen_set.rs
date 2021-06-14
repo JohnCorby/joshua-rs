@@ -71,8 +71,6 @@ impl<T: Eq + Hash + StableDeref> FrozenSet<T> {
     pub fn as_mut(&mut self) -> &mut HashSet<T> {
         unsafe { &mut *self.set.get() }
     }
-
-    // TODO add more
 }
 
 impl<T> From<HashSet<T>> for FrozenSet<T> {
