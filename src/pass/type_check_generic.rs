@@ -55,7 +55,7 @@ impl Define<'i> {
                 let arg_types = args
                     .iter()
                     .cloned()
-                    .map(|arg| arg.type_check(ctx).map(|arg| arg.ty))
+                    .map(|arg| arg.type_check(ctx, true, false).map(|arg| arg.ty))
                     .res_vec()?
                     .into();
                 ctx.scopes.pop();
@@ -294,7 +294,7 @@ impl FuncCall<'i> {
                 .zip(args.iter().zip(self.args.iter()))
             {
                 symbol_arg.replace_generics(ctx, &generic_map);
-                let symbol_arg = symbol_arg.type_check(ctx)?;
+                let symbol_arg = symbol_arg.type_check(ctx, true, false)?;
 
                 // make sure the args actually match
                 arg.ty.check(&symbol_arg.ty, Some(ast1_arg.span))?;

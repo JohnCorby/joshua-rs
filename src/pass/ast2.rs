@@ -36,6 +36,9 @@ pub struct VarDefine<'i> {
     pub ty: Type<'i>,
     pub name: CtxStr<'i>,
     pub value: Option<Expr<'i>>,
+
+    /// used for gen. kinda hacky, oh well
+    pub is_global: bool,
 }
 
 #[derive(Debug, Clone)]

@@ -115,7 +115,7 @@ impl Define<'i> {
                     let args = args
                         .iter()
                         .cloned()
-                        .map(|arg| arg.type_check(ctx))
+                        .map(|arg| arg.type_check(ctx, true, false))
                         .res_vec()?;
 
                     // add symbol
@@ -148,16 +148,33 @@ impl Define<'i> {
                 }
             }
 
-            Var(var_define) => ast2::Define::Var(var_define.type_check(ctx)?),
+            Var(var_define) => ast2::Define::Var(var_define.type_check(ctx, false, false)?),
             CCode(c_code) => ast2::Define::CCode(c_code.type_check(ctx)?),
         })
     }
 }
 
 impl VarDefine<'i> {
-    pub fn type_check(self, ctx: &mut Ctx<'i>) -> Res<'i, ast2::VarDefine<'i>> {
+    pub fn type_check(
+        self,
+        ctx: &mut Ctx<'i>,
+
+        is_func_arg: bool,
+        is_for_init: bool,
+    ) -> Res<'i, ast2::VarDefine<'i>> {
         if let TypeKind::Primitive(PrimitiveType::Void) = self.ty.kind {
             return err("vars can't have void type", Some(self.span));
+        }
+
+        let is_global = ctx.scopes.0.len() == 1;
+        if is_global && self.value.is_none() {
+            return err("global vars must have initializer", Some(self.span));
+        }
+        if is_func_arg && self.value.is_some() {
+            return err("func args can't have initializer", Some(self.span));
+        }
+        if is_for_init && self.value.is_none() {
+            return err("for loop var must have initializer", Some(self.span));
         }
 
         // special case for auto type, where lvalue is inferred from rvalue instead of the other way around
@@ -195,6 +212,8 @@ impl VarDefine<'i> {
             ty,
             name: self.name,
             value,
+
+            is_global,
         })
     }
 }
@@ -277,7 +296,7 @@ impl Statement<'i> {
                 block,
             } => {
                 ctx.scopes.push(Scope::new(None, true, None));
-                let init = init.type_check(ctx)?;
+                let init = init.type_check(ctx, false, true)?;
                 let cond = cond.type_check(ctx, Some(&PrimitiveType::Bool.ty()))?;
                 let update = update.deref().clone().type_check(ctx)?;
                 let block = block.type_check(ctx)?;

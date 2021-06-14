@@ -96,9 +96,19 @@ impl Define<'i> {
             }
 
             Var(var_define) => {
-                // fixme global variables stick around in ctx.o when they should go somewhere else, this will panic
-                var_define.gen(ctx);
-                ctx.o.push_str(";\n")
+                if var_define.is_global {
+                    // put global vars in the proper section
+                    let old_o = std::mem::take(&mut ctx.o);
+
+                    var_define.gen(ctx);
+                    ctx.o.push_str(";\n");
+
+                    let new_o = std::mem::replace(&mut ctx.o, old_o);
+                    ctx.global_vars.push_str(&new_o);
+                } else {
+                    var_define.gen(ctx);
+                    ctx.o.push_str(";\n");
+                }
             }
 
             CCode(c_code) => {
