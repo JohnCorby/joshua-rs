@@ -72,7 +72,7 @@ impl Visit<'i> for Define<'i> {
             Kind::func_define => {
                 let mut nodes = node.children().peekable();
 
-                let ty_node = nodes.next().unwrap().visit(ctx);
+                let ty = nodes.next().unwrap().visit(ctx);
                 let name = nodes.next().unwrap().visit_ident(ctx);
                 let generic_placeholders = nodes
                     .next()
@@ -88,7 +88,7 @@ impl Visit<'i> for Define<'i> {
                 let body = nodes.next().unwrap().visit(ctx);
 
                 Func {
-                    ty: ty_node,
+                    ty,
                     name,
                     generic_placeholders,
                     args: args.into(),
@@ -245,10 +245,10 @@ impl Visit<'i> for Expr<'i> {
                 let mut nodes = node.children();
 
                 let mut thing = nodes.next().unwrap().visit::<Expr<'i>>(ctx);
-                for ty_node in nodes {
+                for ty in nodes {
                     thing.kind = Cast {
                         thing: thing.clone().into(),
-                        ty: ty_node.visit(ctx),
+                        ty: ty.visit(ctx),
                     }
                 }
 
