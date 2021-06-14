@@ -1,3 +1,5 @@
+//! turns pest nodes into pre-type-checked ast
+
 use crate::context::Ctx;
 use crate::error::unexpected_kind;
 use crate::parse::{Kind, Node, Nodes};
@@ -73,6 +75,12 @@ impl Visit<'i> for Define<'i> {
                 let mut nodes = node.children().peekable();
 
                 let ty = nodes.next().unwrap().visit(ctx);
+                let receiver_ty = nodes
+                    .next()
+                    .unwrap()
+                    .children_checked(Kind::func_receiver_ty)
+                    .next()
+                    .map(|node| node.visit(ctx));
                 let name = nodes.next().unwrap().visit_ident(ctx);
                 let generic_placeholders = nodes
                     .next()
@@ -89,6 +97,7 @@ impl Visit<'i> for Define<'i> {
 
                 Func {
                     ty,
+                    receiver_ty,
                     name,
                     generic_placeholders,
                     args: args.into(),
@@ -214,6 +223,7 @@ impl Visit<'i> for Expr<'i> {
                     let right = nodes.next().unwrap().visit::<Expr<'i>>(ctx);
                     left.kind = FuncCall(self::FuncCall {
                         span,
+                        receiver_ty: None,
                         name: op,
                         generic_replacements: Default::default(),
                         args: vec![old_left, right].into(),
@@ -232,6 +242,7 @@ impl Visit<'i> for Expr<'i> {
                     let old_thing = thing.clone();
                     thing.kind = FuncCall(self::FuncCall {
                         span,
+                        receiver_ty: None,
                         name: op,
                         generic_replacements: Default::default(),
                         args: vec![old_thing].into(),
@@ -300,6 +311,12 @@ impl Visit<'i> for FuncCall<'i> {
 
         Self {
             span,
+            receiver_ty: nodes
+                .next()
+                .unwrap()
+                .children_checked(Kind::func_receiver_ty)
+                .next()
+                .map(|node| node.visit(ctx)),
             name: nodes.next().unwrap().visit_ident(ctx),
             generic_replacements: nodes
                 .next()

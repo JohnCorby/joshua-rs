@@ -26,10 +26,11 @@ statement = _{
 
 block = { statement | "{" ~ statement* ~ "}" }
 
-func_define = { ty ~ ident ~ generic_placeholders ~ "(" ~ (var_define ~ ("," ~ var_define)*)? ~ ")" ~ block }
+func_define = { ty ~ func_receiver_ty ~ ident ~ generic_placeholders ~ "(" ~ (var_define ~ ("," ~ var_define)*)? ~ ")" ~ block }
 generic_placeholders = { ("<" ~ ident ~ ("," ~ ident)* ~ ">")? }
-func_call = { ident ~ generic_replacements ~ "(" ~ (expr ~ ("," ~ expr)*)? ~ ")" }
+func_call = { func_receiver_ty ~ ident ~ generic_replacements ~ "(" ~ (expr ~ ("," ~ expr)*)? ~ ")" }
 generic_replacements = { ("<" ~ (ty ~ ("," ~ ty)*)~ ">")? }
+func_receiver_ty = { (ty ~ "::")? }
 
 var_define = { ty ~ ident ~ ("=" ~ expr)? }
 expr_assign = { expr ~ "=" ~ expr }

@@ -6,6 +6,7 @@ use crate::pass::ast1::*;
 use crate::pass::ast2;
 use crate::pass::scope::{Scope, Symbol};
 use crate::pass::ty::PrimitiveType;
+use crate::span::Span;
 use crate::util::ctx_str::IntoCtx;
 use crate::util::{IterExt, IterResExt, RcExt, StrExt};
 use std::collections::HashMap;
@@ -75,11 +76,14 @@ impl Define<'i> {
                         .into_iter()
                         .map(|mut define| {
                             // attach struct name to func
-                            if let Func {
-                                name: func_name, ..
-                            } = &mut define.kind
-                            {
-                                *func_name = format!("{}::{}", name, func_name).into_ctx(ctx)
+                            if let Func { receiver_ty, .. } = &mut define.kind {
+                                *receiver_ty = Some(Type {
+                                    span: self.span,
+                                    kind: TypeKind::Named {
+                                        name,
+                                        generic_replacements: Default::default(),
+                                    },
+                                })
                             }
 
                             define.type_check(ctx)
@@ -101,13 +105,22 @@ impl Define<'i> {
 
             Func {
                 ref ty,
-                name,
+                ref receiver_ty,
+                mut name,
                 ref generic_placeholders,
                 ref args,
                 ref body,
             } => {
                 if generic_placeholders.is_empty() {
                     let ty = ty.clone().type_check(ctx)?;
+                    if let Some(receiver_ty) = receiver_ty {
+                        name = format!(
+                            "{}::{}",
+                            receiver_ty.clone().type_check(ctx)?.encoded_name(),
+                            name
+                        )
+                        .into_ctx(ctx)
+                    }
                     let nesting_prefix = ctx.scopes.nesting_prefix().into_ctx(ctx);
 
                     ctx.scopes
@@ -401,15 +414,49 @@ impl Expr<'i> {
                 mut func_call,
             } => {
                 let receiver = receiver.deref().clone();
+                let receiver_span = receiver.span;
                 func_call
                     .args
                     .modify(|args| args.insert(0, receiver.clone()));
+                func_call.span = self.span;
 
                 let receiver = receiver.type_check(ctx, None)?;
-                func_call.name =
-                    format!("{}::{}", receiver.ty.encoded_name(), func_call.name).into_ctx(ctx);
-
-                func_call.span = self.span;
+                impl ast2::Type<'i> {
+                    fn into_ast1(self, span: Span<'i>) -> Type<'i> {
+                        Type {
+                            span,
+                            kind: match self {
+                                ast2::Type::Primitive(p) => TypeKind::Primitive(p),
+                                ast2::Type::Struct {
+                                    name,
+                                    generic_replacements,
+                                    ..
+                                } => TypeKind::Named {
+                                    name,
+                                    generic_replacements: generic_replacements
+                                        .iter()
+                                        .cloned()
+                                        .map(|it| it.into_ast1(span))
+                                        .vec()
+                                        .into(),
+                                },
+                                ast2::Type::Ptr(inner) => {
+                                    inner.deref().clone().into_ast1(span).kind
+                                }
+                                ast2::Type::GenericPlaceholder(name) => TypeKind::Named {
+                                    name,
+                                    generic_replacements: Default::default(),
+                                },
+                                ast2::Type::Auto => TypeKind::Auto,
+                                _ => panic!(
+                                "can't turn ast2 ty {:?} back into ast1 for func call receiver ty",
+                                self
+                            ),
+                            },
+                        }
+                    }
+                }
+                func_call.receiver_ty = Some(receiver.ty.into_ast1(receiver_span));
 
                 func_call.type_check(ctx, type_hint)?
             }
@@ -479,11 +526,20 @@ impl Expr<'i> {
 
 impl FuncCall<'i> {
     pub fn type_check(
-        self,
+        mut self,
         ctx: &mut Ctx<'i>,
         type_hint: Option<&ast2::Type<'i>>,
     ) -> Res<'i, ast2::Expr<'i>> {
         if self.generic_replacements.is_empty() {
+            if let Some(receiver_ty) = self.receiver_ty {
+                self.name = format!(
+                    "{}::{}",
+                    receiver_ty.clone().type_check(ctx)?.encoded_name(),
+                    self.name
+                )
+                .into_ctx(ctx)
+            }
+
             let args = self
                 .args
                 .iter()

@@ -43,6 +43,7 @@ impl Define<'i> {
                 generic_placeholders,
                 args,
                 body,
+                ..
             } => {
                 debug_assert!(!generic_placeholders.is_empty());
 
@@ -188,16 +189,14 @@ impl Type<'i> {
                         .into_iter()
                         .map(|mut define| {
                             // attach struct name to func
-                            if let Func {
-                                name: func_name, ..
-                            } = &mut define.kind
-                            {
-                                *func_name = format!(
-                                    "{}::{}",
-                                    name.encode(&generic_replacements.iter().vec(), None),
-                                    func_name
-                                )
-                                .into_ctx(ctx)
+                            if let Func { receiver_ty, .. } = &mut define.kind {
+                                *receiver_ty = Some(Type {
+                                    span: self.span,
+                                    kind: TypeKind::Named {
+                                        name,
+                                        generic_replacements: generic_replacements_.clone(),
+                                    },
+                                })
                             }
 
                             define.replace_generics(ctx, &generic_map);
@@ -236,7 +235,7 @@ impl FuncCall<'i> {
     /// `FuncCall::type_check` but for generic funcs
     ///
     /// mostly duplicated from `Define::type_check` and `FuncCall::type_check`
-    pub fn type_check_generic(self, ctx: &mut Ctx<'i>) -> Res<'i, ast2::Expr<'i>> {
+    pub fn type_check_generic(mut self, ctx: &mut Ctx<'i>) -> Res<'i, ast2::Expr<'i>> {
         debug_assert!(!self.generic_replacements.is_empty());
 
         let generic_replacements: Rc<Vec<ast2::Type<'i>>> = self
@@ -262,6 +261,7 @@ impl FuncCall<'i> {
         )?;
         if let Symbol::GenericFunc {
             mut ty,
+            receiver_ty: symbol_receiver_ty,
             name,
             generic_placeholders,
             args: symbol_args_,
@@ -283,7 +283,19 @@ impl FuncCall<'i> {
 
             ty.replace_generics(ctx, &generic_map);
             let ty = ty.type_check(ctx)?;
+            if let (Some(mut receiver_ty), Some(mut symbol_receiver_ty)) =
+                (self.receiver_ty, symbol_receiver_ty)
+            {
+                receiver_ty.replace_generics(ctx, &generic_map);
+                let receiver_ty = receiver_ty.type_check(ctx)?;
+
+                // make sure the args actually match
+                receiver_ty.check(&symbol_arg.ty, Some(ast1_arg.span))?;
+
+                self.name = format!("{}::{}", receiver_ty.encoded_name(), self.name).into_ctx(ctx)
+            }
             let nesting_prefix = ctx.scopes.nesting_prefix().into_ctx(ctx);
+            let full_name = format!("{}{}", nesting_prefix, name).into_ctx(ctx);
 
             ctx.scopes
                 .push(Scope::new(Some(name), false, Some(ty.clone())));
@@ -327,7 +339,7 @@ impl FuncCall<'i> {
                 // make and generate the define
                 ast2::Define::Func {
                     ty: ty.clone(),
-                    full_name: format!("{}{}", nesting_prefix, name).into_ctx(ctx),
+                    full_name,
                     generic_replacements: generic_replacements.clone(),
                     args: symbol_args.into(),
                     body,
@@ -340,7 +352,7 @@ impl FuncCall<'i> {
             ctx.scopes.0.extend(scopes_after);
             Ok(ast2::Expr {
                 kind: ast2::ExprKind::FuncCall {
-                    full_name: format!("{}{}", nesting_prefix, name).into_ctx(ctx),
+                    full_name,
                     generic_replacements,
                     args: args.into(),
                 },

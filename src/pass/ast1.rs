@@ -24,6 +24,7 @@ pub enum DefineKind<'i> {
     },
     Func {
         ty: Type<'i>,
+        receiver_ty: Option<Type<'i>>,
         name: CtxStr<'i>,
         generic_placeholders: Rc<Vec<CtxStr<'i>>>,
         args: Rc<Vec<VarDefine<'i>>>,
@@ -122,6 +123,7 @@ pub enum ExprKind<'i> {
 #[derive(Debug, Clone)]
 pub struct FuncCall<'i> {
     pub span: Span<'i>,
+    pub receiver_ty: Option<Type<'i>>,
     pub name: CtxStr<'i>,
     pub generic_replacements: Rc<Vec<Type<'i>>>,
     pub args: Rc<Vec<Expr<'i>>>,
@@ -136,10 +138,11 @@ pub struct Type<'i> {
 #[derive(Debug, Clone)]
 pub enum TypeKind<'i> {
     Primitive(PrimitiveType),
-    Ptr(Rc<Type<'i>>),
     Named {
         name: CtxStr<'i>,
         generic_replacements: Rc<Vec<Type<'i>>>,
     },
+    Ptr(Rc<Type<'i>>),
+
     Auto,
 }

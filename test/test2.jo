@@ -76,6 +76,9 @@ void take(Hello<i8> arg) {}
 void take_cooler<T>(Hello<T> arg) {}
 void take_cooler_cooler<T>(Hello<Hello<T>> arg) {}
 
+void Hello<T>::yo_what<T>(Hello<T> this) {}
+void str::bruh_moment()
+
 
 i32 main() {
     f(1 as i8)
@@ -92,7 +95,7 @@ i32 main() {
 
 
 
-    str str = `str::new`("beautiful")
+    str str = str::new("beautiful")
     str.debug_print()
 
 
@@ -107,10 +110,11 @@ i32 main() {
     take_cooler<Hello<i8>>(hello2)
     take_cooler_cooler<i8>(hello2)
 
+    Hello<i8>::yo_what<i8>(hello)
+//    hello.yo_what<i8>()
 
 
-    if (false) sized_ptr<u8> `makes specialization occur`
-    auto sp = `sized_ptr<u8>::new`("hello", 6 as u64)
+    auto sp = sized_ptr<u8>::new("hello", 6 as u64)
     sp.debug_print()
 
 

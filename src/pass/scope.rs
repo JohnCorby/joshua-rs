@@ -53,6 +53,7 @@ pub enum Symbol<'i> {
         // copied from func define
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         ty: ast1::Type<'i>,
+        receiver_ty: Option<ast1::Type<'i>>,
         name: CtxStr<'i>,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         generic_placeholders: Rc<Vec<CtxStr<'i>>>,
