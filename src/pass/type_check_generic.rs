@@ -13,10 +13,30 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 impl Define<'i> {
-    /// `Define::type_check` but for generic funcs and structs
+    /// `Define::type_check` but for generic structs and funcs
     pub fn type_check_generic(self, ctx: &mut Ctx<'i>) -> Res<'i, ast2::Define<'i>> {
         use DefineKind::*;
         match self.kind {
+            Struct {
+                name,
+                generic_placeholders,
+                body,
+            } => {
+                debug_assert!(!generic_placeholders.is_empty());
+
+                // add symbol
+                ctx.scopes.add(
+                    Symbol::GenericStruct {
+                        name,
+                        generic_placeholders,
+                        body,
+
+                        scopes_index: ctx.scopes.0.len(),
+                    },
+                    Some(self.span),
+                )?;
+            }
+
             Func {
                 ty,
                 name,
@@ -28,7 +48,7 @@ impl Define<'i> {
 
                 ctx.scopes.push(Scope::new(None, false, None));
                 // add placeholders
-                for &placeholder in &*generic_placeholders {
+                for &placeholder in generic_placeholders.iter() {
                     ctx.scopes
                         .add(Symbol::GenericPlaceholderType(placeholder), Some(self.span))?;
                 }
@@ -57,167 +77,25 @@ impl Define<'i> {
                 )?;
             }
 
-            Struct {
-                name,
-                generic_placeholders,
-                body,
-            } => {
-                debug_assert!(!generic_placeholders.is_empty());
-
-                // add symbol
-                ctx.scopes.add(
-                    Symbol::GenericStruct {
-                        name,
-                        generic_placeholders,
-                        body,
-
-                        scopes_index: ctx.scopes.0.len(),
-                    },
-                    Some(self.span),
-                )?;
-            }
-
             _ => unreachable!(),
         }
         Ok(ast2::Define::NoGen)
     }
 }
 
-impl FuncCall<'i> {
-    /// `FuncCall::type_check` but for generic funcs
-    pub fn type_check_generic(self, ctx: &mut Ctx<'i>) -> Res<'i, ast2::Expr<'i>> {
-        debug_assert!(!self.generic_replacements.is_empty());
-
-        let generic_replacements: Rc<Vec<ast2::Type<'i>>> = self
-            .generic_replacements
-            .iter()
-            .cloned()
-            .map(|replacement| replacement.type_check(ctx))
-            .res_vec()?
-            .into();
-        let args = self
-            .args
-            .iter()
-            .cloned()
-            .map(|arg| arg.type_check(ctx, None))
-            .res_vec()?;
-
-        // find an associated generic func
-        let generic_symbol = ctx.scopes.find_generic_func(
-            self.name,
-            &generic_replacements.iter().vec(),
-            &args.iter().map(|arg| &arg.ty).vec(),
-            Some(self.span),
-        )?;
-        if let Symbol::GenericFunc {
-            mut ty,
-
-            name,
-            generic_placeholders,
-            args: symbol_args_,
-            mut body,
-
-            scopes_index,
-            ..
-        } = generic_symbol.clone()
-        {
-            // go to where the generic func was defined
-            let scopes_after = ctx.scopes.0.split_off(scopes_index);
-
-            // get mapping from placeholder names to replacement types
-            let generic_map = generic_placeholders
-                .iter()
-                .copied()
-                .zip(self.generic_replacements.iter().cloned())
-                .collect::<GenericMap<'i>>();
-
-            // a decent chunk of this is just duplicated code from Define::type_check
-            // that's slightly modified to replace_generics and to not always Scopes::add
-            // oh well
-
-            ty.replace_generics(ctx, &generic_map);
-            let ty = ty.type_check(ctx)?;
-            let nesting_prefix = ctx.scopes.nesting_prefix().into_ctx(ctx);
-            ctx.scopes
-                .push(Scope::new(Some(name), false, Some(ty.clone())));
-            let mut symbol_args = Vec::with_capacity(symbol_args_.len());
-            for (mut symbol_arg, (arg, ast1_arg)) in symbol_args_
-                .iter()
-                .cloned()
-                .zip(args.iter().zip(self.args.iter()))
-            {
-                symbol_arg.replace_generics(ctx, &generic_map);
-                let symbol_arg = symbol_arg.type_check(ctx)?;
-
-                // make sure the args actually match
-                arg.ty.check(&symbol_arg.ty, Some(ast1_arg.span))?;
-
-                symbol_args.push(symbol_arg);
-            }
-
-            // add symbol if non-existent
-            let specialized_symbol = Symbol::Func {
-                ty: ty.clone(),
-                nesting_prefix,
-                name,
-                generic_replacements: generic_replacements.clone(),
-                arg_types: args.iter().cloned().map(|it| it.ty).vec().into(),
-            };
-            if ctx
-                .scopes
-                .find(&specialized_symbol, Some(self.span))
-                .is_err()
-            {
-                // add symbol
-                let scope = ctx.scopes.pop();
-                ctx.scopes.add(specialized_symbol, Some(self.span))?;
-                ctx.scopes.push(scope);
-
-                body.replace_generics(ctx, &generic_map);
-                let body = body.type_check(ctx)?;
-                ctx.scopes.check_return_called(Some(self.span))?;
-
-                // push a define ast so it will be generated properly
-                let define = ast2::Define::Func {
-                    ty: ty.clone(),
-                    full_name: format!("{}{}", nesting_prefix, name).into_ctx(ctx),
-                    generic_replacements: generic_replacements.clone(),
-                    args: symbol_args.into(),
-                    body,
-                };
-                ctx.extra_defines.push(define);
-            } else {
-                unreachable!()
-            }
-
-            ctx.scopes.pop();
-
-            ctx.scopes.0.extend(scopes_after);
-            Ok(ast2::Expr {
-                kind: ast2::ExprKind::FuncCall {
-                    full_name: format!("{}{}", nesting_prefix, name).into_ctx(ctx),
-                    generic_replacements,
-                    args: args.into(),
-                },
-                ty,
-            })
-        } else {
-            unreachable!()
-        }
-    }
-}
-
 impl Type<'i> {
     /// `Type::type_check` but for generic structs
+    ///
+    /// mostly duplicated from `Define::type_check` and `Type::type_check`
     pub fn type_check_generic(self, ctx: &mut Ctx<'i>) -> Res<'i, ast2::Type<'i>> {
         use DefineKind::*;
         use TypeKind::*;
         if let Named {
             name,
-            generic_replacements: generic_replacements_,
+            generic_replacements: ref generic_replacements_,
         } = self.kind
         {
-            debug_assert!(generic_replacements_.is_empty());
+            debug_assert!(!generic_replacements_.is_empty());
 
             let generic_replacements: Rc<Vec<ast2::Type<'i>>> = generic_replacements_
                 .iter()
@@ -225,6 +103,19 @@ impl Type<'i> {
                 .map(|replacement| replacement.type_check(ctx))
                 .res_vec()?
                 .into();
+
+            // return early if replacements contains a placeholder
+            // this should only happen with a generic func that has an arg of generic struct with a replacement of the func's placeholder
+            if generic_replacements
+                .iter()
+                .any(ast2::Type::contains_placeholder)
+            {
+                return Ok(ast2::Type::Struct {
+                    nesting_prefix: Default::default(),
+                    name,
+                    generic_replacements,
+                });
+            }
 
             // find an associated generic func
             let generic_symbol = ctx.scopes.find_generic_struct(
@@ -238,7 +129,6 @@ impl Type<'i> {
                 body,
 
                 scopes_index,
-                ..
             } = generic_symbol.clone()
             {
                 // go to where the generic func was defined
@@ -250,10 +140,6 @@ impl Type<'i> {
                     .copied()
                     .zip(generic_replacements_.iter().cloned())
                     .collect::<GenericMap<'i>>();
-
-                // a decent chunk of this is just duplicated code from Define::type_check
-                // that's slightly modified to replace_generics and to not always Scopes::add
-                // oh well
 
                 let (var_defines, func_defines) =
                     body.iter()
@@ -306,7 +192,12 @@ impl Type<'i> {
                                 name: func_name, ..
                             } = &mut define.kind
                             {
-                                *func_name = format!("{}::{}", name, func_name).into_ctx(ctx)
+                                *func_name = format!(
+                                    "{}::{}",
+                                    name.encode(&generic_replacements.iter().vec(), None),
+                                    func_name
+                                )
+                                .into_ctx(ctx)
                             }
 
                             define.replace_generics(ctx, &generic_map);
@@ -324,8 +215,6 @@ impl Type<'i> {
                         body: body.into(),
                     };
                     ctx.extra_defines.push(define);
-                } else {
-                    unreachable!()
                 }
 
                 ctx.scopes.0.extend(scopes_after);
@@ -343,62 +232,177 @@ impl Type<'i> {
     }
 }
 
-impl Scopes<'i> {
-    /// find a generic func fuzzily
-    pub fn find_generic_func(
-        &self,
-        name: CtxStr<'i>,
-        generic_replacements: &[&ast2::Type<'i>],
-        arg_types: &[&ast2::Type<'i>],
-        span: Option<Span<'i>>,
-    ) -> Res<'i, &Symbol<'i>> {
-        for scope in self.0.iter().rev() {
-            let symbol = scope.symbols.iter().find(|&s| {
-                if let Symbol::GenericFunc {
-                    name: symbol_name,
-                    generic_placeholders,
-                    arg_types: symbol_arg_types,
-                    ..
-                } = s
-                {
-                    if name != *symbol_name {
-                        return false;
-                    }
+impl FuncCall<'i> {
+    /// `FuncCall::type_check` but for generic funcs
+    ///
+    /// mostly duplicated from `Define::type_check` and `FuncCall::type_check`
+    pub fn type_check_generic(self, ctx: &mut Ctx<'i>) -> Res<'i, ast2::Expr<'i>> {
+        debug_assert!(!self.generic_replacements.is_empty());
 
-                    if generic_placeholders.len() != generic_replacements.len() {
-                        return false;
-                    }
+        let generic_replacements: Rc<Vec<ast2::Type<'i>>> = self
+            .generic_replacements
+            .iter()
+            .cloned()
+            .map(|replacement| replacement.type_check(ctx))
+            .res_vec()?
+            .into();
+        let args = self
+            .args
+            .iter()
+            .cloned()
+            .map(|arg| arg.type_check(ctx, None))
+            .res_vec()?;
 
-                    if arg_types.len() != symbol_arg_types.len() {
-                        return false;
-                    }
-                    for (&ty, symbol_ty) in arg_types.iter().zip(symbol_arg_types.iter()) {
-                        if let ast2::Type::GenericPlaceholder(_) = symbol_ty {
-                            // generic symbol_ty will always match ty, so don't return false
-                        } else if ty != symbol_ty {
-                            return false;
-                        }
-                    }
-                    true
-                } else {
-                    false
-                }
-            });
-            if let Some(symbol) = symbol {
-                return Ok(symbol);
+        // find an associated generic func
+        let generic_symbol = ctx.scopes.find_generic_func(
+            self.name,
+            &generic_replacements.iter().vec(),
+            &args.iter().map(|arg| &arg.ty).vec(),
+            Some(self.span),
+        )?;
+        if let Symbol::GenericFunc {
+            mut ty,
+            name,
+            generic_placeholders,
+            args: symbol_args_,
+            mut body,
+
+            scopes_index,
+            ..
+        } = generic_symbol.clone()
+        {
+            // go to where the generic func was defined
+            let scopes_after = ctx.scopes.0.split_off(scopes_index);
+
+            // get mapping from placeholder names to replacement types
+            let generic_map = generic_placeholders
+                .iter()
+                .copied()
+                .zip(self.generic_replacements.iter().cloned())
+                .collect::<GenericMap<'i>>();
+
+            ty.replace_generics(ctx, &generic_map);
+            let ty = ty.type_check(ctx)?;
+            let nesting_prefix = ctx.scopes.nesting_prefix().into_ctx(ctx);
+
+            ctx.scopes
+                .push(Scope::new(Some(name), false, Some(ty.clone())));
+            let mut symbol_args = Vec::with_capacity(symbol_args_.len());
+            for (mut symbol_arg, (arg, ast1_arg)) in symbol_args_
+                .iter()
+                .cloned()
+                .zip(args.iter().zip(self.args.iter()))
+            {
+                symbol_arg.replace_generics(ctx, &generic_map);
+                let symbol_arg = symbol_arg.type_check(ctx)?;
+
+                // make sure the args actually match
+                arg.ty.check(&symbol_arg.ty, Some(ast1_arg.span))?;
+
+                symbol_args.push(symbol_arg);
             }
+
+            // add symbol if non-existent
+            let specialized_symbol = Symbol::Func {
+                ty: ty.clone(),
+                nesting_prefix,
+                name,
+                generic_replacements: generic_replacements.clone(),
+                arg_types: args.iter().cloned().map(|it| it.ty).vec().into(),
+            };
+            if ctx
+                .scopes
+                .find(&specialized_symbol, Some(self.span))
+                .is_err()
+            {
+                // add symbol
+                let scope = ctx.scopes.pop();
+                ctx.scopes.add(specialized_symbol, Some(self.span))?;
+                ctx.scopes.push(scope);
+
+                body.replace_generics(ctx, &generic_map);
+                let body = body.type_check(ctx)?;
+                ctx.scopes.check_return_called(Some(self.span))?;
+
+                // push a define ast so it will be generated properly
+                let define = ast2::Define::Func {
+                    ty: ty.clone(),
+                    full_name: format!("{}{}", nesting_prefix, name).into_ctx(ctx),
+                    generic_replacements: generic_replacements.clone(),
+                    args: symbol_args.into(),
+                    body,
+                };
+                ctx.extra_defines.push(define);
+            }
+
+            ctx.scopes.pop();
+
+            ctx.scopes.0.extend(scopes_after);
+            Ok(ast2::Expr {
+                kind: ast2::ExprKind::FuncCall {
+                    full_name: format!("{}{}", nesting_prefix, name).into_ctx(ctx),
+                    generic_replacements,
+                    args: args.into(),
+                },
+                ty,
+            })
+        } else {
+            unreachable!()
         }
-        err(
-            &format!(
-                "could not find {}",
-                name.to_display("generic func symbol", generic_replacements, Some(arg_types))
-            ),
-            span,
-        )
+    }
+}
+
+impl ast2::Type<'i> {
+    /// check if self has a placeholder type in it
+    fn contains_placeholder(&self) -> bool {
+        use ast2::Type::*;
+        match self {
+            GenericPlaceholder(_) => true,
+            Struct {
+                generic_replacements,
+                ..
+            } => generic_replacements.iter().any(Self::contains_placeholder),
+            Ptr(inner) => inner.contains_placeholder(),
+            _ => false,
+        }
     }
 
+    /// check for eq fuzzily
+    /// where `other` is possibly generic
+    fn generic_eq(&self, other: &Self) -> bool {
+        use ast2::Type::*;
+        match (self, other) {
+            (_, GenericPlaceholder(_)) => true,
+            (
+                Struct {
+                    name,
+                    generic_replacements,
+                    ..
+                },
+                Struct {
+                    name: other_name,
+                    generic_replacements: other_replacements,
+                    ..
+                },
+            ) => {
+                name == other_name
+                    && generic_replacements
+                        .iter()
+                        .zip(other_replacements.iter())
+                        .all(|(replacement, other_replacement)| {
+                            replacement.generic_eq(other_replacement)
+                        })
+            }
+            (Ptr(inner), Ptr(other_inner)) => inner.generic_eq(other_inner),
+
+            _ => self == other,
+        }
+    }
+}
+
+impl Scopes<'i> {
     /// find a generic struct fuzzily
-    pub fn find_generic_struct(
+    fn find_generic_struct(
         &self,
         name: CtxStr<'i>,
         generic_replacements: &[&ast2::Type<'i>],
@@ -432,6 +436,55 @@ impl Scopes<'i> {
             &format!(
                 "could not find {}",
                 name.to_display("generic struct symbol", generic_replacements, None)
+            ),
+            span,
+        )
+    }
+
+    /// find a generic func fuzzily
+    fn find_generic_func(
+        &self,
+        name: CtxStr<'i>,
+        generic_replacements: &[&ast2::Type<'i>],
+        arg_types: &[&ast2::Type<'i>],
+        span: Option<Span<'i>>,
+    ) -> Res<'i, &Symbol<'i>> {
+        for scope in self.0.iter().rev() {
+            let symbol = scope.symbols.iter().find(|&s| {
+                if let Symbol::GenericFunc {
+                    name: symbol_name,
+                    generic_placeholders,
+                    arg_types: symbol_arg_types,
+                    ..
+                } = s
+                {
+                    if name != *symbol_name {
+                        return false;
+                    }
+
+                    if generic_placeholders.len() != generic_replacements.len() {
+                        return false;
+                    }
+
+                    if arg_types.len() != symbol_arg_types.len() {
+                        return false;
+                    }
+                    arg_types
+                        .iter()
+                        .zip(symbol_arg_types.iter())
+                        .all(|(ty, symbol_ty)| ty.generic_eq(symbol_ty))
+                } else {
+                    false
+                }
+            });
+            if let Some(symbol) = symbol {
+                return Ok(symbol);
+            }
+        }
+        err(
+            &format!(
+                "could not find {}",
+                name.to_display("generic func symbol", generic_replacements, Some(arg_types))
             ),
             span,
         )

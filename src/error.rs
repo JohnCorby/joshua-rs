@@ -37,6 +37,7 @@ impl Display for Err<'_> {
         }
         if self.backtrace.status() == BacktraceStatus::Captured {
             writeln!(f)?;
+            writeln!(f, "Internal Backtrace:")?;
             write!(f, "{}", self.backtrace)?;
         }
         Ok(())

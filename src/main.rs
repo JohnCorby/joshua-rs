@@ -16,6 +16,7 @@
 #![feature(panic_info_message)]
 #![feature(try_blocks)]
 #![feature(in_band_lifetimes)]
+#![feature(hash_set_entry)]
 #![warn(elided_lifetimes_in_paths)]
 
 use crate::context::Ctx;

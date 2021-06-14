@@ -1,3 +1,6 @@
+use std::path::Path;
+use std::process::{Command, ExitStatus};
+
 pub mod ast1;
 pub mod ast2;
 pub mod gen;
@@ -7,9 +10,6 @@ pub mod ty;
 pub mod type_check;
 pub mod type_check_generic;
 pub mod visit;
-
-use std::path::Path;
-use std::process::{Command, ExitStatus};
 
 /// take c code string, write it to a c file, and compile that file
 pub fn compile_program(c_code: &str, path: &Path) -> ExitStatus {
@@ -29,7 +29,8 @@ pub fn compile_program(c_code: &str, path: &Path) -> ExitStatus {
     // std::fs::remove_file(c_path).unwrap();
     if status.success() {
         println!("running");
-        Command::new(out_path).status().unwrap();
+        let status = Command::new(out_path).status().unwrap();
+        println!("exit code: {}", status);
     }
     status
 }

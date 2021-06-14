@@ -128,7 +128,7 @@ impl Literal<'i> {
     }
 }
 
-#[derive(Debug, Clone, derivative::Derivative, derive_new::new)]
+#[derive(Debug, Clone, derivative::Derivative)]
 #[derivative(Hash, PartialEq)]
 pub enum Type<'i> {
     Primitive(PrimitiveType),

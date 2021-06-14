@@ -47,7 +47,7 @@ pub enum Symbol<'i> {
     },
     GenericPlaceholderType(CtxStr<'i>),
     GenericFunc {
-        // cached for faster access
+        /// used only for eq/hash
         arg_types: Rc<Vec<Type<'i>>>,
 
         // copied from func define
@@ -126,8 +126,7 @@ impl Display for Symbol<'_> {
                 &generic_replacements.iter().vec(),
                 None,
             )),
-            // _ => write!(f, "internal symbol {:?}", self),
-            _ => panic!("internal symbol {:?} should not be displayed", self),
+            _ => write!(f, "internal symbol {:?}", self),
         }
     }
 }

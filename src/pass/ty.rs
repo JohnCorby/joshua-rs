@@ -27,7 +27,10 @@ impl Type<'i> {
                 .encode(&generic_replacements.iter().vec(), None),
             Ptr(ty) => format!("ptr<{}>", ty.encoded_name()),
             // _ => format!("{{{:?}}}", self),
-            _ => panic!("internal type {:?} should not be used in func name", self),
+            _ => panic!(
+                "internal type {:?} should not be used in encoded name",
+                self
+            ),
         }
     }
 }
@@ -52,8 +55,7 @@ impl Display for Type<'_> {
                 None,
             )),
             Ptr(ty) => write!(f, "pointer to {}", ty),
-            // _ => write!(f, "internal type {:?}", self),
-            _ => panic!("internal type {:?} should not be displayed", self),
+            _ => write!(f, "internal type {:?}", self),
         }
     }
 }

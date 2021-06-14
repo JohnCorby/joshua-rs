@@ -41,6 +41,7 @@ impl Define<'i> {
                 let new_o = std::mem::replace(&mut ctx.o, old_o);
                 ctx.struct_defines.push_str(&new_o);
             }
+
             Func {
                 ty,
                 full_name,
@@ -76,6 +77,7 @@ impl Define<'i> {
                 let new_o = std::mem::replace(&mut ctx.o, old_o);
                 ctx.func_defines.push_str(&new_o);
             }
+
             Var(var_define) => {
                 // fixme global variables stick around in ctx.o when they should go somewhere else, this will panic
                 var_define.gen(ctx);

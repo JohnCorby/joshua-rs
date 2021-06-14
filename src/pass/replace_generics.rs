@@ -3,22 +3,13 @@
 
 use crate::context::Ctx;
 use crate::pass::ast1::*;
-use crate::pass::scope::Symbol;
+use crate::pass::scope::{Scope, Symbol};
 use crate::util::ctx_str::CtxStr;
 use crate::util::RcExt;
 use std::collections::HashMap;
 
+/// maps placeholder names to replacement types
 pub type GenericMap<'i> = HashMap<CtxStr<'i>, Type<'i>>;
-
-impl Program<'i> {
-    pub fn replace_generics(&mut self, ctx: &mut Ctx<'i>, generic_map: &GenericMap<'i>) {
-        self.0.modify(|defines| {
-            for define in defines {
-                define.replace_generics(ctx, generic_map)
-            }
-        })
-    }
-}
 
 impl Define<'i> {
     pub fn replace_generics(&mut self, ctx: &mut Ctx<'i>, generic_map: &GenericMap<'i>) {
@@ -174,15 +165,38 @@ impl FuncCall<'i> {
 
 impl Type<'i> {
     pub fn replace_generics(&mut self, ctx: &mut Ctx<'i>, generic_map: &GenericMap<'i>) {
-        if let TypeKind::Named { name, .. } = self.kind {
-            if ctx
-                .scopes
-                .find(&Symbol::new_generic_placeholder_type(name), None)
-                .is_err()
-            {
-                return;
+        use TypeKind::*;
+        match &mut self.kind {
+            Ptr(inner) => inner.modify(|inner| inner.replace_generics(ctx, generic_map)),
+            Named {
+                name,
+                generic_replacements,
+            } => {
+                // add placeholders (fixme: slow and repetitive)
+                ctx.scopes.push(Scope::new(None, false, None));
+                for &placeholder in generic_map.keys() {
+                    ctx.scopes
+                        .add(Symbol::GenericPlaceholderType(placeholder), Some(self.span))
+                        .unwrap();
+                }
+                let is_placeholder = ctx
+                    .scopes
+                    .find(&Symbol::new_generic_placeholder_type(*name), None)
+                    .is_ok();
+                ctx.scopes.pop();
+                if is_placeholder {
+                    // we are a generic placeholder
+                    *self = generic_map[name].clone();
+                } else {
+                    // we are a struct
+                    generic_replacements.modify(|replacements| {
+                        for replacement in replacements {
+                            replacement.replace_generics(ctx, generic_map)
+                        }
+                    });
+                }
             }
-            *self = generic_map[&name].clone();
+            _ => {}
         }
     }
 }

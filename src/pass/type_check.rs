@@ -7,7 +7,7 @@ use crate::pass::ast2;
 use crate::pass::scope::{Scope, Symbol};
 use crate::pass::ty::PrimitiveType;
 use crate::util::ctx_str::IntoCtx;
-use crate::util::{IterExt, IterResExt, RcExt};
+use crate::util::{IterExt, IterResExt, RcExt, StrExt};
 use std::collections::HashMap;
 use std::ops::Deref;
 
@@ -29,11 +29,11 @@ impl Program<'i> {
 impl Define<'i> {
     pub fn type_check(self, ctx: &mut Ctx<'i>) -> Res<'i, ast2::Define<'i>> {
         use DefineKind::*;
-        Ok(match self.kind.clone() {
+        Ok(match self.kind {
             Struct {
                 name,
-                generic_placeholders,
-                body,
+                ref generic_placeholders,
+                ref body,
             } => {
                 if generic_placeholders.is_empty() {
                     let (var_defines, func_defines) =
@@ -54,25 +54,21 @@ impl Define<'i> {
 
                     // add symbol
                     let nesting_prefix = ctx.scopes.nesting_prefix().into_ctx(ctx);
-                    ctx.scopes.add(
-                        Symbol::StructType {
-                            nesting_prefix,
-                            name,
-                            generic_replacements: Default::default(),
-                            field_types: var_defines
-                                .iter()
-                                .cloned()
-                                .map(|define| match define {
-                                    ast2::Define::Var(ast2::VarDefine { name, ty, .. }) => {
-                                        (name, ty)
-                                    }
-                                    _ => unreachable!(),
-                                })
-                                .collect::<HashMap<_, _>>()
-                                .into(),
-                        },
-                        Some(self.span),
-                    )?;
+                    let symbol = Symbol::StructType {
+                        nesting_prefix,
+                        name,
+                        generic_replacements: Default::default(),
+                        field_types: var_defines
+                            .iter()
+                            .cloned()
+                            .map(|define| match define {
+                                ast2::Define::Var(ast2::VarDefine { name, ty, .. }) => (name, ty),
+                                _ => unreachable!(),
+                            })
+                            .collect::<HashMap<_, _>>()
+                            .into(),
+                    };
+                    ctx.scopes.add(symbol, Some(self.span))?;
 
                     let func_defines = func_defines
                         .into_iter()
@@ -101,15 +97,18 @@ impl Define<'i> {
                     self.type_check_generic(ctx)?
                 }
             }
+
             Func {
-                ty,
+                ref ty,
                 name,
-                generic_placeholders,
-                args,
-                body,
+                ref generic_placeholders,
+                ref args,
+                ref body,
             } => {
                 if generic_placeholders.is_empty() {
-                    let ty = ty.type_check(ctx)?;
+                    let ty = ty.clone().type_check(ctx)?;
+                    let nesting_prefix = ctx.scopes.nesting_prefix().into_ctx(ctx);
+
                     ctx.scopes
                         .push(Scope::new(Some(name), false, Some(ty.clone())));
                     let args = args
@@ -120,7 +119,6 @@ impl Define<'i> {
 
                     // add symbol
                     let scope = ctx.scopes.pop();
-                    let nesting_prefix = ctx.scopes.nesting_prefix().into_ctx(ctx);
                     ctx.scopes.add(
                         Symbol::Func {
                             ty: ty.clone(),
@@ -133,7 +131,7 @@ impl Define<'i> {
                     )?;
                     ctx.scopes.push(scope);
 
-                    let body = body.type_check(ctx)?;
+                    let body = body.clone().type_check(ctx)?;
                     ctx.scopes.check_return_called(Some(self.span))?;
                     ctx.scopes.pop();
 
@@ -148,6 +146,7 @@ impl Define<'i> {
                     self.type_check_generic(ctx)?
                 }
             }
+
             Var(var_define) => ast2::Define::Var(var_define.type_check(ctx)?),
             CCode(c_code) => ast2::Define::CCode(c_code.type_check(ctx)?),
         })
@@ -387,6 +386,8 @@ impl Expr<'i> {
                 func_call.name =
                     format!("{}::{}", receiver.ty.encoded_name(), func_call.name).into_ctx(ctx);
 
+                func_call.span = self.span;
+
                 func_call.type_check(ctx, type_hint)?
             }
             Field { receiver, var } => {
@@ -468,11 +469,12 @@ impl FuncCall<'i> {
                 .res_vec()?;
 
             // symbol check
+            // dbg!(&ctx.scopes);
             let symbol = ctx.scopes.find(
                 &Symbol::new_func(
                     self.name,
                     Default::default(),
-                    args.clone().into_iter().map(|it| it.ty).vec().into(),
+                    args.iter().cloned().map(|it| it.ty).vec().into(),
                 ),
                 Some(self.span),
             )?;
@@ -498,12 +500,12 @@ impl Type<'i> {
     pub fn type_check(self, ctx: &mut Ctx<'i>) -> Res<'i, ast2::Type<'i>> {
         let span = self.span;
         use TypeKind::*;
-        Ok(match self.kind.clone() {
+        Ok(match self.kind {
             Primitive(ty) => ast2::Type::Primitive(ty),
             Ptr(inner) => ast2::Type::Ptr(inner.deref().clone().type_check(ctx)?.into()),
             Named {
                 name,
-                generic_replacements,
+                ref generic_replacements,
             } => {
                 if generic_replacements.is_empty() {
                     // symbol check
@@ -512,21 +514,22 @@ impl Type<'i> {
                             &Symbol::new_struct_type(name, Default::default()),
                             Some(span),
                         )
-                        .map(|symbol| symbol)
                         .or_else(|_| {
                             ctx.scopes
                                 .find(&Symbol::new_generic_placeholder_type(name), Some(span))
                         })
                         .or_else(|_| {
                             err(
-                                &format!("could not find type symbol `{}`", name),
+                                &format!(
+                                    "could not find {}",
+                                    name.to_display("type symbol", &[], None)
+                                ),
                                 Some(span),
                             )
                         })?
                         .ty()
                 } else {
-                    self.type_check_generic(ctx)?;
-                    todo!("Type::type_check_generic")
+                    self.type_check_generic(ctx)?
                 }
             }
             Auto => ast2::Type::Auto,

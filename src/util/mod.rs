@@ -5,6 +5,7 @@ use std::ops::Deref;
 use std::rc::Rc;
 
 pub mod ctx_str;
+pub mod frozen_set;
 pub mod frozen_vec;
 
 pub trait StrExt {

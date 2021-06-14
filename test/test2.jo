@@ -1,27 +1,28 @@
 void f(i8 a) {}
 void f(i8 a, i8 b) {}
 
-//void f<T>(T a) {}
-//void f<T>(T a, T b) {}
+void f<T>(T a) {}
+void f<T>(T a, T b) {}
 
 struct S {
     i32 n
 }
 
-//T `+`<T>(T a, T b) {
-//    T c
-//    c.n = a.n + b.n
-//    ret c
-//}
+T `+`<T>(T a, T b) {
+    T c
+    c.n = a.n + b.n
+    ret c
+}
 
-//void bruh<T>(T a) bruh<T>(a)
+void bruh<T>(T a)
+    if (false)
+        bruh<T>(a)
 
 
 struct str {
     ptr<u8> ptr
     u64 len
 
-    // FIXME since these are created in struct "scope", they get destroyed out of the struct and so are useless, oops
     str new(ptr<u8> ptr) {
         str result
         result.ptr = ptr
@@ -43,47 +44,64 @@ struct str {
 
 
 
-//struct sized_ptr<T> {
-//    ptr<T> ptr
-//    u64 len
-//}
+struct sized_ptr<T> {
+    ptr<T> ptr
+    u64 len
 
-//struct Hello<T> {
-//    T field
-//}
-//
-//void take(Hello<i8> arg) {}
-////void take_cooler<T>(Hello<T> arg) {}
+    sized_ptr<T> new(ptr<T> ptr, u64 len) {
+        sized_ptr<T> this
+        this.ptr = ptr
+        this.len = len
+        ret this
+    }
+}
+
+struct Hello<T> {
+    T field
+
+    void take(Hello<T> this)
+        if (false)
+            this.take()
+}
+
+void take(Hello<i8> arg) {}
+void take_cooler<T>(Hello<T> arg) {}
+void take_cooler_cooler<T>(Hello<Hello<T>> arg) {}
 
 
 i32 main() {
     f(1 as i8)
     f(1 as i8, 2 as i8)
 
-//    f<i16>(1 as i16)
-//    f<i16>(1 as i16, 2 as i16)
+    f<i16>(1 as i16)
+    f<i16>(1 as i16, 2 as i16)
 
-//    S s
-//    `+`<S>(s, s)
+    S s
+    `+`<S>(s, s)
 
-//    bruh<i8>(1 as i8)
-//    bruh<i8>(1 as i8)
+    bruh<i8>(1 as i8)
+    bruh<i8>(1 as i8)
 
 
 
-//    str str
-//    str.ptr = "hello"
-//    str.len = 6
     str str = `str::new`("beautiful")
     str.debug_print()
-//    ptr<u8> ptr = "hello"
-//    <{ puts(${ptr}) }>
 
 
 
-//    Hello<i8> hello
-//    take(hello)
+    Hello<i8> hello
+    hello.take()
+    take(hello)
+    take_cooler<i8>(hello)
+    take_cooler<i8>(hello)
 
+    Hello<Hello<i8>> hello2
+    take_cooler<Hello<i8>>(hello2)
+    take_cooler_cooler<i8>(hello2)
+
+
+
+    sized_ptr<u8> sp
 
 
 
