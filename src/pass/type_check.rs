@@ -548,7 +548,6 @@ impl FuncCall<'i> {
                 .res_vec()?;
 
             // symbol check
-            // dbg!(&ctx.scopes);
             let symbol = ctx.scopes.find(
                 &Symbol::new_func(
                     self.name,

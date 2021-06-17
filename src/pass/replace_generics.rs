@@ -21,20 +21,21 @@ impl Define<'i> {
             }),
             Func {
                 ty,
-                generic_placeholders,
+                receiver_ty,
                 args,
                 body,
                 ..
             } => {
                 ty.replace_generics(ctx, generic_map);
+                if let Some(receiver_ty) = receiver_ty {
+                    receiver_ty.replace_generics(ctx, generic_map)
+                }
                 args.modify(|args| {
                     for arg in args {
                         arg.replace_generics(ctx, generic_map)
                     }
                 });
                 body.replace_generics(ctx, generic_map);
-
-                *generic_placeholders = Default::default()
             }
             Var(var_define) => var_define.replace_generics(ctx, generic_map),
             CCode(c_code) => c_code.replace_generics(ctx, generic_map),
@@ -149,6 +150,9 @@ impl Expr<'i> {
 
 impl FuncCall<'i> {
     pub fn replace_generics(&mut self, ctx: &mut Ctx<'i>, generic_map: &GenericMap<'i>) {
+        if let Some(receiver_ty) = &mut self.receiver_ty {
+            receiver_ty.replace_generics(ctx, generic_map)
+        }
         self.generic_replacements.modify(|replacements| {
             for replacement in replacements {
                 replacement.replace_generics(ctx, generic_map)

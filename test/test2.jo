@@ -1,7 +1,12 @@
 void f(i8 a) {}
 void f(i8 a, i8 b) {}
 
-void f<T>(T a) {}
+void f<T>(T a) {
+    void Hello<U>::LOOK_FOR_ME<U>(U a) {
+    }
+
+    Hello<u8>::LOOK_FOR_ME<u8>(a as u8)
+}
 void f<T>(T a, T b) {}
 
 struct S {
@@ -67,9 +72,9 @@ struct sized_ptr<T> {
 struct Hello<T> {
     T field
 
-    void take(Hello<T> this)
+    void TAKE<U>(Hello<T> this)
         if (false)
-            this.take()
+            this.TAKE<U>()
 }
 
 void take(Hello<i8> arg) {}
@@ -101,7 +106,7 @@ i32 main() {
 
 
     Hello<i8> hello
-    hello.take()
+    hello.TAKE<i64>()
     take(hello)
     take_cooler<i8>(hello)
     take_cooler<i8>(hello)

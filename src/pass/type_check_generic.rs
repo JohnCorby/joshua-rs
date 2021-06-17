@@ -242,7 +242,7 @@ impl FuncCall<'i> {
     /// `FuncCall::type_check` but for generic funcs
     ///
     /// mostly duplicated from `Define::type_check` and `FuncCall::type_check`
-    pub fn type_check_generic(mut self, ctx: &mut Ctx<'i>) -> Res<'i, ast2::Expr<'i>> {
+    pub fn type_check_generic(self, ctx: &mut Ctx<'i>) -> Res<'i, ast2::Expr<'i>> {
         debug_assert!(!self.generic_replacements.is_empty());
 
         let receiver_ty = if let Some(receiver_ty) = &self.receiver_ty {
@@ -275,7 +275,7 @@ impl FuncCall<'i> {
         if let Symbol::GenericFunc {
             mut ty,
             receiver_ty_ast1: symbol_receiver_ty,
-            name,
+            mut name,
             generic_placeholders,
             args: symbol_args_,
             mut body,
@@ -306,8 +306,7 @@ impl FuncCall<'i> {
                     .unwrap()
                     .check(&symbol_receiver_ty, Some(self.receiver_ty.unwrap().span))?;
 
-                self.name =
-                    format!("{}::{}", receiver_ty.unwrap().encoded_name(), self.name).into_ctx(ctx)
+                name = format!("{}::{}", receiver_ty.unwrap().encoded_name(), name).into_ctx(ctx)
             }
             let nesting_prefix = ctx.scopes.nesting_prefix().into_ctx(ctx);
             let full_name = format!("{}{}", nesting_prefix, name).into_ctx(ctx);
@@ -413,6 +412,7 @@ impl ast2::Type<'i> {
                 },
             ) => {
                 name == other_name
+                    && generic_replacements.len() == other_replacements.len()
                     && generic_replacements
                         .iter()
                         .zip(other_replacements.iter())
