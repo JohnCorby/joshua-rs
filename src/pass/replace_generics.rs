@@ -3,7 +3,6 @@
 
 use crate::context::Ctx;
 use crate::pass::ast1::*;
-use crate::pass::scope::{Scope, Symbol};
 use crate::util::ctx_str::CtxStr;
 use crate::util::RcExt;
 use std::collections::HashMap;
@@ -172,19 +171,7 @@ impl Type<'i> {
                 name,
                 generic_replacements,
             } => {
-                // add placeholders (fixme: slow and gets called a decent amount)
-                ctx.scopes.push(Scope::new(None, false, None));
-                for &placeholder in generic_map.keys() {
-                    ctx.scopes
-                        .add(Symbol::GenericPlaceholderType(placeholder), Some(self.span))
-                        .unwrap();
-                }
-                let is_placeholder = ctx
-                    .scopes
-                    .find(&Symbol::new_generic_placeholder_type(*name), None)
-                    .is_ok();
-                ctx.scopes.pop();
-                if is_placeholder {
+                if generic_map.contains_key(name) {
                     // we are a generic placeholder
                     *self = generic_map[name].clone();
                 } else {

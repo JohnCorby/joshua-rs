@@ -39,11 +39,11 @@ impl Define<'i> {
 
             Func {
                 ty,
+                receiver_ty: receiver_ty_ast1,
                 name,
                 generic_placeholders,
                 args,
                 body,
-                ..
             } => {
                 debug_assert!(!generic_placeholders.is_empty());
 
@@ -53,6 +53,11 @@ impl Define<'i> {
                     ctx.scopes
                         .add(Symbol::GenericPlaceholderType(placeholder), Some(self.span))?;
                 }
+                let receiver_ty = if let Some(receiver_ty) = &receiver_ty_ast1 {
+                    Some(receiver_ty.clone().type_check(ctx)?)
+                } else {
+                    None
+                };
                 let arg_types = args
                     .iter()
                     .cloned()
@@ -64,9 +69,11 @@ impl Define<'i> {
                 // add symbol
                 ctx.scopes.add(
                     Symbol::GenericFunc {
+                        receiver_ty,
                         arg_types,
 
                         ty,
+                        receiver_ty_ast1,
                         name,
                         generic_placeholders,
                         args,
@@ -238,6 +245,11 @@ impl FuncCall<'i> {
     pub fn type_check_generic(mut self, ctx: &mut Ctx<'i>) -> Res<'i, ast2::Expr<'i>> {
         debug_assert!(!self.generic_replacements.is_empty());
 
+        let receiver_ty = if let Some(receiver_ty) = &self.receiver_ty {
+            Some(receiver_ty.clone().type_check(ctx)?)
+        } else {
+            None
+        };
         let generic_replacements: Rc<Vec<ast2::Type<'i>>> = self
             .generic_replacements
             .iter()
@@ -254,6 +266,7 @@ impl FuncCall<'i> {
 
         // find an associated generic func
         let generic_symbol = ctx.scopes.find_generic_func(
+            receiver_ty.as_ref(),
             self.name,
             &generic_replacements.iter().vec(),
             &args.iter().map(|arg| &arg.ty).vec(),
@@ -261,7 +274,7 @@ impl FuncCall<'i> {
         )?;
         if let Symbol::GenericFunc {
             mut ty,
-            receiver_ty: symbol_receiver_ty,
+            receiver_ty_ast1: symbol_receiver_ty,
             name,
             generic_placeholders,
             args: symbol_args_,
@@ -283,16 +296,18 @@ impl FuncCall<'i> {
 
             ty.replace_generics(ctx, &generic_map);
             let ty = ty.type_check(ctx)?;
-            if let (Some(mut receiver_ty), Some(mut symbol_receiver_ty)) =
-                (self.receiver_ty, symbol_receiver_ty)
-            {
-                receiver_ty.replace_generics(ctx, &generic_map);
-                let receiver_ty = receiver_ty.type_check(ctx)?;
+            if let Some(mut symbol_receiver_ty) = symbol_receiver_ty {
+                symbol_receiver_ty.replace_generics(ctx, &generic_map);
+                let symbol_receiver_ty = symbol_receiver_ty.type_check(ctx)?;
 
-                // make sure the args actually match
-                receiver_ty.check(&symbol_arg.ty, Some(ast1_arg.span))?;
+                // make sure the receiver tys actually match
+                receiver_ty
+                    .as_ref()
+                    .unwrap()
+                    .check(&symbol_receiver_ty, Some(self.receiver_ty.unwrap().span))?;
 
-                self.name = format!("{}::{}", receiver_ty.encoded_name(), self.name).into_ctx(ctx)
+                self.name =
+                    format!("{}::{}", receiver_ty.unwrap().encoded_name(), self.name).into_ctx(ctx)
             }
             let nesting_prefix = ctx.scopes.nesting_prefix().into_ctx(ctx);
             let full_name = format!("{}{}", nesting_prefix, name).into_ctx(ctx);
@@ -456,6 +471,7 @@ impl Scopes<'i> {
     /// find a generic func fuzzily
     fn find_generic_func(
         &self,
+        receiver_ty: Option<&ast2::Type<'i>>,
         name: CtxStr<'i>,
         generic_replacements: &[&ast2::Type<'i>],
         arg_types: &[&ast2::Type<'i>],
@@ -464,12 +480,25 @@ impl Scopes<'i> {
         for scope in self.0.iter().rev() {
             let symbol = scope.symbols.iter().find(|&s| {
                 if let Symbol::GenericFunc {
+                    receiver_ty: symbol_receiver_ty,
                     name: symbol_name,
                     generic_placeholders,
                     arg_types: symbol_arg_types,
                     ..
                 } = s
                 {
+                    if receiver_ty.is_some() != symbol_receiver_ty.is_some() {
+                        return false;
+                    }
+                    if receiver_ty.is_some()
+                        && symbol_receiver_ty.is_some()
+                        && !receiver_ty
+                            .unwrap()
+                            .generic_eq(symbol_receiver_ty.as_ref().unwrap())
+                    {
+                        return false;
+                    }
+
                     if name != *symbol_name {
                         return false;
                     }
@@ -493,6 +522,11 @@ impl Scopes<'i> {
                 return Ok(symbol);
             }
         }
+        let name = if let Some(receiver_ty) = receiver_ty {
+            format!("{}::{}", receiver_ty.encoded_name(), name)
+        } else {
+            name.to_string()
+        };
         err(
             &format!(
                 "could not find {}",

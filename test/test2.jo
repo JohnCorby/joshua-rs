@@ -77,7 +77,7 @@ void take_cooler<T>(Hello<T> arg) {}
 void take_cooler_cooler<T>(Hello<Hello<T>> arg) {}
 
 void Hello<T>::yo_what<T>(Hello<T> this) {}
-void str::bruh_moment()
+void str::bruh_moment() {}
 
 
 i32 main() {
@@ -111,7 +111,7 @@ i32 main() {
     take_cooler_cooler<i8>(hello2)
 
     Hello<i8>::yo_what<i8>(hello)
-//    hello.yo_what<i8>()
+    hello.yo_what<i8>()
 
 
     auto sp = sized_ptr<u8>::new("hello", 6 as u64)
