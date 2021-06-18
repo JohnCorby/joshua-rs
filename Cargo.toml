@@ -16,6 +16,7 @@ quit = "*"
 stable_deref_trait = "*"
 derivative = "*"
 derive-new = "*"
+indexmap = "*"
 
 [dev-dependencies]
 unindent = "*"

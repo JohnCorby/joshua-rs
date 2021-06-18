@@ -76,6 +76,7 @@ impl Define<'i> {
                         .into_iter()
                         .map(|mut define| {
                             // attach struct name to func
+                            // fixme since both func calls and types add nested prefix, methods in structs will have the nested prefix added twice
                             if let Func { receiver_ty, .. } = &mut define.kind {
                                 *receiver_ty = Some(Type {
                                     span: self.span,
@@ -550,15 +551,6 @@ impl FuncCall<'i> {
                 .map(|arg| arg.type_check(ctx, None))
                 .res_vec()?;
 
-            // symbol check
-            let symbol = ctx.scopes.find(
-                &Symbol::new_func(
-                    self.name,
-                    Default::default(),
-                    args.iter().cloned().map(|it| it.ty).vec().into(),
-                ),
-                Some(self.span),
-            )?;
             {
                 // funny moment
                 let _ = ctx.scopes.find_generic_func_inference(
@@ -569,6 +561,15 @@ impl FuncCall<'i> {
                     self.span,
                 );
             }
+            // symbol check
+            let symbol = ctx.scopes.find(
+                &Symbol::new_func(
+                    self.name,
+                    Default::default(),
+                    args.iter().cloned().map(|it| it.ty).vec().into(),
+                ),
+                Some(self.span),
+            )?;
             let nesting_prefix = match symbol {
                 Symbol::Func { nesting_prefix, .. } => nesting_prefix,
                 _ => unreachable!(),

@@ -9,6 +9,7 @@ use crate::pass::scope::{Scope, Scopes, Symbol};
 use crate::span::Span;
 use crate::util::ctx_str::{CtxStr, IntoCtx};
 use crate::util::{IterExt, IterResExt, RcExt, StrExt};
+use indexmap::IndexSet;
 use std::collections::HashMap;
 use std::ops::Deref;
 use std::rc::Rc;
@@ -495,7 +496,6 @@ impl Scopes<'i> {
                         return false;
                     }
                     if receiver_ty.is_some()
-                        && symbol_receiver_ty.is_some()
                         && !receiver_ty
                             .unwrap()
                             .generic_eq(symbol_receiver_ty.as_ref().unwrap())
@@ -561,22 +561,16 @@ impl Scopes<'i> {
                     // filter non candidates
                     // this is filter instead of find because there can be multiple (with different # of placeholders)
                     if let Symbol::GenericFunc {
-                        ty,
                         receiver_ty: symbol_receiver_ty,
                         name: symbol_name,
                         arg_types: symbol_arg_types,
                         ..
                     } = s
                     {
-                        if type_hint.is_some() && !ty.generic_eq(type_hint.unwrap()) {
-                            return false;
-                        }
-
                         if receiver_ty.is_some() != symbol_receiver_ty.is_some() {
                             return false;
                         }
                         if receiver_ty.is_some()
-                            && symbol_receiver_ty.is_some()
                             && !receiver_ty
                                 .unwrap()
                                 .generic_eq(symbol_receiver_ty.as_ref().unwrap())
@@ -603,23 +597,26 @@ impl Scopes<'i> {
                     // actually do the replacements
                     if let Symbol::GenericFunc {
                         ty,
-                        receiver_ty,
+                        receiver_ty: symbol_receiver_ty,
                         arg_types: symbol_arg_types,
                         generic_placeholders,
                         ..
                     } = s
                     {
                         let mut ty = ty.clone();
-                        let mut receiver_ty = receiver_ty.clone();
+                        let mut symbol_receiver_ty = symbol_receiver_ty.clone();
                         let mut symbol_arg_types = symbol_arg_types.deref().clone();
-                        let mut generic_placeholders = generic_placeholders.deref().clone();
+                        let mut generic_placeholders = generic_placeholders
+                            .iter()
+                            .copied()
+                            .collect::<IndexSet<_>>();
 
                         let mut generic_replacements =
-                            vec![&ast2::Type::Auto; generic_placeholders.len()]; // temporary values lol
+                            vec![Default::default(); generic_placeholders.len()]; // uninitialized values lol
 
                         println!(
-                            "candidate {:?} {:?} {:?} {:?}",
-                            ty, receiver_ty, symbol_arg_types, generic_placeholders
+                            "candidate? {:?} {:?} {:?} {:?}",
+                            ty, symbol_receiver_ty, generic_placeholders, symbol_arg_types
                         );
 
                         impl ast2::Type<'i> {
@@ -632,9 +629,9 @@ impl Scopes<'i> {
                                     Struct {
                                         generic_replacements,
                                         ..
-                                    } => generic_replacements.modify(|rs| {
-                                        for r in rs {
-                                            r.replace_generic(map)
+                                    } => generic_replacements.modify(|replacements| {
+                                        for replacement in replacements {
+                                            replacement.replace_generic(map)
                                         }
                                     }),
                                     Ptr(inner) => inner.modify(|inner| inner.replace_generic(map)),
@@ -651,7 +648,7 @@ impl Scopes<'i> {
                             if let ast2::Type::GenericPlaceholder(placeholder) = ty {
                                 let map = (placeholder, replacement);
                                 ty.replace_generic(map);
-                                if let Some(ty) = &mut receiver_ty {
+                                if let Some(ty) = &mut symbol_receiver_ty {
                                     ty.replace_generic(map)
                                 }
                                 for ty in symbol_arg_types.iter_mut() {
@@ -659,22 +656,22 @@ impl Scopes<'i> {
                                 }
 
                                 let i = generic_placeholders
-                                    .iter()
-                                    .position(|&p| placeholder == p)
-                                    .unwrap();
-                                generic_placeholders.remove(i);
-                                generic_replacements[i] = replacement;
+                                    .swap_remove_full(&placeholder)
+                                    .unwrap()
+                                    .0;
+                                generic_replacements[i] = replacement.clone();
                             }
                         }
 
-                        // then go thru the rest of the placeholders, replacing any with the proper arg types
+                        // then, go thru the rest of the placeholders, replacing any with the proper arg types
                         'outer: while !generic_placeholders.is_empty() {
                             for (i, &replacement) in arg_types.iter().enumerate() {
                                 if let ast2::Type::GenericPlaceholder(placeholder) =
                                     symbol_arg_types[i]
                                 {
                                     let map = (placeholder, replacement);
-                                    if let Some(ty) = &mut receiver_ty {
+                                    ty.replace_generic(map);
+                                    if let Some(ty) = &mut symbol_receiver_ty {
                                         ty.replace_generic(map)
                                     }
                                     for ty in symbol_arg_types.iter_mut() {
@@ -682,11 +679,10 @@ impl Scopes<'i> {
                                     }
 
                                     let i = generic_placeholders
-                                        .iter()
-                                        .position(|&p| placeholder == p)
-                                        .unwrap();
-                                    generic_placeholders.remove(i);
-                                    generic_replacements[i] = replacement;
+                                        .swap_remove_full(&placeholder)
+                                        .unwrap()
+                                        .0;
+                                    generic_replacements[i] = replacement.clone();
                                     continue 'outer;
                                 }
                             }
@@ -695,16 +691,27 @@ impl Scopes<'i> {
                             return false;
                         }
 
+                        println!(
+                            "candidate! {:?} {:?} {:?} {:?}",
+                            ty, symbol_receiver_ty, generic_replacements, symbol_arg_types
+                        );
+
+                        // finally, check that everything still matches after replacement
+                        if receiver_ty.is_some()
+                            && receiver_ty.unwrap() != symbol_receiver_ty.as_ref().unwrap()
+                        {
+                            return false;
+                        }
+                        if arg_types != symbol_arg_types.iter().vec() {
+                            return false;
+                        }
+
                         let func = Symbol::Func {
                             ty,
                             nesting_prefix: Default::default(),
                             name,
-                            generic_replacements: generic_replacements
-                                .into_iter()
-                                .cloned()
-                                .vec()
-                                .into(),
-                            arg_types: arg_types.iter().cloned().cloned().vec().into(),
+                            generic_replacements: generic_replacements.into(),
+                            arg_types: symbol_arg_types.into(),
                         };
                         println!("match! {:?}", func);
 
@@ -714,11 +721,9 @@ impl Scopes<'i> {
                     }
                 });
             if let Some(symbol) = symbol {
-                println!("----------------BRUH MOMENT-----------------");
                 return Ok(symbol);
             }
         }
-        println!("----------------MOMENT BRUH-----------------");
         err(
             &format!(
                 "could not find {} using generic replacement inference",

@@ -45,7 +45,7 @@ fn main() {
 
     let result: Res<'_> = try {
         println!("parsing");
-        let node = Node::parse(ctx.new_i(program), Kind::program)?;
+        let node = Node::parse(ctx.insert_i(program), Kind::program)?;
         println!("visiting");
         let program = node.visit::<Program<'_>>(ctx);
         println!("type checking");

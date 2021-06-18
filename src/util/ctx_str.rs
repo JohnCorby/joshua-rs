@@ -18,11 +18,7 @@ pub trait IntoCtx<'i> {
 }
 impl IntoCtx<'i> for String {
     fn into_ctx(self, ctx: &Ctx<'i>) -> CtxStr<'i> {
-        ctx.inputs
-            .iter()
-            .find(|&input| input == self)
-            .unwrap_or_else(|| ctx.new_i(self))
-            .into()
+        ctx.insert_i(self).into()
     }
 }
 

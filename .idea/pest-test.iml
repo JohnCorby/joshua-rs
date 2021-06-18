@@ -18,6 +18,7 @@
       <sourceFolder url="file://$MODULE_DIR$/target/debug/build/proc-macro2-3addc56742fd4b1f/out" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/target/debug/build/syn-af56ae977129910c/out" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/target/debug/build/winapi-befa51cc59b30ef9/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/debug/build/indexmap-bbb9498d12d36247/out" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>
     <orderEntry type="inheritedJdk" />

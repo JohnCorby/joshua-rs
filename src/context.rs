@@ -2,13 +2,13 @@ use crate::parse::{Kind, Node};
 use crate::pass::ast1::Program;
 use crate::pass::scope::Scopes;
 use crate::pass::ty::PrimitiveType;
-use crate::util::frozen_vec::FrozenVec;
+use crate::util::frozen_index_set::FrozenIndexSet;
 use crate::util::RcExt;
 
 /// stores general program context
 #[derive(Debug)]
 pub struct Ctx<'i> {
-    pub inputs: &'i FrozenVec<String>,
+    pub inputs: &'i FrozenIndexSet<String>,
 
     pub scopes: Scopes<'i>,
 
@@ -22,7 +22,7 @@ pub struct Ctx<'i> {
 }
 
 impl Ctx<'i> {
-    pub fn new(inputs: &'i FrozenVec<String>) -> Self {
+    pub fn new(inputs: &'i FrozenIndexSet<String>) -> Self {
         Self {
             inputs,
             scopes: Default::default(),
@@ -36,8 +36,9 @@ impl Ctx<'i> {
         }
     }
 
-    pub fn new_i(&self, i: String) -> &'i str {
-        self.inputs.push_get(i)
+    /// inserts a new input or returns already existing
+    pub fn insert_i(&self, i: String) -> &'i str {
+        self.inputs.insert(i)
     }
 }
 
@@ -105,7 +106,7 @@ impl Ctx<'_> {
             }
         }
 
-        let defines = Node::parse(self.new_i(i), Kind::program)
+        let defines = Node::parse(self.insert_i(i), Kind::program)
             .unwrap()
             .visit::<Program<'_>>(self)
             .0

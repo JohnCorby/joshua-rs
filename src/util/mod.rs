@@ -5,8 +5,7 @@ use std::ops::Deref;
 use std::rc::Rc;
 
 pub mod ctx_str;
-pub mod frozen_set;
-pub mod frozen_vec;
+pub mod frozen_index_set;
 
 pub trait StrExt {
     /// gets verbose display name from stuff
