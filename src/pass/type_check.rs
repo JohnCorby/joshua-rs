@@ -422,6 +422,7 @@ impl Expr<'i> {
 
                 let receiver = receiver.type_check(ctx, None)?;
                 impl ast2::Type<'i> {
+                    /// revert an ast2 Type back into ast1
                     fn into_ast1(self, span: Span<'i>) -> Type<'i> {
                         Type {
                             span,
@@ -531,13 +532,15 @@ impl FuncCall<'i> {
         type_hint: Option<&ast2::Type<'i>>,
     ) -> Res<'i, ast2::Expr<'i>> {
         if self.generic_replacements.is_empty() {
-            if let Some(receiver_ty) = self.receiver_ty {
-                self.name = format!(
-                    "{}::{}",
-                    receiver_ty.clone().type_check(ctx)?.encoded_name(),
-                    self.name
-                )
-                .into_ctx(ctx)
+            let receiver_ty = if let Some(receiver_ty) = &self.receiver_ty {
+                Some(receiver_ty.clone().type_check(ctx)?)
+            } else {
+                None
+            };
+
+            let name_ = self.name;
+            if let Some(receiver_ty) = &receiver_ty {
+                self.name = format!("{}::{}", receiver_ty.encoded_name(), self.name).into_ctx(ctx)
             }
 
             let args = self
@@ -556,6 +559,16 @@ impl FuncCall<'i> {
                 ),
                 Some(self.span),
             )?;
+            {
+                // funny moment
+                let _ = ctx.scopes.find_generic_func_inference(
+                    receiver_ty.as_ref(),
+                    name_,
+                    &args.iter().map(|it| &it.ty).vec(),
+                    type_hint,
+                    self.span,
+                );
+            }
             let nesting_prefix = match symbol {
                 Symbol::Func { nesting_prefix, .. } => nesting_prefix,
                 _ => unreachable!(),

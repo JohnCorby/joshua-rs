@@ -47,13 +47,17 @@ pub enum Symbol<'i> {
     },
     GenericPlaceholderType(CtxStr<'i>),
     GenericFunc {
-        /// used only for eq/hash
+        // used only for eq/hash
         arg_types: Rc<Vec<Type<'i>>>,
         receiver_ty: Option<Type<'i>>,
 
+        /// used only for generic inference
+        #[derivative(Hash = "ignore", PartialEq = "ignore")]
+        ty: Type<'i>,
+
         // copied from func define
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
-        ty: ast1::Type<'i>,
+        ty_ast1: ast1::Type<'i>,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         receiver_ty_ast1: Option<ast1::Type<'i>>,
         name: CtxStr<'i>,

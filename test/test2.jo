@@ -7,6 +7,7 @@ void f<T>(T a) {
 
     Hello<u8>::LOOK_FOR_ME<u8>(a as u8)
 }
+// fixme placeholders with different names count as different when they shouldn't. only # should matter
 void f<T>(T a, T b) {}
 
 struct S {
