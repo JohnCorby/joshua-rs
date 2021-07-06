@@ -25,7 +25,7 @@ pub enum Symbol<'i> {
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         #[new(default)]
         nesting_prefix: &'i str,
-        /// includes receiver ty
+        receiver_ty: Option<Type<'i>>,
         name: &'i str,
         generic_replacements: Rc<Vec<Type<'i>>>,
         arg_types: Rc<Vec<Type<'i>>>,
@@ -47,16 +47,32 @@ pub enum Symbol<'i> {
         field_types: Rc<HashMap<&'i str, Type<'i>>>,
     },
     GenericPlaceholder(&'i str),
+    GenericStruct {
+        // copied from struct define
+        #[derivative(Hash = "ignore", PartialEq = "ignore")]
+        span: Span<'i>,
+        name: &'i str,
+        #[derivative(Hash = "ignore", PartialEq = "ignore")]
+        generic_placeholders: Rc<Vec<&'i str>>,
+        #[derivative(Hash = "ignore", PartialEq = "ignore")]
+        body: Rc<Vec<ast1::Define<'i>>>,
+
+        // codegen info
+        #[derivative(Hash = "ignore", PartialEq = "ignore")]
+        scopes_index: usize,
+    },
     GenericFunc {
         // used only for eq/hash
-        arg_types: Rc<Vec<Type<'i>>>,
         receiver_ty: Option<Type<'i>>,
+        arg_types: Rc<Vec<Type<'i>>>,
 
         /// used only for generic inference
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         ty: Type<'i>,
 
         // copied from func define
+        #[derivative(Hash = "ignore", PartialEq = "ignore")]
+        span: Span<'i>,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         ty_ast1: ast1::Type<'i>,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
@@ -68,18 +84,6 @@ pub enum Symbol<'i> {
         args: Rc<Vec<ast1::VarDefine<'i>>>,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         body: ast1::Block<'i>,
-
-        // codegen info
-        #[derivative(Hash = "ignore", PartialEq = "ignore")]
-        scopes_index: usize,
-    },
-    GenericStruct {
-        // copied from struct define
-        name: &'i str,
-        #[derivative(Hash = "ignore", PartialEq = "ignore")]
-        generic_placeholders: Rc<Vec<&'i str>>,
-        #[derivative(Hash = "ignore", PartialEq = "ignore")]
-        body: Rc<Vec<ast1::Define<'i>>>,
 
         // codegen info
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
@@ -113,13 +117,17 @@ impl Display for Symbol<'_> {
         use Symbol::*;
         match self {
             Func {
+                receiver_ty,
                 name,
                 generic_replacements,
                 arg_types,
                 ..
             } => write!(
                 f,
-                "func {}",
+                "func {}{}",
+                receiver_ty
+                    .as_ref()
+                    .map_or(String::new(), |it| format!("{}::", it)),
                 name.encode(
                     &generic_replacements.iter().vec(),
                     Some(&arg_types.iter().vec()),
@@ -208,7 +216,7 @@ impl Scopes<'i> {
         }
     }
     /// note: only checks one current scope and outer ones
-    pub fn check_return_called(&self, span: Option<Span<'i>>) -> Res<'i> {
+    pub fn check_return_called(&self, span: Span<'i>) -> Res<'i> {
         let return_called = self.0.last().unwrap().return_called;
         let is_void = self.func_return_type() == &Type::Primitive(PrimitiveType::Void);
 
@@ -222,33 +230,46 @@ impl Scopes<'i> {
 
 /// these are simple and just use hash
 impl Scopes<'i> {
-    pub fn add(&mut self, symbol: Symbol<'i>, span: Option<Span<'i>>) -> Res<'i> {
-        if let Symbol::Struct {
-            // generic_replacements,
-            ..
-        }
-        | Symbol::Func {
-            // generic_replacements,
-            ..
-        } = symbol
-        {
-            // if
-        } else {
-            let symbols = &mut self.0.last_mut().unwrap().symbols;
-            if let Some(symbol) = symbols.get(&symbol) {
-                return err(&format!("{} already defined", symbol), span);
+    pub fn add(&mut self, symbol: Symbol<'i>, span: Span<'i>) -> Res<'i> {
+        match symbol {
+            // Symbol::Struct {
+            //     generic_replacements,
+            //     ..
+            // } if !generic_replacements.is_empty() => todo!("add generic struct"),
+            // Symbol::Func {
+            //     generic_replacements,
+            //     ..
+            // } if !generic_replacements.is_empty() => todo!("add generic func"),
+            _ => {
+                let symbols = &mut self.0.last_mut().unwrap().symbols;
+                if let Some(symbol) = symbols.get(&symbol) {
+                    return err(&format!("{} already defined", symbol), span);
+                }
+                symbols.insert(symbol);
+                Ok(())
             }
-            symbols.insert(symbol);
         }
-        Ok(())
     }
 
-    pub fn find(&self, symbol: &Symbol<'i>, span: Option<Span<'i>>) -> Res<'i, &Symbol<'i>> {
-        for scope in self.0.iter().rev() {
-            if let Some(symbol) = scope.symbols.get(symbol) {
-                return Ok(symbol);
+    pub fn find(&mut self, symbol: &Symbol<'i>, span: Span<'i>) -> Res<'i, Symbol<'i>> {
+        match symbol {
+            Symbol::Struct {
+                generic_replacements,
+                ..
+            } if !generic_replacements.is_empty() => self.find_generic_struct(symbol, span),
+            Symbol::Func {
+                generic_replacements,
+                ..
+            } if !generic_replacements.is_empty() => self.find_generic_func(symbol, span),
+
+            _ => {
+                for scope in self.0.iter().rev() {
+                    if let Some(symbol) = scope.symbols.get(symbol) {
+                        return Ok(symbol.clone());
+                    }
+                }
+                err(&format!("could not find {}", symbol), span)
             }
         }
-        err(&format!("could not find {}", symbol), span)
     }
 }

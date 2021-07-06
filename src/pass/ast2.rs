@@ -111,7 +111,7 @@ pub enum ExprKind<'i> {
 }
 
 impl Expr<'i> {
-    pub fn check_assignable(&self, span: Option<Span<'i>>) -> Res<'i> {
+    pub fn check_assignable(&self, span: Span<'i>) -> Res<'i> {
         use ExprKind::*;
         let is_ptr = matches!(self.ty, Type::Ptr(_));
         let is_non_void = self.ty != PrimitiveType::Void.ty();

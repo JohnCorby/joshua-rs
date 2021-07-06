@@ -4,11 +4,11 @@ use std::process::{Command, ExitStatus};
 pub mod ast1;
 pub mod ast2;
 pub mod gen;
+pub mod generic_util;
 pub mod replace_generics;
 pub mod scope;
 pub mod ty;
 pub mod type_check;
-pub mod type_check_generic;
 pub mod visit;
 
 /// take c code string, write it to a c file, and compile that file

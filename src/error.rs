@@ -6,6 +6,7 @@ use std::fmt::{Debug, Display, Formatter};
 pub type Res<'i, T = ()> = Result<T, Err<'i>>;
 pub struct Err<'i> {
     message: String,
+    /// should only be None when internal error
     span: Option<Span<'i>>,
     backtrace: Backtrace,
 }
@@ -62,16 +63,16 @@ impl<T: ToString> IntoErr for T {
     }
 }
 
-pub fn err<T>(str: &str, span: Option<Span<'i>>) -> Res<'i, T> {
-    Err(str.into_err(span))
+pub fn err<T>(str: &str, span: Span<'i>) -> Res<'i, T> {
+    Err(str.into_err(Some(span)))
 }
 #[allow(dead_code)]
-pub fn warn(str: &str, span: Option<Span<'_>>) {
-    eprintln!("Warning: {}", str.into_err(span));
+pub fn warn(str: &str, span: Span<'_>) {
+    eprintln!("Warning: {}", str.into_err(Some(span)));
 }
 #[allow(dead_code)]
-pub fn warn_internal(str: &str, span: Option<Span<'_>>) {
-    eprintln!("Internal Warning: {}", str.into_err(span));
+pub fn warn_internal(str: &str) {
+    eprintln!("Internal Warning: {}", str.into_err(None));
 }
 
 pub fn unexpected_kind(node: Node<'_>) -> ! {

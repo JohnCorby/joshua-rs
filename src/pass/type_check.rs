@@ -6,7 +6,6 @@ use crate::pass::ast1::*;
 use crate::pass::ast2;
 use crate::pass::scope::{Scope, Symbol};
 use crate::pass::ty::PrimitiveType;
-use crate::span::Span;
 use crate::util::{IterExt, IterResExt, RcExt};
 use std::collections::HashMap;
 use std::ops::Deref;
@@ -33,8 +32,8 @@ impl Define<'i> {
         Ok(match self.kind {
             Struct {
                 name,
-                ref generic_placeholders,
-                ref body,
+                generic_placeholders,
+                body,
             } => {
                 if generic_placeholders.is_empty() {
                     let (var_defines, func_defines) =
@@ -55,22 +54,27 @@ impl Define<'i> {
 
                     // add symbol
                     let nesting_prefix = ctx.scopes.nesting_prefix().intern(ctx);
-                    let symbol = Symbol::Struct {
-                        nesting_prefix,
-                        name,
-                        generic_replacements: Default::default(),
-                        field_types: var_defines
-                            .iter()
-                            .cloned()
-                            .map(|define| match define {
-                                ast2::Define::Var(ast2::VarDefine { name, ty, .. }) => (name, ty),
-                                _ => unreachable!(),
-                            })
-                            .collect::<HashMap<_, _>>()
-                            .into(),
-                    };
-                    ctx.scopes.add(symbol, Some(self.span))?;
+                    ctx.scopes.add(
+                        Symbol::Struct {
+                            nesting_prefix,
+                            name,
+                            generic_replacements: Default::default(),
+                            field_types: var_defines
+                                .iter()
+                                .cloned()
+                                .map(|define| match define {
+                                    ast2::Define::Var(ast2::VarDefine { name, ty, .. }) => {
+                                        (name, ty)
+                                    }
+                                    _ => unreachable!(),
+                                })
+                                .collect::<HashMap<_, _>>()
+                                .into(),
+                        },
+                        self.span,
+                    )?;
 
+                    let span = self.span;
                     let func_defines = func_defines
                         .into_iter()
                         .map(|mut define| {
@@ -78,7 +82,7 @@ impl Define<'i> {
                             // fixme since both func calls and types add nested prefix, methods in structs will have the nested prefix added twice
                             if let Func { receiver_ty, .. } = &mut define.kind {
                                 *receiver_ty = Some(Type {
-                                    span: self.span,
+                                    span,
                                     kind: TypeKind::Named {
                                         name,
                                         generic_replacements: Default::default(),
@@ -99,29 +103,58 @@ impl Define<'i> {
                         body: body.into(),
                     }
                 } else {
-                    self.type_check_generic(ctx)?
+                    // add symbol
+                    ctx.scopes.add(
+                        Symbol::GenericStruct {
+                            span: self.span,
+                            name,
+                            generic_placeholders,
+                            body,
+
+                            scopes_index: ctx.scopes.0.len(),
+                        },
+                        self.span,
+                    )?;
+
+                    ast2::Define::NoGen
                 }
             }
 
             Func {
-                ref ty,
-                ref receiver_ty,
-                mut name,
-                ref generic_placeholders,
-                ref args,
-                ref body,
+                ty: ty_ast1,
+                receiver_ty: receiver_ty_ast1,
+                name,
+                generic_placeholders,
+                args,
+                body,
             } => {
-                if generic_placeholders.is_empty() {
-                    let ty = ty.clone().type_check(ctx)?;
-                    if let Some(receiver_ty) = receiver_ty {
-                        // attach receiver ty to name
-                        name = format!("{}::{}", receiver_ty.clone().type_check(ctx)?, name)
-                            .intern(ctx)
+                if !generic_placeholders.is_empty() {
+                    // add placeholders
+                    ctx.scopes.push(Scope::new(None, false, None));
+                    for &placeholder in generic_placeholders.iter() {
+                        ctx.scopes
+                            .add(Symbol::GenericPlaceholder(placeholder), self.span)?;
                     }
+                }
+
+                let ty = ty_ast1.clone().type_check(ctx)?;
+                let receiver_ty = if let Some(receiver_ty) = &receiver_ty_ast1 {
+                    Some(receiver_ty.clone().type_check(ctx)?)
+                } else {
+                    None
+                };
+
+                if generic_placeholders.is_empty() {
                     let nesting_prefix = ctx.scopes.nesting_prefix().intern(ctx);
 
-                    ctx.scopes
-                        .push(Scope::new(Some(name), false, Some(ty.clone())));
+                    ctx.scopes.push(Scope::new(
+                        // scope name includes receiver ty
+                        Some(receiver_ty.as_ref().map_or(name, |receiver_ty| {
+                            format!("{}::{}", receiver_ty, name).intern(ctx)
+                        })),
+                        false,
+                        Some(ty.clone()),
+                    ));
                     let args = args
                         .iter()
                         .cloned()
@@ -134,27 +167,63 @@ impl Define<'i> {
                         Symbol::Func {
                             ty: ty.clone(),
                             nesting_prefix,
+                            receiver_ty: receiver_ty.clone(),
                             name,
                             generic_replacements: Default::default(),
                             arg_types: args.iter().cloned().map(|it| it.ty).vec().into(),
                         },
-                        Some(self.span),
+                        self.span,
                     )?;
                     ctx.scopes.push(scope);
 
                     let body = body.clone().type_check(ctx)?;
-                    ctx.scopes.check_return_called(Some(self.span))?;
+                    ctx.scopes.check_return_called(self.span)?;
                     ctx.scopes.pop();
 
                     ast2::Define::Func {
                         ty,
-                        full_name: format!("{}{}", nesting_prefix, name).intern(ctx),
+                        full_name: format!(
+                            "{}{}{}",
+                            nesting_prefix,
+                            receiver_ty.map_or(String::new(), |it| format!("{}::", it)),
+                            name
+                        )
+                        .intern(ctx),
                         generic_replacements: Default::default(),
                         args: args.into(),
                         body,
                     }
                 } else {
-                    self.type_check_generic(ctx)?
+                    let arg_types = args
+                        .iter()
+                        .cloned()
+                        .map(|arg| arg.type_check(ctx, true, false).map(|arg| arg.ty))
+                        .res_vec()?
+                        .into();
+                    ctx.scopes.pop();
+
+                    // add symbol
+                    ctx.scopes.add(
+                        Symbol::GenericFunc {
+                            receiver_ty,
+                            arg_types,
+
+                            ty,
+
+                            span: self.span,
+                            ty_ast1,
+                            receiver_ty_ast1,
+                            name,
+                            generic_placeholders,
+                            args,
+                            body,
+
+                            scopes_index: ctx.scopes.0.len(),
+                        },
+                        self.span,
+                    )?;
+
+                    ast2::Define::NoGen
                 }
             }
 
@@ -173,18 +242,18 @@ impl VarDefine<'i> {
         is_for_init: bool,
     ) -> Res<'i, ast2::VarDefine<'i>> {
         if let TypeKind::Primitive(PrimitiveType::Void) = self.ty.kind {
-            return err("vars can't have void type", Some(self.span));
+            return err("vars can't have void type", self.span);
         }
 
         let is_global = ctx.scopes.0.len() == 1;
         if is_global && self.value.is_none() {
-            return err("global vars must have initializer", Some(self.span));
+            return err("global vars must have initializer", self.span);
         }
         if is_func_arg && self.value.is_some() {
-            return err("func args can't have initializer", Some(self.span));
+            return err("func args can't have initializer", self.span);
         }
         if is_for_init && self.value.is_none() {
-            return err("for loop var must have initializer", Some(self.span));
+            return err("for loop var must have initializer", self.span);
         }
 
         // special case for auto type, where lvalue is inferred from rvalue instead of the other way around
@@ -194,7 +263,7 @@ impl VarDefine<'i> {
                 let ty = value.ty.clone();
                 (ty, Some(value))
             } else {
-                return err("cannot infer type", Some(self.span));
+                return err("cannot infer type", self.span);
             }
         } else {
             let ty = self.ty.type_check(ctx)?;
@@ -202,7 +271,7 @@ impl VarDefine<'i> {
                 let value = value.type_check(ctx, Some(&ty))?;
 
                 // check matching
-                value.ty.check(&ty, Some(self.span))?;
+                value.ty.check(&ty, self.span)?;
                 (ty, Some(value))
             } else {
                 (ty, None)
@@ -215,7 +284,7 @@ impl VarDefine<'i> {
                 ty: ty.clone(),
                 name: self.name,
             },
-            Some(self.span),
+            self.span,
         )?;
 
         Ok(ast2::VarDefine {
@@ -245,19 +314,19 @@ impl Statement<'i> {
                     .as_ref()
                     .map(|it| &it.ty)
                     .unwrap_or(&PrimitiveType::Void.ty())
-                    .check(ctx.scopes.func_return_type(), Some(self.span))?;
+                    .check(ctx.scopes.func_return_type(), self.span)?;
 
                 ast2::Statement::Return(value)
             }
             Break => {
                 if !ctx.scopes.in_loop() {
-                    return err("break can't be used outside of loops", Some(self.span));
+                    return err("break can't be used outside of loops", self.span);
                 }
                 ast2::Statement::Break
             }
             Continue => {
                 if !ctx.scopes.in_loop() {
-                    return err("continue can't be used outside of loops", Some(self.span));
+                    return err("continue can't be used outside of loops", self.span);
                 }
                 ast2::Statement::Continue
             }
@@ -280,7 +349,7 @@ impl Statement<'i> {
                 };
 
                 // check condition
-                cond.ty.check(&PrimitiveType::Bool.ty(), Some(self.span))?;
+                cond.ty.check(&PrimitiveType::Bool.ty(), self.span)?;
 
                 ast2::Statement::If {
                     cond,
@@ -295,7 +364,7 @@ impl Statement<'i> {
                 ctx.scopes.pop();
 
                 // check condition
-                cond.ty.check(&PrimitiveType::Bool.ty(), Some(self.span))?;
+                cond.ty.check(&PrimitiveType::Bool.ty(), self.span)?;
 
                 ast2::Statement::Until { cond, block }
             }
@@ -313,7 +382,7 @@ impl Statement<'i> {
                 ctx.scopes.pop();
 
                 // check condition
-                cond.ty.check(&PrimitiveType::Bool.ty(), Some(self.span))?;
+                cond.ty.check(&PrimitiveType::Bool.ty(), self.span)?;
 
                 ast2::Statement::For {
                     init,
@@ -327,8 +396,8 @@ impl Statement<'i> {
                 let rvalue = rvalue.type_check(ctx, Some(&lvalue.ty))?;
 
                 // check matching
-                lvalue.check_assignable(Some(self.span))?;
-                rvalue.ty.check(&lvalue.ty, Some(self.span))?;
+                lvalue.check_assignable(self.span)?;
+                rvalue.ty.check(&lvalue.ty, self.span)?;
 
                 ast2::Statement::ExprAssign { lvalue, rvalue }
             }
@@ -387,18 +456,19 @@ impl Expr<'i> {
                         let name = format!("as {}", ty).intern(ctx);
                         let symbol = ctx.scopes.find(
                             &Symbol::new_func(
+                                None,
                                 name,
                                 Default::default(),
                                 vec![thing.ty.clone()].into(),
                             ),
-                            Some(self.span),
+                            self.span,
                         )?;
                         debug_assert_eq!(ty, symbol.ty());
                         match symbol {
                             Symbol::Func {
                                 nesting_prefix: symbol_nesting_prefix,
                                 ..
-                            } => *symbol_nesting_prefix,
+                            } => symbol_nesting_prefix,
                             _ => unreachable!(),
                         }
                     };
@@ -423,42 +493,6 @@ impl Expr<'i> {
                 func_call.span = self.span;
 
                 let receiver = receiver.type_check(ctx, None)?;
-                impl ast2::Type<'i> {
-                    /// revert an ast2 Type back into ast1
-                    fn into_ast1(self, span: Span<'i>) -> Type<'i> {
-                        Type {
-                            span,
-                            kind: match self {
-                                ast2::Type::Primitive(p) => TypeKind::Primitive(p),
-                                ast2::Type::Struct {
-                                    name,
-                                    generic_replacements,
-                                    ..
-                                } => TypeKind::Named {
-                                    name,
-                                    generic_replacements: generic_replacements
-                                        .iter()
-                                        .cloned()
-                                        .map(|it| it.into_ast1(span))
-                                        .vec()
-                                        .into(),
-                                },
-                                ast2::Type::Ptr(inner) => {
-                                    inner.deref().clone().into_ast1(span).kind
-                                }
-                                ast2::Type::GenericPlaceholder(name) => TypeKind::Named {
-                                    name,
-                                    generic_replacements: Default::default(),
-                                },
-                                ast2::Type::Auto => TypeKind::Auto,
-                                _ => panic!(
-                                "can't turn ast2 ty {:?} back into ast1 for func call receiver ty",
-                                self
-                            ),
-                            },
-                        }
-                    }
-                }
                 func_call.receiver_ty = Some(receiver.ty.into_ast1(receiver_span));
 
                 func_call.type_check(ctx, type_hint)?
@@ -473,25 +507,17 @@ impl Expr<'i> {
                         generic_replacements,
                         ..
                     } => Symbol::new_struct(name, generic_replacements),
-                    ty => {
-                        return err(
-                            &format!("expected struct type, but got {}", ty),
-                            Some(self.span),
-                        )
-                    }
+                    ty => return err(&format!("expected struct type, but got {}", ty), self.span),
                 };
-                let symbol = ctx.scopes.find(&symbol, Some(self.span))?;
-                let field_types = match symbol {
+                let symbol = ctx.scopes.find(&symbol, self.span)?;
+                let field_types = match &symbol {
                     Symbol::Struct { field_types, .. } => field_types,
                     _ => unreachable!(),
                 };
                 let ty = match field_types.get(&var) {
                     Some(field_type) => field_type.clone(),
                     None => {
-                        return err(
-                            &format!("no field named {} in {}", var, symbol),
-                            Some(self.span),
-                        )
+                        return err(&format!("no field named {} in {}", var, symbol), self.span)
                     }
                 };
 
@@ -510,10 +536,7 @@ impl Expr<'i> {
             FuncCall(func_call) => func_call.type_check(ctx, type_hint)?,
             Var(name) => {
                 // symbol check
-                let ty = ctx
-                    .scopes
-                    .find(&Symbol::new_var(name), Some(self.span))?
-                    .ty();
+                let ty = ctx.scopes.find(&Symbol::new_var(name), self.span)?.ty();
                 ast2::Expr {
                     kind: ast2::ExprKind::Var(name),
                     ty,
@@ -531,61 +554,65 @@ impl FuncCall<'i> {
     pub fn type_check(
         mut self,
         ctx: &mut Ctx<'i>,
-        type_hint: Option<&ast2::Type<'i>>,
+        _type_hint: Option<&ast2::Type<'i>>,
     ) -> Res<'i, ast2::Expr<'i>> {
-        if self.generic_replacements.is_empty() {
-            let receiver_ty = if let Some(receiver_ty) = &self.receiver_ty {
-                Some(receiver_ty.clone().type_check(ctx)?)
-            } else {
-                None
-            };
-
-            let name_ = self.name;
-            if let Some(receiver_ty) = &receiver_ty {
-                self.name = format!("{}::{}", receiver_ty, self.name).intern(ctx)
-            }
-
-            let args = self
-                .args
-                .iter()
-                .cloned()
-                .map(|arg| arg.type_check(ctx, None))
-                .res_vec()?;
-
-            {
-                // funny moment
-                let _ = ctx.scopes.find_generic_func_inference(
-                    receiver_ty.as_ref(),
-                    name_,
-                    &args.iter().map(|it| &it.ty).vec(),
-                    type_hint,
-                    self.span,
-                );
-            }
-            // symbol check
-            let symbol = ctx.scopes.find(
-                &Symbol::new_func(
-                    self.name,
-                    Default::default(),
-                    args.iter().cloned().map(|it| it.ty).vec().into(),
-                ),
-                Some(self.span),
-            )?;
-            let nesting_prefix = match symbol {
-                Symbol::Func { nesting_prefix, .. } => nesting_prefix,
-                _ => unreachable!(),
-            };
-            Ok(ast2::Expr {
-                kind: ast2::ExprKind::FuncCall {
-                    full_name: format!("{}{}", nesting_prefix, self.name).intern(ctx),
-                    generic_replacements: Default::default(),
-                    args: args.into(),
-                },
-                ty: symbol.ty(),
-            })
+        let receiver_ty = if let Some(receiver_ty) = &self.receiver_ty {
+            Some(receiver_ty.clone().type_check(ctx)?)
         } else {
-            self.type_check_generic(ctx)
+            None
+        };
+
+        if let Some(receiver_ty) = &receiver_ty {
+            self.name = format!("{}::{}", receiver_ty, self.name).intern(ctx)
         }
+
+        let generic_replacements = self
+            .generic_replacements
+            .iter()
+            .cloned()
+            .map(|replacement| replacement.type_check(ctx))
+            .res_vec()?
+            .into();
+        let args = self
+            .args
+            .iter()
+            .cloned()
+            .map(|arg| arg.type_check(ctx, None))
+            .res_vec()?;
+
+        // funny moment
+        // {
+        //     let _ = ctx.scopes.find_generic_func_inference(
+        //         receiver_ty.as_ref(),
+        //         self.name,
+        //         &args.iter().map(|it| &it.ty).vec(),
+        //         _type_hint,
+        //         self.span,
+        //     );
+        // }
+
+        // symbol check
+        let symbol = ctx.scopes.find(
+            &Symbol::new_func(
+                receiver_ty,
+                self.name,
+                generic_replacements,
+                args.iter().cloned().map(|it| it.ty).vec().into(),
+            ),
+            self.span,
+        )?;
+        let nesting_prefix = match symbol {
+            Symbol::Func { nesting_prefix, .. } => nesting_prefix,
+            _ => unreachable!(),
+        };
+        Ok(ast2::Expr {
+            kind: ast2::ExprKind::FuncCall {
+                full_name: format!("{}{}", nesting_prefix, self.name).intern(ctx),
+                generic_replacements: Default::default(),
+                args: args.into(),
+            },
+            ty: symbol.ty(),
+        })
     }
 }
 
@@ -598,26 +625,29 @@ impl Type<'i> {
             Ptr(inner) => ast2::Type::Ptr(inner.deref().clone().type_check(ctx)?.into()),
             Named {
                 name,
-                ref generic_replacements,
+                generic_replacements,
             } => {
-                if generic_replacements.is_empty() {
-                    // symbol check
-                    ctx.scopes
-                        .find(&Symbol::new_struct(name, Default::default()), Some(span))
-                        .or_else(|_| {
-                            ctx.scopes
-                                .find(&Symbol::new_generic_placeholder(name), Some(span))
-                        })
-                        .or_else(|_| {
-                            err(
-                                &format!("could not find struct or generic placeholder {}", name),
-                                Some(span),
-                            )
-                        })?
-                        .ty()
-                } else {
-                    self.type_check_generic(ctx)?
-                }
+                let generic_replacements = generic_replacements
+                    .iter()
+                    .cloned()
+                    .map(|replacement| replacement.type_check(ctx))
+                    .res_vec()?
+                    .into();
+
+                // symbol check
+                ctx.scopes
+                    .find(&Symbol::new_struct(name, generic_replacements), span)
+                    .or_else(|_| {
+                        ctx.scopes
+                            .find(&Symbol::new_generic_placeholder(name), span)
+                    })
+                    .or_else(|_| {
+                        err(
+                            &format!("could not find struct or generic placeholder {}", name),
+                            span,
+                        )
+                    })?
+                    .ty()
             }
             Auto => ast2::Type::Auto,
         })

@@ -1,7 +1,6 @@
 //! replaces generic placeholders with real types
 //! converting back so ast1 so we have to type check again
 
-use crate::context::Ctx;
 use crate::pass::ast1::*;
 use crate::util::RcExt;
 use std::collections::HashMap;
@@ -10,12 +9,12 @@ use std::collections::HashMap;
 pub type GenericMap<'i> = HashMap<&'i str, Type<'i>>;
 
 impl Define<'i> {
-    pub fn replace_generics(&mut self, ctx: &mut Ctx<'i>, generic_map: &GenericMap<'i>) {
+    pub fn replace_generics(&mut self, generic_map: &GenericMap<'i>) {
         use DefineKind::*;
         match &mut self.kind {
             Struct { body, .. } => body.modify(|body| {
                 for define in body {
-                    define.replace_generics(ctx, generic_map)
+                    define.replace_generics(generic_map)
                 }
             }),
             Func {
@@ -25,39 +24,39 @@ impl Define<'i> {
                 body,
                 ..
             } => {
-                ty.replace_generics(ctx, generic_map);
+                ty.replace_generics(generic_map);
                 if let Some(receiver_ty) = receiver_ty {
-                    receiver_ty.replace_generics(ctx, generic_map)
+                    receiver_ty.replace_generics(generic_map)
                 }
                 args.modify(|args| {
                     for arg in args {
-                        arg.replace_generics(ctx, generic_map)
+                        arg.replace_generics(generic_map)
                     }
                 });
-                body.replace_generics(ctx, generic_map);
+                body.replace_generics(generic_map);
             }
-            Var(var_define) => var_define.replace_generics(ctx, generic_map),
-            CCode(c_code) => c_code.replace_generics(ctx, generic_map),
+            Var(var_define) => var_define.replace_generics(generic_map),
+            CCode(c_code) => c_code.replace_generics(generic_map),
         };
     }
 }
 
 impl VarDefine<'i> {
-    pub fn replace_generics(&mut self, ctx: &mut Ctx<'i>, generic_map: &GenericMap<'i>) {
-        self.ty.replace_generics(ctx, generic_map);
+    pub fn replace_generics(&mut self, generic_map: &GenericMap<'i>) {
+        self.ty.replace_generics(generic_map);
         if let Some(value) = &mut self.value {
-            value.replace_generics(ctx, generic_map)
+            value.replace_generics(generic_map)
         }
     }
 }
 
 impl Statement<'i> {
-    pub fn replace_generics(&mut self, ctx: &mut Ctx<'i>, generic_map: &GenericMap<'i>) {
+    pub fn replace_generics(&mut self, generic_map: &GenericMap<'i>) {
         use StatementKind::*;
         match &mut self.kind {
             Return(value) => {
                 if let Some(value) = value {
-                    value.replace_generics(ctx, generic_map)
+                    value.replace_generics(generic_map)
                 }
             }
             Break => {}
@@ -67,15 +66,15 @@ impl Statement<'i> {
                 then,
                 otherwise,
             } => {
-                cond.replace_generics(ctx, generic_map);
-                then.replace_generics(ctx, generic_map);
+                cond.replace_generics(generic_map);
+                then.replace_generics(generic_map);
                 if let Some(otherwise) = otherwise {
-                    otherwise.replace_generics(ctx, generic_map)
+                    otherwise.replace_generics(generic_map)
                 }
             }
             Until { cond, block } => {
-                cond.replace_generics(ctx, generic_map);
-                block.replace_generics(ctx, generic_map)
+                cond.replace_generics(generic_map);
+                block.replace_generics(generic_map)
             }
             For {
                 init,
@@ -83,38 +82,38 @@ impl Statement<'i> {
                 update,
                 block,
             } => {
-                init.replace_generics(ctx, generic_map);
-                cond.replace_generics(ctx, generic_map);
-                update.modify(|update| update.replace_generics(ctx, generic_map));
-                block.replace_generics(ctx, generic_map);
+                init.replace_generics(generic_map);
+                cond.replace_generics(generic_map);
+                update.modify(|update| update.replace_generics(generic_map));
+                block.replace_generics(generic_map);
             }
             ExprAssign { lvalue, rvalue } => {
-                lvalue.replace_generics(ctx, generic_map);
-                rvalue.replace_generics(ctx, generic_map)
+                lvalue.replace_generics(generic_map);
+                rvalue.replace_generics(generic_map)
             }
-            Define(define) => define.replace_generics(ctx, generic_map),
-            Expr(expr) => expr.replace_generics(ctx, generic_map),
+            Define(define) => define.replace_generics(generic_map),
+            Expr(expr) => expr.replace_generics(generic_map),
         }
     }
 }
 
 impl Block<'i> {
-    pub fn replace_generics(&mut self, ctx: &mut Ctx<'i>, generic_map: &GenericMap<'i>) {
+    pub fn replace_generics(&mut self, generic_map: &GenericMap<'i>) {
         self.0.modify(|statements| {
             for statement in statements {
-                statement.replace_generics(ctx, generic_map)
+                statement.replace_generics(generic_map)
             }
         })
     }
 }
 
 impl CCode<'i> {
-    pub fn replace_generics(&mut self, ctx: &mut Ctx<'i>, generic_map: &GenericMap<'i>) {
+    pub fn replace_generics(&mut self, generic_map: &GenericMap<'i>) {
         self.0.modify(|parts| {
             for part in parts {
                 match part {
                     CCodePart::String(_) => {}
-                    CCodePart::Expr(expr) => expr.replace_generics(ctx, generic_map),
+                    CCodePart::Expr(expr) => expr.replace_generics(generic_map),
                 }
             }
         })
@@ -122,54 +121,54 @@ impl CCode<'i> {
 }
 
 impl Expr<'i> {
-    pub fn replace_generics(&mut self, ctx: &mut Ctx<'i>, generic_map: &GenericMap<'i>) {
+    pub fn replace_generics(&mut self, generic_map: &GenericMap<'i>) {
         use ExprKind::*;
         match &mut self.kind {
             Cast { thing, ty, .. } => {
-                thing.modify(|thing| thing.replace_generics(ctx, generic_map));
-                ty.replace_generics(ctx, generic_map);
+                thing.modify(|thing| thing.replace_generics(generic_map));
+                ty.replace_generics(generic_map);
             }
             MethodCall {
                 receiver,
                 func_call,
             } => {
-                receiver.modify(|receiver| receiver.replace_generics(ctx, generic_map));
-                func_call.replace_generics(ctx, generic_map);
+                receiver.modify(|receiver| receiver.replace_generics(generic_map));
+                func_call.replace_generics(generic_map);
             }
             Field { receiver, .. } => {
-                receiver.modify(|receiver| receiver.replace_generics(ctx, generic_map))
+                receiver.modify(|receiver| receiver.replace_generics(generic_map))
             }
             Literal(_) => {}
-            FuncCall(func_call) => func_call.replace_generics(ctx, generic_map),
+            FuncCall(func_call) => func_call.replace_generics(generic_map),
             Var(_) => {}
-            CCode(c_code) => c_code.replace_generics(ctx, generic_map),
+            CCode(c_code) => c_code.replace_generics(generic_map),
         }
     }
 }
 
 impl FuncCall<'i> {
-    pub fn replace_generics(&mut self, ctx: &mut Ctx<'i>, generic_map: &GenericMap<'i>) {
+    pub fn replace_generics(&mut self, generic_map: &GenericMap<'i>) {
         if let Some(receiver_ty) = &mut self.receiver_ty {
-            receiver_ty.replace_generics(ctx, generic_map)
+            receiver_ty.replace_generics(generic_map)
         }
         self.generic_replacements.modify(|replacements| {
             for replacement in replacements {
-                replacement.replace_generics(ctx, generic_map)
+                replacement.replace_generics(generic_map)
             }
         });
         self.args.modify(|args| {
             for arg in args {
-                arg.replace_generics(ctx, generic_map)
+                arg.replace_generics(generic_map)
             }
         });
     }
 }
 
 impl Type<'i> {
-    pub fn replace_generics(&mut self, ctx: &mut Ctx<'i>, generic_map: &GenericMap<'i>) {
+    pub fn replace_generics(&mut self, generic_map: &GenericMap<'i>) {
         use TypeKind::*;
         match &mut self.kind {
-            Ptr(inner) => inner.modify(|inner| inner.replace_generics(ctx, generic_map)),
+            Ptr(inner) => inner.modify(|inner| inner.replace_generics(generic_map)),
             Named {
                 name,
                 generic_replacements,
@@ -181,7 +180,7 @@ impl Type<'i> {
                     // we are a struct
                     generic_replacements.modify(|replacements| {
                         for replacement in replacements {
-                            replacement.replace_generics(ctx, generic_map)
+                            replacement.replace_generics(generic_map)
                         }
                     });
                 }

@@ -13,6 +13,7 @@
 #![feature(panic_info_message)]
 #![feature(try_blocks)]
 #![feature(in_band_lifetimes)]
+#![feature(label_break_value)]
 #![warn(elided_lifetimes_in_paths)]
 
 #[macro_use]

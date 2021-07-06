@@ -7,7 +7,7 @@ use crate::util::{IterExt, StrExt};
 use std::fmt::{Display, Formatter};
 
 impl Type<'i> {
-    pub fn check(&self, expected: &Self, span: Option<Span<'i>>) -> Res<'i> {
+    pub fn check(&self, expected: &Self, span: Span<'i>) -> Res<'i> {
         let actual = self;
         if expected == actual {
             Ok(())
