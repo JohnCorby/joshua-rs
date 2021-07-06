@@ -14,6 +14,7 @@ use std::fmt::{Debug, Display, Formatter};
 use std::ops::Deref;
 use std::rc::Rc;
 
+/// NOTE: hash is only simple way to prevent duplicates. extra checking is needed
 #[allow(clippy::too_many_arguments)]
 #[derive(Debug, Clone, derivative::Derivative, derive_new::new)]
 #[derivative(Hash, PartialEq)]
@@ -25,6 +26,7 @@ pub enum Symbol<'i> {
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         #[new(default)]
         nesting_prefix: CtxStr<'i>,
+        /// includes receiver ty
         name: CtxStr<'i>,
         generic_replacements: Rc<Vec<Type<'i>>>,
         arg_types: Rc<Vec<Type<'i>>>,
@@ -101,9 +103,7 @@ impl Symbol<'i> {
                 generic_replacements: generic_replacements.clone(),
             },
             GenericPlaceholderType(name) => Type::GenericPlaceholder(*name),
-            GenericFunc { .. } | GenericStruct { .. } => {
-                panic!("generic funcs/structs don't have types")
-            }
+            _ => panic!("symbol {:?} doesn't have a type", self),
         }
     }
 }
@@ -118,22 +118,26 @@ impl Display for Symbol<'_> {
                 generic_replacements,
                 arg_types,
                 ..
-            } => f.write_str(&name.to_display(
-                "func symbol",
-                &generic_replacements.iter().vec(),
-                Some(&arg_types.iter().vec()),
-            )),
-            Var { name, .. } => f.write_str(&name.to_display("var symbol", &[], None)),
+            } => write!(
+                f,
+                "func {}",
+                name.encode(
+                    &generic_replacements.iter().vec(),
+                    Some(&arg_types.iter().vec()),
+                )
+            ),
+            Var { name, .. } => write!(f, "var {}", name),
             StructType {
                 name,
                 generic_replacements,
                 ..
-            } => f.write_str(&name.to_display(
-                "struct type symbol",
-                &generic_replacements.iter().vec(),
-                None,
-            )),
-            _ => write!(f, "internal symbol {:?}", self),
+            } => write!(
+                f,
+                "struct {}",
+                name.encode(&generic_replacements.iter().vec(), None,)
+            ),
+            GenericPlaceholderType(name) => write!(f, "generic placeholder {}", name),
+            _ => panic!("symbol {:?} shouldn't be displayed or encoded", self),
         }
     }
 }
@@ -217,6 +221,7 @@ impl Scopes<'i> {
     }
 }
 
+/// these are simple and just use hash
 impl Scopes<'i> {
     pub fn add(&mut self, symbol: Symbol<'i>, span: Option<Span<'i>>) -> Res<'i> {
         let scope = self.0.last_mut().unwrap();

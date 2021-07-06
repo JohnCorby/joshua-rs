@@ -86,6 +86,9 @@ void Hello<T>::yo_what<T>(Hello<T> this) {}
 void str::bruh_moment() {}
 
 
+struct Jeff {
+    void jeff_method() {}
+}
 i32 main() {
     f(1 as i8)
     f(1 as i8, 2 as i8)
@@ -136,6 +139,8 @@ i32 main() {
     struct Jeff {
         void jeff_method() {}
     }
+    Jeff::jeff_method()
+//    Jeff::jeff_methd()
 
     ret 0 as i32
 }

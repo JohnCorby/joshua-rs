@@ -1,4 +1,5 @@
-//! helper stuff for generic type checking
+//! generic version of type checking
+//! as well as other generic helper stuff
 
 use crate::context::Ctx;
 use crate::error::{err, Res};
@@ -200,7 +201,7 @@ impl Type<'i> {
                     let func_defines = func_defines
                         .into_iter()
                         .map(|mut define| {
-                            // attach struct name to func
+                            // set func receiver ty to struct
                             if let Func { receiver_ty, .. } = &mut define.kind {
                                 *receiver_ty = Some(Type {
                                     span: self.span,
@@ -311,7 +312,8 @@ impl FuncCall<'i> {
                     .unwrap()
                     .check(&symbol_receiver_ty, Some(self.receiver_ty.unwrap().span))?;
 
-                name = format!("{}::{}", receiver_ty.unwrap().encoded_name(), name).into_ctx(ctx)
+                // attach receiver ty to name
+                name = format!("{}::{}", receiver_ty.unwrap(), name).into_ctx(ctx)
             }
             let nesting_prefix = ctx.scopes.nesting_prefix().into_ctx(ctx);
             let full_name = format!("{}{}", nesting_prefix, name).into_ctx(ctx);
@@ -466,8 +468,8 @@ impl Scopes<'i> {
         }
         err(
             &format!(
-                "could not find {}",
-                name.to_display("generic struct symbol", generic_replacements, None)
+                "could not find generic struct matching struct {}",
+                name.encode(generic_replacements, None)
             ),
             span,
         )
@@ -527,14 +529,15 @@ impl Scopes<'i> {
             }
         }
         let name = if let Some(receiver_ty) = receiver_ty {
-            format!("{}::{}", receiver_ty.encoded_name(), name)
+            // attach receiver ty to name
+            format!("{}::{}", receiver_ty, name)
         } else {
             name.to_string()
         };
         err(
             &format!(
-                "could not find {}",
-                name.to_display("generic func symbol", generic_replacements, Some(arg_types))
+                "could not find generic func matching func {}",
+                name.encode(generic_replacements, Some(arg_types))
             ),
             span,
         )
@@ -726,8 +729,8 @@ impl Scopes<'i> {
         }
         err(
             &format!(
-                "could not find {} using generic replacement inference",
-                name.to_display("generic func symbol", &[], Some(arg_types))
+                "could not find generic func matching func {} using generic replacement inference",
+                name.encode(&[], Some(arg_types))
             ),
             Some(span),
         )

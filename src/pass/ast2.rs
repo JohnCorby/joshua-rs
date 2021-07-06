@@ -153,6 +153,7 @@ impl Literal<'i> {
     }
 }
 
+/// NOTE: hash is only simple way to prevent duplicates. extra checking is needed
 #[derive(Debug, Clone, derivative::Derivative)]
 #[derivative(Hash, PartialEq)]
 pub enum Type<'i> {

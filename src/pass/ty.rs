@@ -15,26 +15,6 @@ impl Type<'i> {
             err(&format!("expected {}, but got {}", expected, actual), span)
         }
     }
-
-    /// name used in funcs
-    pub fn encoded_name(&self) -> String {
-        use Type::*;
-        match self {
-            Primitive(ty) => ty.to_string(),
-            Struct {
-                nesting_prefix,
-                name,
-                generic_replacements,
-            } => format!("{}{}", nesting_prefix, name)
-                .encode(&generic_replacements.iter().vec(), None),
-            Ptr(ty) => format!("ptr<{}>", ty.encoded_name()),
-            // _ => format!("{{{:?}}}", self),
-            _ => panic!(
-                "internal type {:?} should not be used in encoded name",
-                self
-            ),
-        }
-    }
 }
 impl Default for Type<'_> {
     fn default() -> Self {
@@ -43,21 +23,26 @@ impl Default for Type<'_> {
 }
 
 impl Display for Type<'_> {
+    /// also used in code gen
+    ///
+    /// NOTE: structs include nesting prefix
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         use Type::*;
         match self {
-            Primitive(ty) => write!(f, "primitive type {}", ty),
+            Primitive(ty) => ty.fmt(f),
             Struct {
                 nesting_prefix,
                 name,
                 generic_replacements,
-            } => f.write_str(&format!("{}{}", nesting_prefix, name).to_display(
-                "struct type",
-                &generic_replacements.iter().vec(),
-                None,
-            )),
-            Ptr(ty) => write!(f, "pointer to {}", ty),
-            _ => write!(f, "internal type {:?}", self),
+            } => write!(
+                f,
+                "{}{}",
+                nesting_prefix,
+                name.encode(&generic_replacements.iter().vec(), None)
+            ),
+            Ptr(ty) => write!(f, "ptr<{}>", ty),
+            GenericPlaceholder(name) => f.write_str(name),
+            _ => panic!("type {:?} shouldn't be displayed", self),
         }
     }
 }
@@ -102,7 +87,7 @@ impl PrimitiveType {
     }
 }
 
-#[derive(Debug, Copy, Clone, Hash, PartialEq, strum::Display)]
+#[derive(Debug, Copy, Clone, Hash, PartialEq)]
 pub enum LiteralType {
     Float,
     Int,

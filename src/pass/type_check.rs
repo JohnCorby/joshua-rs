@@ -8,7 +8,7 @@ use crate::pass::scope::{Scope, Symbol};
 use crate::pass::ty::PrimitiveType;
 use crate::span::Span;
 use crate::util::ctx_str::IntoCtx;
-use crate::util::{IterExt, IterResExt, RcExt, StrExt};
+use crate::util::{IterExt, IterResExt, RcExt};
 use std::collections::HashMap;
 use std::ops::Deref;
 
@@ -75,7 +75,7 @@ impl Define<'i> {
                     let func_defines = func_defines
                         .into_iter()
                         .map(|mut define| {
-                            // attach struct name to func
+                            // set func receiver ty to struct
                             // fixme since both func calls and types add nested prefix, methods in structs will have the nested prefix added twice
                             if let Func { receiver_ty, .. } = &mut define.kind {
                                 *receiver_ty = Some(Type {
@@ -115,12 +115,9 @@ impl Define<'i> {
                 if generic_placeholders.is_empty() {
                     let ty = ty.clone().type_check(ctx)?;
                     if let Some(receiver_ty) = receiver_ty {
-                        name = format!(
-                            "{}::{}",
-                            receiver_ty.clone().type_check(ctx)?.encoded_name(),
-                            name
-                        )
-                        .into_ctx(ctx)
+                        // attach receiver ty to name
+                        name = format!("{}::{}", receiver_ty.clone().type_check(ctx)?, name)
+                            .into_ctx(ctx)
                     }
                     let nesting_prefix = ctx.scopes.nesting_prefix().into_ctx(ctx);
 
@@ -383,24 +380,29 @@ impl Expr<'i> {
 
                 // symbol check
                 // fixme hacky as shit
-                let nesting_prefix = if let ast2::Type::Literal(_) | ast2::Type::CCode = thing.ty {
-                    // casting will always work
-                    Default::default()
-                } else {
-                    let name = format!("as {}", ty.encoded_name()).into_ctx(ctx);
-                    let symbol = ctx.scopes.find(
-                        &Symbol::new_func(name, Default::default(), vec![thing.ty.clone()].into()),
-                        Some(self.span),
-                    )?;
-                    debug_assert_eq!(ty, symbol.ty());
-                    match symbol {
-                        Symbol::Func {
-                            nesting_prefix: symbol_nesting_prefix,
-                            ..
-                        } => *symbol_nesting_prefix,
-                        _ => unreachable!(),
-                    }
-                };
+                let nesting_prefix =
+                    if matches!(thing.ty, ast2::Type::Literal(_) | ast2::Type::CCode) {
+                        // casting will always work
+                        Default::default()
+                    } else {
+                        let name = format!("as {}", ty).into_ctx(ctx);
+                        let symbol = ctx.scopes.find(
+                            &Symbol::new_func(
+                                name,
+                                Default::default(),
+                                vec![thing.ty.clone()].into(),
+                            ),
+                            Some(self.span),
+                        )?;
+                        debug_assert_eq!(ty, symbol.ty());
+                        match symbol {
+                            Symbol::Func {
+                                nesting_prefix: symbol_nesting_prefix,
+                                ..
+                            } => *symbol_nesting_prefix,
+                            _ => unreachable!(),
+                        }
+                    };
 
                 ast2::Expr {
                     kind: ast2::ExprKind::Cast {
@@ -541,7 +543,7 @@ impl FuncCall<'i> {
 
             let name_ = self.name;
             if let Some(receiver_ty) = &receiver_ty {
-                self.name = format!("{}::{}", receiver_ty.encoded_name(), self.name).into_ctx(ctx)
+                self.name = format!("{}::{}", receiver_ty, self.name).into_ctx(ctx)
             }
 
             let args = self
@@ -612,10 +614,7 @@ impl Type<'i> {
                         })
                         .or_else(|_| {
                             err(
-                                &format!(
-                                    "could not find {}",
-                                    name.to_display("type symbol", &[], None)
-                                ),
+                                &format!("could not find struct or generic placeholder {}", name),
                                 Some(span),
                             )
                         })?

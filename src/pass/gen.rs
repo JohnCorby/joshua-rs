@@ -43,8 +43,11 @@ impl Define<'i> {
                 let old_o = std::mem::take(&mut ctx.o);
 
                 ctx.o.push_str("struct ");
-                ctx.o
-                    .push_str(&full_name.mangle(&generic_replacements.iter().vec(), None));
+                ctx.o.push_str(
+                    &full_name
+                        .encode(&generic_replacements.iter().vec(), None)
+                        .mangle(),
+                );
 
                 ctx.struct_declares.push_str(&ctx.o);
                 ctx.struct_declares.push_str(";\n");
@@ -70,10 +73,19 @@ impl Define<'i> {
 
                 ty.gen(ctx);
                 ctx.o.push(' ');
-                ctx.o.push_str(&full_name.mangle(
-                    &generic_replacements.iter().vec(),
-                    Some(&args.iter().map(|it| &it.ty).vec()),
-                ));
+                // special case for entry point
+                if *full_name == *"main" && generic_replacements.is_empty() && args.is_empty() {
+                    ctx.o.push_str(&full_name)
+                } else {
+                    ctx.o.push_str(
+                        &full_name
+                            .encode(
+                                &generic_replacements.iter().vec(),
+                                Some(&args.iter().map(|it| &it.ty).vec()),
+                            )
+                            .mangle(),
+                    )
+                }
                 ctx.o.push('(');
                 for arg in args.into_inner() {
                     arg.gen(ctx);
@@ -125,7 +137,7 @@ impl VarDefine<'i> {
     pub fn gen(self, ctx: &mut Ctx<'i>) {
         self.ty.gen(ctx);
         ctx.o.push(' ');
-        ctx.o.push_str(&self.name.mangle(&[], None));
+        ctx.o.push_str(&self.name.mangle());
         if let Some(value) = self.value {
             ctx.o.push_str(" = ");
             value.gen(ctx)
@@ -231,7 +243,7 @@ impl Expr<'i> {
                 thing,
             } => {
                 // fixme hacky as shit
-                if let Type::Literal(_) | Type::CCode = thing.ty {
+                if matches!(thing.ty, Type::Literal(_) | Type::CCode) {
                     ctx.o.push('(');
                     self.ty.gen(ctx);
                     ctx.o.push_str(") ");
@@ -239,8 +251,7 @@ impl Expr<'i> {
                 } else {
                     self::Expr {
                         kind: self::ExprKind::FuncCall {
-                            full_name: format!("{}as {}", nesting_prefix, self.ty.encoded_name())
-                                .into_ctx(ctx),
+                            full_name: format!("{}as {}", nesting_prefix, self.ty).into_ctx(ctx),
                             generic_replacements: Default::default(),
                             args: vec![thing.into_inner()].into(),
                         },
@@ -254,12 +265,12 @@ impl Expr<'i> {
                 let receiver = receiver.into_inner();
                 let receiver_ty = receiver.ty.clone();
                 receiver.gen(ctx);
-                if let Type::Ptr(_) = receiver_ty {
+                if matches!(receiver_ty, Type::Ptr(_)) {
                     ctx.o.push_str("->") // fixme this does a deref... do we want that? maybe put a & to make it a pointer again
                 } else {
                     ctx.o.push('.')
                 }
-                ctx.o.push_str(&var.mangle(&[], None));
+                ctx.o.push_str(&var.mangle());
             }
 
             Literal(literal) => literal.gen(ctx),
@@ -268,10 +279,19 @@ impl Expr<'i> {
                 generic_replacements,
                 args,
             } => {
-                ctx.o.push_str(&full_name.mangle(
-                    &generic_replacements.iter().vec(),
-                    Some(&args.iter().map(|it| &it.ty).vec()),
-                ));
+                // special case for entry point
+                if *full_name == *"main" && generic_replacements.is_empty() && args.is_empty() {
+                    ctx.o.push_str(&full_name)
+                } else {
+                    ctx.o.push_str(
+                        &full_name
+                            .encode(
+                                &generic_replacements.iter().vec(),
+                                Some(&args.iter().map(|it| &it.ty).vec()),
+                            )
+                            .mangle(),
+                    )
+                }
                 ctx.o.push('(');
                 for arg in args.into_inner() {
                     arg.gen(ctx);
@@ -283,7 +303,7 @@ impl Expr<'i> {
                 }
                 ctx.o.push(')');
             }
-            Var(name) => ctx.o.push_str(&name.mangle(&[], None)),
+            Var(name) => ctx.o.push_str(&name.mangle()),
 
             CCode(c_code) => c_code.gen(ctx),
         }
@@ -310,7 +330,7 @@ impl Type<'i> {
             Primitive(ty) => ctx.o.push_str(ty.c_type()),
             Struct { .. } => {
                 ctx.o.push_str("struct ");
-                ctx.o.push_str(&self.encoded_name().mangle(&[], None))
+                ctx.o.push_str(&self.to_string().mangle())
             }
             Ptr(inner) => {
                 inner.deref().clone().gen(ctx);
