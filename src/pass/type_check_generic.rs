@@ -1,14 +1,13 @@
 //! generic version of type checking
 //! as well as other generic helper stuff
 
-use crate::context::Ctx;
+use crate::context::{Ctx, Intern};
 use crate::error::{err, Res};
 use crate::pass::ast1::*;
 use crate::pass::ast2;
 use crate::pass::replace_generics::GenericMap;
 use crate::pass::scope::{Scope, Scopes, Symbol};
 use crate::span::Span;
-use crate::util::ctx_str::{CtxStr, IntoCtx};
 use crate::util::{IterExt, IterResExt, RcExt, StrExt};
 use indexmap::IndexSet;
 use std::collections::HashMap;
@@ -54,7 +53,7 @@ impl Define<'i> {
                 // add placeholders
                 for &placeholder in generic_placeholders.iter() {
                     ctx.scopes
-                        .add(Symbol::GenericPlaceholderType(placeholder), Some(self.span))?;
+                        .add(Symbol::GenericPlaceholder(placeholder), Some(self.span))?;
                 }
                 let ty = ty_ast1.clone().type_check(ctx)?;
                 let receiver_ty = if let Some(receiver_ty) = &receiver_ty_ast1 {
@@ -175,8 +174,8 @@ impl Type<'i> {
                 ctx.scopes.pop();
 
                 // add symbol if non-existent
-                let nesting_prefix = ctx.scopes.nesting_prefix().into_ctx(ctx);
-                let specialized_symbol = Symbol::StructType {
+                let nesting_prefix = ctx.scopes.nesting_prefix().intern(ctx);
+                let specialized_symbol = Symbol::Struct {
                     nesting_prefix,
                     name,
                     generic_replacements: generic_replacements.clone(),
@@ -222,7 +221,7 @@ impl Type<'i> {
 
                     // make and generate the define
                     ast2::Define::Struct {
-                        full_name: format!("{}{}", nesting_prefix, name).into_ctx(ctx),
+                        full_name: format!("{}{}", nesting_prefix, name).intern(ctx),
                         generic_replacements: generic_replacements.clone(),
                         body: body.into(),
                     }
@@ -313,10 +312,10 @@ impl FuncCall<'i> {
                     .check(&symbol_receiver_ty, Some(self.receiver_ty.unwrap().span))?;
 
                 // attach receiver ty to name
-                name = format!("{}::{}", receiver_ty.unwrap(), name).into_ctx(ctx)
+                name = format!("{}::{}", receiver_ty.unwrap(), name).intern(ctx)
             }
-            let nesting_prefix = ctx.scopes.nesting_prefix().into_ctx(ctx);
-            let full_name = format!("{}{}", nesting_prefix, name).into_ctx(ctx);
+            let nesting_prefix = ctx.scopes.nesting_prefix().intern(ctx);
+            let full_name = format!("{}{}", nesting_prefix, name).intern(ctx);
 
             ctx.scopes
                 .push(Scope::new(Some(name), false, Some(ty.clone())));
@@ -438,7 +437,7 @@ impl Scopes<'i> {
     /// find a generic struct fuzzily
     fn find_generic_struct(
         &self,
-        name: CtxStr<'i>,
+        name: &'i str,
         generic_replacements: &[&ast2::Type<'i>],
         span: Option<Span<'i>>,
     ) -> Res<'i, &Symbol<'i>> {
@@ -479,7 +478,7 @@ impl Scopes<'i> {
     fn find_generic_func(
         &self,
         receiver_ty: Option<&ast2::Type<'i>>,
-        name: CtxStr<'i>,
+        name: &'i str,
         generic_replacements: &[&ast2::Type<'i>],
         arg_types: &[&ast2::Type<'i>],
         span: Option<Span<'i>>,
@@ -551,7 +550,7 @@ impl Scopes<'i> {
     pub fn find_generic_func_inference(
         &self,
         receiver_ty: Option<&ast2::Type<'i>>,
-        name: CtxStr<'i>,
+        name: &'i str,
         arg_types: &[&ast2::Type<'i>],
         type_hint: Option<&ast2::Type<'i>>,
         span: Span<'i>,
@@ -626,7 +625,7 @@ impl Scopes<'i> {
                             /// replace a generic placeholder with a real type lol
                             ///
                             /// the same as the whole pass, except does it for ast2 Type instead of ast1
-                            fn replace_generic(&mut self, map: (CtxStr<'i>, &ast2::Type<'i>)) {
+                            fn replace_generic(&mut self, map: (&'i str, &ast2::Type<'i>)) {
                                 use ast2::Type::*;
                                 match self {
                                     Struct {

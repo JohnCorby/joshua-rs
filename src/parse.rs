@@ -1,6 +1,5 @@
 use crate::error::{IntoErr, Res};
 use crate::span::Span;
-use crate::util::ctx_str::CtxStr;
 use crate::util::IterExt;
 use console::style;
 use pest::error::Error;
@@ -36,8 +35,8 @@ impl Node<'i> {
     pub fn span(&self) -> Span<'i> {
         self.0.as_span().into()
     }
-    pub fn str(&self) -> CtxStr<'i> {
-        self.0.as_str().into()
+    pub fn str(&self) -> &'i str {
+        self.0.as_str()
     }
 
     /// check that a node matches a kind, and then return its inner nodes
@@ -111,7 +110,7 @@ impl Debug for Nodes<'_> {
 }
 
 mod inner {
-    #[derive(pest_derive::Parser)]
+    #[derive(Parser)]
     #[grammar = "grammar.pest"]
     pub struct Parser;
 }

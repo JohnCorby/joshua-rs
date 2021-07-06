@@ -3,12 +3,11 @@
 
 use crate::context::Ctx;
 use crate::pass::ast1::*;
-use crate::util::ctx_str::CtxStr;
 use crate::util::RcExt;
 use std::collections::HashMap;
 
 /// maps placeholder names to replacement types
-pub type GenericMap<'i> = HashMap<CtxStr<'i>, Type<'i>>;
+pub type GenericMap<'i> = HashMap<&'i str, Type<'i>>;
 
 impl Define<'i> {
     pub fn replace_generics(&mut self, ctx: &mut Ctx<'i>, generic_map: &GenericMap<'i>) {

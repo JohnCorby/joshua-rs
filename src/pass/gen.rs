@@ -1,8 +1,7 @@
 //! take fully initialized self and generate it into one of the ctx output sections
 
-use crate::context::Ctx;
+use crate::context::{Ctx, Intern};
 use crate::pass::ast2::*;
-use crate::util::ctx_str::IntoCtx;
 use crate::util::{IterExt, RcExt, StrExt};
 use std::ops::Deref;
 
@@ -75,7 +74,7 @@ impl Define<'i> {
                 ctx.o.push(' ');
                 // special case for entry point
                 if *full_name == *"main" && generic_replacements.is_empty() && args.is_empty() {
-                    ctx.o.push_str(&full_name)
+                    ctx.o.push_str(full_name)
                 } else {
                     ctx.o.push_str(
                         &full_name
@@ -226,7 +225,7 @@ impl CCode<'i> {
         ctx.o.push_str("/*<{*/");
         for part in self.0.into_inner() {
             match part {
-                CCodePart::String(str) => ctx.o.push_str(&str),
+                CCodePart::String(str) => ctx.o.push_str(str),
                 CCodePart::Expr(expr) => expr.gen(ctx),
             }
         }
@@ -251,7 +250,7 @@ impl Expr<'i> {
                 } else {
                     self::Expr {
                         kind: self::ExprKind::FuncCall {
-                            full_name: format!("{}as {}", nesting_prefix, self.ty).into_ctx(ctx),
+                            full_name: format!("{}as {}", nesting_prefix, self.ty).intern(ctx),
                             generic_replacements: Default::default(),
                             args: vec![thing.into_inner()].into(),
                         },
@@ -281,7 +280,7 @@ impl Expr<'i> {
             } => {
                 // special case for entry point
                 if *full_name == *"main" && generic_replacements.is_empty() && args.is_empty() {
-                    ctx.o.push_str(&full_name)
+                    ctx.o.push_str(full_name)
                 } else {
                     ctx.o.push_str(
                         &full_name

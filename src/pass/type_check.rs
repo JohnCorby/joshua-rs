@@ -1,13 +1,12 @@
 //! type init, nesting prefix init, type check, symbol add, symbol check
 
-use crate::context::Ctx;
+use crate::context::{Ctx, Intern};
 use crate::error::{err, Res};
 use crate::pass::ast1::*;
 use crate::pass::ast2;
 use crate::pass::scope::{Scope, Symbol};
 use crate::pass::ty::PrimitiveType;
 use crate::span::Span;
-use crate::util::ctx_str::IntoCtx;
 use crate::util::{IterExt, IterResExt, RcExt};
 use std::collections::HashMap;
 use std::ops::Deref;
@@ -55,8 +54,8 @@ impl Define<'i> {
                     ctx.scopes.pop();
 
                     // add symbol
-                    let nesting_prefix = ctx.scopes.nesting_prefix().into_ctx(ctx);
-                    let symbol = Symbol::StructType {
+                    let nesting_prefix = ctx.scopes.nesting_prefix().intern(ctx);
+                    let symbol = Symbol::Struct {
                         nesting_prefix,
                         name,
                         generic_replacements: Default::default(),
@@ -95,7 +94,7 @@ impl Define<'i> {
                     body.extend(func_defines);
 
                     ast2::Define::Struct {
-                        full_name: format!("{}{}", nesting_prefix, name).into_ctx(ctx),
+                        full_name: format!("{}{}", nesting_prefix, name).intern(ctx),
                         generic_replacements: Default::default(),
                         body: body.into(),
                     }
@@ -117,9 +116,9 @@ impl Define<'i> {
                     if let Some(receiver_ty) = receiver_ty {
                         // attach receiver ty to name
                         name = format!("{}::{}", receiver_ty.clone().type_check(ctx)?, name)
-                            .into_ctx(ctx)
+                            .intern(ctx)
                     }
-                    let nesting_prefix = ctx.scopes.nesting_prefix().into_ctx(ctx);
+                    let nesting_prefix = ctx.scopes.nesting_prefix().intern(ctx);
 
                     ctx.scopes
                         .push(Scope::new(Some(name), false, Some(ty.clone())));
@@ -149,7 +148,7 @@ impl Define<'i> {
 
                     ast2::Define::Func {
                         ty,
-                        full_name: format!("{}{}", nesting_prefix, name).into_ctx(ctx),
+                        full_name: format!("{}{}", nesting_prefix, name).intern(ctx),
                         generic_replacements: Default::default(),
                         args: args.into(),
                         body,
@@ -385,7 +384,7 @@ impl Expr<'i> {
                         // casting will always work
                         Default::default()
                     } else {
-                        let name = format!("as {}", ty).into_ctx(ctx);
+                        let name = format!("as {}", ty).intern(ctx);
                         let symbol = ctx.scopes.find(
                             &Symbol::new_func(
                                 name,
@@ -473,7 +472,7 @@ impl Expr<'i> {
                         name,
                         generic_replacements,
                         ..
-                    } => Symbol::new_struct_type(name, generic_replacements),
+                    } => Symbol::new_struct(name, generic_replacements),
                     ty => {
                         return err(
                             &format!("expected struct type, but got {}", ty),
@@ -483,7 +482,7 @@ impl Expr<'i> {
                 };
                 let symbol = ctx.scopes.find(&symbol, Some(self.span))?;
                 let field_types = match symbol {
-                    Symbol::StructType { field_types, .. } => field_types,
+                    Symbol::Struct { field_types, .. } => field_types,
                     _ => unreachable!(),
                 };
                 let ty = match field_types.get(&var) {
@@ -543,7 +542,7 @@ impl FuncCall<'i> {
 
             let name_ = self.name;
             if let Some(receiver_ty) = &receiver_ty {
-                self.name = format!("{}::{}", receiver_ty, self.name).into_ctx(ctx)
+                self.name = format!("{}::{}", receiver_ty, self.name).intern(ctx)
             }
 
             let args = self
@@ -578,7 +577,7 @@ impl FuncCall<'i> {
             };
             Ok(ast2::Expr {
                 kind: ast2::ExprKind::FuncCall {
-                    full_name: format!("{}{}", nesting_prefix, self.name).into_ctx(ctx),
+                    full_name: format!("{}{}", nesting_prefix, self.name).intern(ctx),
                     generic_replacements: Default::default(),
                     args: args.into(),
                 },
@@ -604,13 +603,10 @@ impl Type<'i> {
                 if generic_replacements.is_empty() {
                     // symbol check
                     ctx.scopes
-                        .find(
-                            &Symbol::new_struct_type(name, Default::default()),
-                            Some(span),
-                        )
+                        .find(&Symbol::new_struct(name, Default::default()), Some(span))
                         .or_else(|_| {
                             ctx.scopes
-                                .find(&Symbol::new_generic_placeholder_type(name), Some(span))
+                                .find(&Symbol::new_generic_placeholder(name), Some(span))
                         })
                         .or_else(|_| {
                             err(

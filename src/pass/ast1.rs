@@ -3,7 +3,6 @@
 use crate::pass::ast2::Literal;
 use crate::pass::ty::PrimitiveType;
 use crate::span::Span;
-use crate::util::ctx_str::CtxStr;
 use std::rc::Rc;
 
 #[derive(Debug, Clone)]
@@ -18,15 +17,15 @@ pub struct Define<'i> {
 #[derive(Debug, Clone)]
 pub enum DefineKind<'i> {
     Struct {
-        name: CtxStr<'i>,
-        generic_placeholders: Rc<Vec<CtxStr<'i>>>,
+        name: &'i str,
+        generic_placeholders: Rc<Vec<&'i str>>,
         body: Rc<Vec<Define<'i>>>,
     },
     Func {
         ty: Type<'i>,
         receiver_ty: Option<Type<'i>>,
-        name: CtxStr<'i>,
-        generic_placeholders: Rc<Vec<CtxStr<'i>>>,
+        name: &'i str,
+        generic_placeholders: Rc<Vec<&'i str>>,
         args: Rc<Vec<VarDefine<'i>>>,
         body: Block<'i>,
     },
@@ -39,7 +38,7 @@ pub enum DefineKind<'i> {
 pub struct VarDefine<'i> {
     pub span: Span<'i>,
     pub ty: Type<'i>,
-    pub name: CtxStr<'i>,
+    pub name: &'i str,
     pub value: Option<Expr<'i>>,
 }
 
@@ -86,7 +85,7 @@ pub struct CCode<'i>(pub Rc<Vec<CCodePart<'i>>>);
 
 #[derive(Debug, Clone)]
 pub enum CCodePart<'i> {
-    String(CtxStr<'i>),
+    String(&'i str),
     Expr(Expr<'i>),
 }
 
@@ -109,13 +108,13 @@ pub enum ExprKind<'i> {
     },
     Field {
         receiver: Rc<Expr<'i>>,
-        var: CtxStr<'i>,
+        var: &'i str,
     },
 
     // primary
     Literal(Literal<'i>),
     FuncCall(FuncCall<'i>),
-    Var(CtxStr<'i>),
+    Var(&'i str),
 
     CCode(CCode<'i>),
 }
@@ -124,7 +123,7 @@ pub enum ExprKind<'i> {
 pub struct FuncCall<'i> {
     pub span: Span<'i>,
     pub receiver_ty: Option<Type<'i>>,
-    pub name: CtxStr<'i>,
+    pub name: &'i str,
     pub generic_replacements: Rc<Vec<Type<'i>>>,
     pub args: Rc<Vec<Expr<'i>>>,
 }
@@ -139,7 +138,7 @@ pub struct Type<'i> {
 pub enum TypeKind<'i> {
     Primitive(PrimitiveType),
     Named {
-        name: CtxStr<'i>,
+        name: &'i str,
         generic_replacements: Rc<Vec<Type<'i>>>,
     },
     Ptr(Rc<Type<'i>>),

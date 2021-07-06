@@ -3,7 +3,6 @@ use crate::pass::ast2::Type;
 use std::ops::Deref;
 use std::rc::Rc;
 
-pub mod ctx_str;
 pub mod frozen_index_set;
 
 pub trait StrExt {

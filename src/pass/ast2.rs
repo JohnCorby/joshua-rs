@@ -3,7 +3,6 @@
 use crate::error::{err, Res};
 use crate::pass::ty::{LiteralType, PrimitiveType};
 use crate::span::Span;
-use crate::util::ctx_str::CtxStr;
 use std::rc::Rc;
 
 #[derive(Debug, Clone)]
@@ -12,13 +11,13 @@ pub struct Program<'i>(pub Rc<Vec<Define<'i>>>);
 #[derive(Debug, Clone)]
 pub enum Define<'i> {
     Struct {
-        full_name: CtxStr<'i>,
+        full_name: &'i str,
         generic_replacements: Rc<Vec<Type<'i>>>,
         body: Rc<Vec<Define<'i>>>,
     },
     Func {
         ty: Type<'i>,
-        full_name: CtxStr<'i>,
+        full_name: &'i str,
         generic_replacements: Rc<Vec<Type<'i>>>,
         args: Rc<Vec<VarDefine<'i>>>,
         body: Block<'i>,
@@ -34,7 +33,7 @@ pub enum Define<'i> {
 #[derive(Debug, Clone)]
 pub struct VarDefine<'i> {
     pub ty: Type<'i>,
-    pub name: CtxStr<'i>,
+    pub name: &'i str,
     pub value: Option<Expr<'i>>,
 
     /// used for gen. kinda hacky, oh well
@@ -77,7 +76,7 @@ pub struct CCode<'i>(pub Rc<Vec<CCodePart<'i>>>);
 
 #[derive(Debug, Clone)]
 pub enum CCodePart<'i> {
-    String(CtxStr<'i>),
+    String(&'i str),
     Expr(Expr<'i>),
 }
 
@@ -90,23 +89,23 @@ pub struct Expr<'i> {
 #[derive(Debug, Clone)]
 pub enum ExprKind<'i> {
     Cast {
-        nesting_prefix: CtxStr<'i>,
+        nesting_prefix: &'i str,
         thing: Rc<Expr<'i>>,
     },
 
     Field {
         receiver: Rc<Expr<'i>>,
-        var: CtxStr<'i>,
+        var: &'i str,
     },
 
     // primary
     Literal(Literal<'i>),
     FuncCall {
-        full_name: CtxStr<'i>,
+        full_name: &'i str,
         generic_replacements: Rc<Vec<Type<'i>>>,
         args: Rc<Vec<Expr<'i>>>,
     },
-    Var(CtxStr<'i>),
+    Var(&'i str),
 
     CCode(CCode<'i>),
 }
@@ -137,7 +136,7 @@ pub enum Literal<'i> {
     Int(i64),
     Bool(bool),
     Char(char),
-    StrZ(CtxStr<'i>),
+    StrZ(&'i str),
 }
 
 impl Literal<'i> {
@@ -154,14 +153,14 @@ impl Literal<'i> {
 }
 
 /// NOTE: hash is only simple way to prevent duplicates. extra checking is needed
-#[derive(Debug, Clone, derivative::Derivative)]
+#[derive(Debug, Clone, Derivative)]
 #[derivative(Hash, PartialEq)]
 pub enum Type<'i> {
     Primitive(PrimitiveType),
     Struct {
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
-        nesting_prefix: CtxStr<'i>,
-        name: CtxStr<'i>,
+        nesting_prefix: &'i str,
+        name: &'i str,
         generic_replacements: Rc<Vec<Type<'i>>>,
     },
     Ptr(Rc<Type<'i>>),
@@ -169,7 +168,7 @@ pub enum Type<'i> {
     /// fixme merge these into generics when we get type inference
     Literal(LiteralType),
     /// replaced with concrete type on specialization
-    GenericPlaceholder(CtxStr<'i>),
+    GenericPlaceholder(&'i str),
     /// for inferring with var define and probably other stuff later
     Auto,
     CCode,

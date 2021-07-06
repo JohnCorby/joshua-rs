@@ -35,11 +35,6 @@ impl Ctx<'i> {
             func_defines: Default::default(),
         }
     }
-
-    /// inserts a new input or returns already existing
-    pub fn insert_i(&self, i: String) -> &'i str {
-        self.inputs.insert(i)
-    }
 }
 
 impl Ctx<'_> {
@@ -106,7 +101,7 @@ impl Ctx<'_> {
             }
         }
 
-        let defines = Node::parse(self.insert_i(i), Kind::program)
+        let defines = Node::parse(i.intern(self), Kind::program)
             .unwrap()
             .visit::<Program<'_>>(self)
             .0
@@ -115,5 +110,17 @@ impl Ctx<'_> {
             let define = define.type_check(self).unwrap();
             define.gen(self)
         }
+    }
+}
+
+pub trait Intern<'i> {
+    /// insert self into `ctx` or return already existing
+    ///
+    /// prevents duplicates and lets us simply copy
+    fn intern(self, ctx: &Ctx<'i>) -> &'i str;
+}
+impl Intern<'i> for String {
+    fn intern(self, ctx: &Ctx<'i>) -> &'i str {
+        ctx.inputs.insert(self)
     }
 }

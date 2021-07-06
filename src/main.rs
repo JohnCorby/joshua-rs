@@ -13,10 +13,16 @@
 #![feature(panic_info_message)]
 #![feature(try_blocks)]
 #![feature(in_band_lifetimes)]
-#![feature(hash_set_entry)]
 #![warn(elided_lifetimes_in_paths)]
 
-use crate::context::Ctx;
+#[macro_use]
+extern crate pest_derive;
+#[macro_use]
+extern crate derivative;
+#[macro_use]
+extern crate derive_new;
+
+use crate::context::{Ctx, Intern};
 use crate::error::{Err, Res};
 use crate::parse::{Kind, Node};
 use crate::pass::ast1::Program;
@@ -45,7 +51,7 @@ fn main() {
 
     let result: Res<'_> = try {
         println!("parsing");
-        let node = Node::parse(ctx.insert_i(program), Kind::program)?;
+        let node = Node::parse(program.intern(ctx), Kind::program)?;
         println!("visiting");
         let program = node.visit::<Program<'_>>(ctx);
         println!("type checking");

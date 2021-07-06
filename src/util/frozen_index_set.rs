@@ -1,4 +1,4 @@
-//! copied from https://github.com/Manishearth/elsa/blob/master/src/index_set.rs
+//! slightly modified from https://github.com/Manishearth/elsa/blob/master/src/index_set.rs
 #![allow(dead_code)]
 
 use indexmap::IndexSet;

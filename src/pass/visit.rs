@@ -5,7 +5,6 @@ use crate::error::unexpected_kind;
 use crate::parse::{Kind, Node, Nodes};
 use crate::pass::ast1::*;
 use crate::pass::ast2::Literal;
-use crate::util::ctx_str::{CtxStr, IntoCtx};
 use crate::util::IterExt;
 
 pub trait Visit<'i> {
@@ -17,15 +16,13 @@ impl Node<'i> {
         V::visit(self, ctx)
     }
 
-    fn visit_ident(&self, ctx: &mut Ctx<'i>) -> CtxStr<'i> {
+    fn visit_ident(&self) -> &'i str {
         debug_assert_eq!(self.kind(), Kind::ident);
         let str = self.str();
         str.strip_prefix('`')
-            .unwrap_or(&str)
+            .unwrap_or(str)
             .strip_suffix('`')
-            .unwrap_or(&str)
-            .to_string()
-            .into_ctx(ctx)
+            .unwrap_or(str)
     }
 }
 
@@ -60,12 +57,12 @@ impl Visit<'i> for Define<'i> {
                 let mut nodes = node.children();
 
                 Struct {
-                    name: nodes.next().unwrap().visit_ident(ctx),
+                    name: nodes.next().unwrap().visit_ident(),
                     generic_placeholders: nodes
                         .next()
                         .unwrap()
                         .children_checked(Kind::generic_placeholders)
-                        .map(|node| node.visit_ident(ctx))
+                        .map(|node| node.visit_ident())
                         .vec()
                         .into(),
                     body: nodes.visit_rest(ctx).into(),
@@ -81,12 +78,12 @@ impl Visit<'i> for Define<'i> {
                     .children_checked(Kind::func_receiver_ty)
                     .next()
                     .map(|node| node.visit(ctx));
-                let name = nodes.next().unwrap().visit_ident(ctx);
+                let name = nodes.next().unwrap().visit_ident();
                 let generic_placeholders = nodes
                     .next()
                     .unwrap()
                     .children_checked(Kind::generic_placeholders)
-                    .map(|node| node.visit_ident(ctx))
+                    .map(|node| node.visit_ident())
                     .vec()
                     .into();
                 let mut args = vec![];
@@ -123,7 +120,7 @@ impl Visit<'i> for VarDefine<'i> {
         Self {
             span,
             ty: nodes.next().unwrap().visit(ctx),
-            name: nodes.next().unwrap().visit_ident(ctx),
+            name: nodes.next().unwrap().visit_ident(),
             value: nodes.next().map(|node| node.visit(ctx)),
         }
     }
@@ -280,7 +277,7 @@ impl Visit<'i> for Expr<'i> {
                         },
                         Kind::ident => Field {
                             receiver: old_left.into(),
-                            var: right.visit_ident(ctx),
+                            var: right.visit_ident(),
                         },
 
                         _ => unexpected_kind(right),
@@ -293,7 +290,7 @@ impl Visit<'i> for Expr<'i> {
             // primary
             Kind::literal => Literal(node.children().next().unwrap().visit(ctx)),
             Kind::func_call => FuncCall(node.visit(ctx)),
-            Kind::ident => Var(node.visit_ident(ctx)),
+            Kind::ident => Var(node.visit_ident()),
 
             Kind::c_code => CCode(node.visit(ctx)),
 
@@ -317,7 +314,7 @@ impl Visit<'i> for FuncCall<'i> {
                 .children_checked(Kind::func_receiver_ty)
                 .next()
                 .map(|node| node.visit(ctx)),
-            name: nodes.next().unwrap().visit_ident(ctx),
+            name: nodes.next().unwrap().visit_ident(),
             generic_replacements: nodes
                 .next()
                 .unwrap()
@@ -361,7 +358,7 @@ impl Visit<'i> for Type<'i> {
             Kind::named => {
                 let mut nodes = node.children();
                 Named {
-                    name: nodes.next().unwrap().visit_ident(ctx),
+                    name: nodes.next().unwrap().visit_ident(),
                     generic_replacements: nodes
                         .next()
                         .unwrap()

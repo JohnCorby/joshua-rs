@@ -7,7 +7,6 @@ use crate::pass::ast1;
 use crate::pass::ast2::Type;
 use crate::pass::ty::PrimitiveType;
 use crate::span::Span;
-use crate::util::ctx_str::CtxStr;
 use crate::util::{IterExt, StrExt};
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Display, Formatter};
@@ -16,7 +15,7 @@ use std::rc::Rc;
 
 /// NOTE: hash is only simple way to prevent duplicates. extra checking is needed
 #[allow(clippy::too_many_arguments)]
-#[derive(Debug, Clone, derivative::Derivative, derive_new::new)]
+#[derive(Debug, Clone, Derivative, new)]
 #[derivative(Hash, PartialEq)]
 pub enum Symbol<'i> {
     Func {
@@ -25,9 +24,9 @@ pub enum Symbol<'i> {
         ty: Type<'i>,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         #[new(default)]
-        nesting_prefix: CtxStr<'i>,
+        nesting_prefix: &'i str,
         /// includes receiver ty
-        name: CtxStr<'i>,
+        name: &'i str,
         generic_replacements: Rc<Vec<Type<'i>>>,
         arg_types: Rc<Vec<Type<'i>>>,
     },
@@ -35,19 +34,19 @@ pub enum Symbol<'i> {
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         #[new(default)]
         ty: Type<'i>,
-        name: CtxStr<'i>,
+        name: &'i str,
     },
-    StructType {
+    Struct {
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         #[new(default)]
-        nesting_prefix: CtxStr<'i>,
-        name: CtxStr<'i>,
+        nesting_prefix: &'i str,
+        name: &'i str,
         generic_replacements: Rc<Vec<Type<'i>>>,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         #[new(default)]
-        field_types: Rc<HashMap<CtxStr<'i>, Type<'i>>>,
+        field_types: Rc<HashMap<&'i str, Type<'i>>>,
     },
-    GenericPlaceholderType(CtxStr<'i>),
+    GenericPlaceholder(&'i str),
     GenericFunc {
         // used only for eq/hash
         arg_types: Rc<Vec<Type<'i>>>,
@@ -62,9 +61,9 @@ pub enum Symbol<'i> {
         ty_ast1: ast1::Type<'i>,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         receiver_ty_ast1: Option<ast1::Type<'i>>,
-        name: CtxStr<'i>,
+        name: &'i str,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
-        generic_placeholders: Rc<Vec<CtxStr<'i>>>,
+        generic_placeholders: Rc<Vec<&'i str>>,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         args: Rc<Vec<ast1::VarDefine<'i>>>,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
@@ -76,9 +75,9 @@ pub enum Symbol<'i> {
     },
     GenericStruct {
         // copied from struct define
-        name: CtxStr<'i>,
+        name: &'i str,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
-        generic_placeholders: Rc<Vec<CtxStr<'i>>>,
+        generic_placeholders: Rc<Vec<&'i str>>,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         body: Rc<Vec<ast1::Define<'i>>>,
 
@@ -92,7 +91,7 @@ impl Symbol<'i> {
         use Symbol::*;
         match self {
             Func { ty, .. } | Var { ty, .. } => ty.deref().clone(),
-            StructType {
+            Struct {
                 nesting_prefix,
                 name,
                 generic_replacements,
@@ -102,7 +101,7 @@ impl Symbol<'i> {
                 name: *name,
                 generic_replacements: generic_replacements.clone(),
             },
-            GenericPlaceholderType(name) => Type::GenericPlaceholder(*name),
+            GenericPlaceholder(name) => Type::GenericPlaceholder(*name),
             _ => panic!("symbol {:?} doesn't have a type", self),
         }
     }
@@ -127,16 +126,16 @@ impl Display for Symbol<'_> {
                 )
             ),
             Var { name, .. } => write!(f, "var {}", name),
-            StructType {
+            Struct {
                 name,
                 generic_replacements,
                 ..
             } => write!(
                 f,
                 "struct {}",
-                name.encode(&generic_replacements.iter().vec(), None,)
+                name.encode(&generic_replacements.iter().vec(), None)
             ),
-            GenericPlaceholderType(name) => write!(f, "generic placeholder {}", name),
+            GenericPlaceholder(name) => write!(f, "generic placeholder {}", name),
             _ => panic!("symbol {:?} shouldn't be displayed or encoded", self),
         }
     }
@@ -155,9 +154,9 @@ impl Scopes<'i> {
     }
 }
 
-#[derive(Debug, derive_new::new)]
+#[derive(Debug, new)]
 pub struct Scope<'i> {
-    nesting_name: Option<CtxStr<'i>>, // todo give name to ALL blocks, not just funcs
+    nesting_name: Option<&'i str>, // todo give name to ALL blocks, not just funcs
     is_loop: bool,
     func_return_type: Option<Type<'i>>,
     #[new(default)]
@@ -224,11 +223,23 @@ impl Scopes<'i> {
 /// these are simple and just use hash
 impl Scopes<'i> {
     pub fn add(&mut self, symbol: Symbol<'i>, span: Option<Span<'i>>) -> Res<'i> {
-        let scope = self.0.last_mut().unwrap();
-        if let Some(symbol) = scope.symbols.get(&symbol) {
-            return err(&format!("{} already defined", symbol), span);
+        if let Symbol::Struct {
+            // generic_replacements,
+            ..
         }
-        scope.symbols.insert(symbol);
+        | Symbol::Func {
+            // generic_replacements,
+            ..
+        } = symbol
+        {
+            // if
+        } else {
+            let symbols = &mut self.0.last_mut().unwrap().symbols;
+            if let Some(symbol) = symbols.get(&symbol) {
+                return err(&format!("{} already defined", symbol), span);
+            }
+            symbols.insert(symbol);
+        }
         Ok(())
     }
 
