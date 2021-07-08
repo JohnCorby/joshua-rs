@@ -4,7 +4,7 @@ use std::process::{Command, ExitStatus};
 pub mod ast1;
 pub mod ast2;
 pub mod gen;
-pub mod generic_util;
+pub mod generics_util;
 pub mod replace_generics;
 pub mod scope;
 pub mod ty;

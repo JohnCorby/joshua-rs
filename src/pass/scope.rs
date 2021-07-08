@@ -228,26 +228,27 @@ impl Scopes {
     }
 }
 
-/// these are simple and just use hash
 impl Scopes {
     pub fn add(&mut self, symbol: Symbol, span: Span) -> Res {
-        match symbol {
-            // Symbol::Struct {
-            //     generic_replacements,
-            //     ..
-            // } if !generic_replacements.is_empty() => todo!("add generic struct"),
-            // Symbol::Func {
-            //     generic_replacements,
-            //     ..
-            // } if !generic_replacements.is_empty() => todo!("add generic func"),
-            _ => {
-                let symbols = &mut self.0.last_mut().unwrap().symbols;
-                if let Some(symbol) = symbols.get(&symbol) {
-                    return err(&format!("{} already defined", symbol), span);
-                }
-                symbols.insert(symbol);
-                Ok(())
-            }
+        let symbols = &mut self.0.last_mut().unwrap().symbols;
+        let existing = match &symbol {
+            // generic replacements are eq if their len is eq
+            Symbol::Struct {
+                generic_replacements,
+                ..
+            } if !generic_replacements.is_empty() => symbols.iter().find(|&existing| symbol.generic_eq(existing)),
+            Symbol::Func {
+                generic_replacements,
+                ..
+            } if !generic_replacements.is_empty() => symbols.iter().find(|&existing| symbol.generic_eq(existing)),
+
+            _ => symbols.get(&symbol),
+        };
+        if let Some(symbol) = existing {
+            err(&format!("{} already defined", symbol), span)
+        } else {
+            symbols.insert(symbol);
+            Ok(())
         }
     }
 
@@ -264,8 +265,8 @@ impl Scopes {
 
             _ => {
                 for scope in self.0.iter().rev() {
-                    if let Some(symbol) = scope.symbols.get(symbol) {
-                        return Ok(symbol.clone());
+                    if let Some(existing) = scope.symbols.get(symbol) {
+                        return Ok(existing.clone());
                     }
                 }
                 err(&format!("could not find {}", symbol), span)
