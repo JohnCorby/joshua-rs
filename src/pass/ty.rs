@@ -42,7 +42,7 @@ impl Display for Type {
             ),
             Ptr(ty) => write!(f, "ptr<{}>", ty),
             GenericPlaceholder(name) => f.write_str(name),
-            _ => panic!("type {:?} shouldn't be displayed", self),
+            _ => panic!("type {:?} shouldn't be displayed or encoded", self),
         }
     }
 }

@@ -23,7 +23,7 @@ extern crate derivative;
 #[macro_use]
 extern crate derive_new;
 
-use crate::context::{Ctx, Intern};
+use crate::context::{Intern, Output};
 use crate::error::{Err, Res};
 use crate::parse::{Kind, Node};
 use crate::pass::ast1::Program;
@@ -43,28 +43,27 @@ mod util;
 fn main() {
     Err::init();
 
-    let ctx = &mut Ctx::new();
-
     let path = args().nth(1).unwrap();
     let path = &PathBuf::from(path);
     let program = std::fs::read_to_string(path).unwrap().intern();
 
-    let result: Res = try {
+    let result: Res<String> = try {
         println!("parsing");
         let node = Node::parse(program, Kind::program)?;
         println!("visiting");
-        let program = node.visit::<Program>(ctx);
+        let program = node.visit::<Program>();
         println!("type checking");
-        let program = program.type_check(ctx)?;
+        let mut o = Output::default();
+        let program = program.type_check(&mut o)?;
         println!("generating");
-        program.gen(ctx);
+        program.gen(o)
     };
     if let Err(err) = result {
         return eprintln!("Error: {}", err);
     }
 
     println!("compiling");
-    let status = compile_program(&ctx.o, path);
+    let status = compile_program(&result.unwrap(), path);
     if !status.success() {
         quit::with_code(status.code().unwrap())
     }

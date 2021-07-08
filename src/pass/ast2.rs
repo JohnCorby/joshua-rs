@@ -157,6 +157,7 @@ impl Literal {
 #[derivative(Hash, PartialEq)]
 pub enum Type {
     Primitive(PrimitiveType),
+    /// type version of the symbol
     Struct {
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         nesting_prefix: &'static str,
@@ -167,7 +168,7 @@ pub enum Type {
 
     /// fixme merge these into generics when we get type inference
     Literal(LiteralType),
-    /// replaced with concrete type on specialization
+    /// type version of the symbol
     GenericPlaceholder(&'static str),
     /// for inferring with var define and probably other stuff later
     Auto,

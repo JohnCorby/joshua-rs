@@ -46,6 +46,10 @@ pub enum Symbol {
         #[new(default)]
         field_types: Rc<HashMap<&'static str, Type>>,
     },
+    /// replaced with concrete type on specialization
+    ///
+    /// this should only ever show up in
+    /// generic func receiver type, ret type, or arg types
     GenericPlaceholder(&'static str),
     GenericStruct {
         // copied from struct define
@@ -144,12 +148,12 @@ impl Display for Symbol {
                 name.encode(&generic_replacements.iter().vec(), None)
             ),
             GenericPlaceholder(name) => write!(f, "generic placeholder {}", name),
-            _ => panic!("symbol {:?} shouldn't be displayed or encoded", self),
+            _ => panic!("symbol {:?} shouldn't be displayed", self),
         }
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Scopes(pub Vec<Scope>);
 
 impl Scopes {
@@ -215,7 +219,7 @@ impl Scopes {
             }
         }
     }
-    /// note: only checks one current scope and outer ones
+    /// note: only checks one current scope and outer ones -284 -1278
     pub fn check_return_called(&self, span: Span) -> Res {
         let return_called = self.0.last().unwrap().return_called;
         let is_void = self.func_return_type() == &Type::Primitive(PrimitiveType::Void);
@@ -232,15 +236,13 @@ impl Scopes {
     pub fn add(&mut self, symbol: Symbol, span: Span) -> Res {
         let symbols = &mut self.0.last_mut().unwrap().symbols;
         let existing = match &symbol {
-            // generic replacements are eq if their len is eq
-            Symbol::Struct {
-                generic_replacements,
-                ..
-            } if !generic_replacements.is_empty() => symbols.iter().find(|&existing| symbol.generic_eq(existing)),
-            Symbol::Func {
-                generic_replacements,
-                ..
-            } if !generic_replacements.is_empty() => symbols.iter().find(|&existing| symbol.generic_eq(existing)),
+            // placeholders are eq if their len is eq
+            Symbol::GenericStruct { .. } => symbols
+                .iter()
+                .find(|&s| matches!(s, Symbol::GenericStruct { .. }) && symbol.generic_eq(s)),
+            Symbol::GenericFunc { .. } => symbols
+                .iter()
+                .find(|&s| matches!(s, Symbol::GenericFunc { .. }) && symbol.generic_eq(s)),
 
             _ => symbols.get(&symbol),
         };
@@ -257,11 +259,11 @@ impl Scopes {
             Symbol::Struct {
                 generic_replacements,
                 ..
-            } if !generic_replacements.is_empty() => self.find_generic_struct(symbol, span),
-            Symbol::Func {
+            }
+            | Symbol::Struct {
                 generic_replacements,
                 ..
-            } if !generic_replacements.is_empty() => self.find_generic_func(symbol, span),
+            } if !generic_replacements.is_empty() => self.find_generic(symbol, span),
 
             _ => {
                 for scope in self.0.iter().rev() {

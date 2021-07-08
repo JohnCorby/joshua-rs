@@ -1,37 +1,39 @@
-//! take fully initialized self and generate it into one of the ctx output sections
+//! take fully initialized self and generate it into one of the o output sections
 
-use crate::context::{Ctx, Intern};
+use crate::context::{Intern, Output};
 use crate::pass::ast2::*;
 use crate::util::{IterExt, RcExt, StrExt};
 use std::ops::Deref;
 
 impl Program {
-    pub fn gen(self, ctx: &mut Ctx) {
+    pub fn gen(self, mut o: Output) -> String {
         for define in self.0.into_inner() {
-            define.gen(ctx);
+            define.gen(&mut o);
         }
-        debug_assert!(ctx.o.is_empty());
-        ctx.o.clear();
-        ctx.o.push_str("#pragma region struct declares\n");
-        ctx.o.push_str(&ctx.struct_declares);
-        ctx.o.push_str("#pragma endregion struct declares\n");
-        ctx.o.push_str("#pragma region func declares\n");
-        ctx.o.push_str(&ctx.func_declares);
-        ctx.o.push_str("#pragma endregion func declares\n");
-        ctx.o.push_str("#pragma region global vars\n");
-        ctx.o.push_str(&ctx.global_vars);
-        ctx.o.push_str("#pragma endregion global vars\n");
-        ctx.o.push_str("#pragma region struct defines\n");
-        ctx.o.push_str(&ctx.struct_defines);
-        ctx.o.push_str("#pragma endregion struct defines\n");
-        ctx.o.push_str("#pragma region func defines\n");
-        ctx.o.push_str(&ctx.func_defines);
-        ctx.o.push_str("#pragma endregion func defines");
+        debug_assert!(o.o.is_empty());
+        // combine all the buffers
+        o.o.clear();
+        o.o.push_str("#pragma region struct declares\n");
+        o.o.push_str(&o.struct_declares);
+        o.o.push_str("#pragma endregion struct declares\n");
+        o.o.push_str("#pragma region func declares\n");
+        o.o.push_str(&o.func_declares);
+        o.o.push_str("#pragma endregion func declares\n");
+        o.o.push_str("#pragma region global vars\n");
+        o.o.push_str(&o.global_vars);
+        o.o.push_str("#pragma endregion global vars\n");
+        o.o.push_str("#pragma region struct defines\n");
+        o.o.push_str(&o.struct_defines);
+        o.o.push_str("#pragma endregion struct defines\n");
+        o.o.push_str("#pragma region func defines\n");
+        o.o.push_str(&o.func_defines);
+        o.o.push_str("#pragma endregion func defines");
+        o.o
     }
 }
 
 impl Define {
-    pub fn gen(self, ctx: &mut Ctx) {
+    pub fn gen(self, o: &mut Output) {
         use Define::*;
         match self {
             Struct {
@@ -39,26 +41,26 @@ impl Define {
                 generic_replacements,
                 body,
             } => {
-                let old_o = std::mem::take(&mut ctx.o);
+                let old_o = std::mem::take(&mut o.o);
 
-                ctx.o.push_str("struct ");
-                ctx.o.push_str(
+                o.o.push_str("struct ");
+                o.o.push_str(
                     &full_name
                         .encode(&generic_replacements.iter().vec(), None)
                         .mangle(),
                 );
 
-                ctx.struct_declares.push_str(&ctx.o);
-                ctx.struct_declares.push_str(";\n");
+                o.struct_declares.push_str(&o.o);
+                o.struct_declares.push_str(";\n");
 
-                ctx.o.push_str(" {\n");
+                o.o.push_str(" {\n");
                 for define in body.into_inner() {
-                    define.gen(ctx);
+                    define.gen(o);
                 }
-                ctx.o.push_str("};\n");
+                o.o.push_str("};\n");
 
-                let new_o = std::mem::replace(&mut ctx.o, old_o);
-                ctx.struct_defines.push_str(&new_o);
+                let new_o = std::mem::replace(&mut o.o, old_o);
+                o.struct_defines.push_str(&new_o);
             }
 
             Func {
@@ -68,15 +70,15 @@ impl Define {
                 args,
                 body,
             } => {
-                let old_o = std::mem::take(&mut ctx.o);
+                let old_o = std::mem::take(&mut o.o);
 
-                ty.gen(ctx);
-                ctx.o.push(' ');
+                ty.gen(o);
+                o.o.push(' ');
                 // special case for entry point
                 if *full_name == *"main" && generic_replacements.is_empty() && args.is_empty() {
-                    ctx.o.push_str(full_name)
+                    o.o.push_str(full_name)
                 } else {
-                    ctx.o.push_str(
+                    o.o.push_str(
                         &full_name
                             .encode(
                                 &generic_replacements.iter().vec(),
@@ -85,46 +87,46 @@ impl Define {
                             .mangle(),
                     )
                 }
-                ctx.o.push('(');
+                o.o.push('(');
                 for arg in args.into_inner() {
-                    arg.gen(ctx);
-                    ctx.o.push_str(", ")
+                    arg.gen(o);
+                    o.o.push_str(", ")
                 }
-                if ctx.o.ends_with(", ") {
-                    ctx.o.pop();
-                    ctx.o.pop();
+                if o.o.ends_with(", ") {
+                    o.o.pop();
+                    o.o.pop();
                 }
-                ctx.o.push(')');
+                o.o.push(')');
 
-                ctx.func_declares.push_str(&ctx.o);
-                ctx.func_declares.push_str(";\n");
+                o.func_declares.push_str(&o.o);
+                o.func_declares.push_str(";\n");
 
-                ctx.o.push(' ');
-                body.gen(ctx);
+                o.o.push(' ');
+                body.gen(o);
 
-                let new_o = std::mem::replace(&mut ctx.o, old_o);
-                ctx.func_defines.push_str(&new_o);
+                let new_o = std::mem::replace(&mut o.o, old_o);
+                o.func_defines.push_str(&new_o);
             }
 
             Var(var_define) => {
                 if var_define.is_global {
                     // put global vars in the proper section
-                    let old_o = std::mem::take(&mut ctx.o);
+                    let old_o = std::mem::take(&mut o.o);
 
-                    var_define.gen(ctx);
-                    ctx.o.push_str(";\n");
+                    var_define.gen(o);
+                    o.o.push_str(";\n");
 
-                    let new_o = std::mem::replace(&mut ctx.o, old_o);
-                    ctx.global_vars.push_str(&new_o);
+                    let new_o = std::mem::replace(&mut o.o, old_o);
+                    o.global_vars.push_str(&new_o);
                 } else {
-                    var_define.gen(ctx);
-                    ctx.o.push_str(";\n");
+                    var_define.gen(o);
+                    o.o.push_str(";\n");
                 }
             }
 
             CCode(c_code) => {
-                c_code.gen(ctx);
-                ctx.o.push_str(";\n");
+                c_code.gen(o);
+                o.o.push_str(";\n");
             }
 
             NoGen => {}
@@ -133,49 +135,49 @@ impl Define {
 }
 
 impl VarDefine {
-    pub fn gen(self, ctx: &mut Ctx) {
-        self.ty.gen(ctx);
-        ctx.o.push(' ');
-        ctx.o.push_str(&self.name.mangle());
+    pub fn gen(self, o: &mut Output) {
+        self.ty.gen(o);
+        o.o.push(' ');
+        o.o.push_str(&self.name.mangle());
         if let Some(value) = self.value {
-            ctx.o.push_str(" = ");
-            value.gen(ctx)
+            o.o.push_str(" = ");
+            value.gen(o)
         }
     }
 }
 
 impl Statement {
-    pub fn gen(self, ctx: &mut Ctx) {
+    pub fn gen(self, o: &mut Output) {
         use Statement::*;
         match self {
             Return(value) => {
-                ctx.o.push_str("return");
+                o.o.push_str("return");
                 if let Some(value) = value {
-                    ctx.o.push(' ');
-                    value.gen(ctx)
+                    o.o.push(' ');
+                    value.gen(o)
                 }
-                ctx.o.push_str(";\n");
+                o.o.push_str(";\n");
             }
-            Break => ctx.o.push_str("break;\n"),
-            Continue => ctx.o.push_str("continue;\n"),
+            Break => o.o.push_str("break;\n"),
+            Continue => o.o.push_str("continue;\n"),
             If {
                 cond,
                 then,
                 otherwise,
             } => {
-                ctx.o.push_str("if (");
-                cond.gen(ctx);
-                ctx.o.push_str(") ");
-                then.gen(ctx);
+                o.o.push_str("if (");
+                cond.gen(o);
+                o.o.push_str(") ");
+                then.gen(o);
                 if let Some(otherwise) = otherwise {
-                    otherwise.gen(ctx);
+                    otherwise.gen(o);
                 }
             }
             Until { cond, block } => {
-                ctx.o.push_str("while (!(");
-                cond.gen(ctx);
-                ctx.o.push_str(")) ");
-                block.gen(ctx);
+                o.o.push_str("while (!(");
+                cond.gen(o);
+                o.o.push_str(")) ");
+                block.gen(o);
             }
             For {
                 init,
@@ -183,58 +185,58 @@ impl Statement {
                 update,
                 block,
             } => {
-                ctx.o.push_str("for (");
-                init.gen(ctx);
-                ctx.o.push_str("; ");
+                o.o.push_str("for (");
+                init.gen(o);
+                o.o.push_str("; ");
 
-                cond.gen(ctx);
-                ctx.o.push_str("; ");
-                update.into_inner().gen(ctx);
-                ctx.o.pop(); // for update statement's semicolon
-                ctx.o.pop(); // for update statement's newline
-                ctx.o.push_str(") ");
-                block.gen(ctx);
+                cond.gen(o);
+                o.o.push_str("; ");
+                update.into_inner().gen(o);
+                o.o.pop(); // for update statement's semicolon
+                o.o.pop(); // for update statement's newline
+                o.o.push_str(") ");
+                block.gen(o);
             }
             ExprAssign { lvalue, rvalue } => {
-                lvalue.gen(ctx);
-                ctx.o.push_str(" = ");
-                rvalue.gen(ctx);
-                ctx.o.push_str(";\n");
+                lvalue.gen(o);
+                o.o.push_str(" = ");
+                rvalue.gen(o);
+                o.o.push_str(";\n");
             }
-            Define(define) => define.gen(ctx),
+            Define(define) => define.gen(o),
             Expr(expr) => {
-                expr.gen(ctx);
-                ctx.o.push_str(";\n");
+                expr.gen(o);
+                o.o.push_str(";\n");
             }
         }
     }
 }
 
 impl Block {
-    pub fn gen(self, ctx: &mut Ctx) {
-        ctx.o.push_str("{\n");
+    pub fn gen(self, o: &mut Output) {
+        o.o.push_str("{\n");
         for statement in self.0.into_inner() {
-            statement.gen(ctx);
+            statement.gen(o);
         }
-        ctx.o.push_str("}\n");
+        o.o.push_str("}\n");
     }
 }
 
 impl CCode {
-    pub fn gen(self, ctx: &mut Ctx) {
-        ctx.o.push_str("/*<{*/");
+    pub fn gen(self, o: &mut Output) {
+        o.o.push_str("/*<{*/");
         for part in self.0.into_inner() {
             match part {
-                CCodePart::String(str) => ctx.o.push_str(str),
-                CCodePart::Expr(expr) => expr.gen(ctx),
+                CCodePart::String(str) => o.o.push_str(str),
+                CCodePart::Expr(expr) => expr.gen(o),
             }
         }
-        ctx.o.push_str("/*}>*/");
+        o.o.push_str("/*}>*/");
     }
 }
 
 impl Expr {
-    pub fn gen(self, ctx: &mut Ctx) {
+    pub fn gen(self, o: &mut Output) {
         use ExprKind::*;
         match self.kind {
             Cast {
@@ -243,10 +245,10 @@ impl Expr {
             } => {
                 // fixme hacky as shit
                 if matches!(thing.ty, Type::Literal(_) | Type::CCode) {
-                    ctx.o.push('(');
-                    self.ty.gen(ctx);
-                    ctx.o.push_str(") ");
-                    thing.into_inner().gen(ctx);
+                    o.o.push('(');
+                    self.ty.gen(o);
+                    o.o.push_str(") ");
+                    thing.into_inner().gen(o);
                 } else {
                     self::Expr {
                         kind: self::ExprKind::FuncCall {
@@ -256,23 +258,23 @@ impl Expr {
                         },
                         ty: Default::default(),
                     }
-                    .gen(ctx);
+                    .gen(o);
                 }
             }
 
             Field { receiver, var } => {
                 let receiver = receiver.into_inner();
                 let receiver_ty = receiver.ty.clone();
-                receiver.gen(ctx);
+                receiver.gen(o);
                 if matches!(receiver_ty, Type::Ptr(_)) {
-                    ctx.o.push_str("->") // fixme this does a deref... do we want that? maybe put a & to make it a pointer again
+                    o.o.push_str("->") // fixme this does a deref... do we want that? maybe put a & to make it a pointer again
                 } else {
-                    ctx.o.push('.')
+                    o.o.push('.')
                 }
-                ctx.o.push_str(&var.mangle());
+                o.o.push_str(&var.mangle());
             }
 
-            Literal(literal) => literal.gen(ctx),
+            Literal(literal) => literal.gen(o),
             FuncCall {
                 full_name,
                 generic_replacements,
@@ -280,9 +282,9 @@ impl Expr {
             } => {
                 // special case for entry point
                 if *full_name == *"main" && generic_replacements.is_empty() && args.is_empty() {
-                    ctx.o.push_str(full_name)
+                    o.o.push_str(full_name)
                 } else {
-                    ctx.o.push_str(
+                    o.o.push_str(
                         &full_name
                             .encode(
                                 &generic_replacements.iter().vec(),
@@ -291,28 +293,28 @@ impl Expr {
                             .mangle(),
                     )
                 }
-                ctx.o.push('(');
+                o.o.push('(');
                 for arg in args.into_inner() {
-                    arg.gen(ctx);
-                    ctx.o.push_str(", ")
+                    arg.gen(o);
+                    o.o.push_str(", ")
                 }
-                if ctx.o.ends_with(", ") {
-                    ctx.o.pop();
-                    ctx.o.pop();
+                if o.o.ends_with(", ") {
+                    o.o.pop();
+                    o.o.pop();
                 }
-                ctx.o.push(')');
+                o.o.push(')');
             }
-            Var(name) => ctx.o.push_str(&name.mangle()),
+            Var(name) => o.o.push_str(&name.mangle()),
 
-            CCode(c_code) => c_code.gen(ctx),
+            CCode(c_code) => c_code.gen(o),
         }
     }
 }
 
 impl Literal {
-    pub fn gen(self, ctx: &mut Ctx) {
+    pub fn gen(self, o: &mut Output) {
         use Literal::*;
-        ctx.o.push_str(&match self {
+        o.o.push_str(&match self {
             Float(value) => value.to_string(),
             Int(value) => value.to_string(),
             Bool(value) => (value as u8).to_string(),
@@ -323,17 +325,17 @@ impl Literal {
 }
 
 impl Type {
-    pub fn gen(self, ctx: &mut Ctx) {
+    pub fn gen(self, o: &mut Output) {
         use Type::*;
         match self {
-            Primitive(ty) => ctx.o.push_str(ty.c_type()),
+            Primitive(ty) => o.o.push_str(ty.c_type()),
             Struct { .. } => {
-                ctx.o.push_str("struct ");
-                ctx.o.push_str(&self.to_string().mangle())
+                o.o.push_str("struct ");
+                o.o.push_str(&self.to_string().mangle())
             }
             Ptr(inner) => {
-                inner.deref().clone().gen(ctx);
-                ctx.o.push('*');
+                inner.deref().clone().gen(o);
+                o.o.push('*');
             }
             ty => panic!("tried to gen {}", ty),
         }

@@ -6,11 +6,8 @@ use crate::util::RcExt;
 use parking_lot::Mutex;
 use std::collections::HashSet;
 
-/// stores general program context
-#[derive(Debug)]
-pub struct Ctx {
-    pub scopes: Scopes,
-
+#[derive(Default)]
+pub struct Output {
     /// general buffer, eventually this should be empty as everything is transferred to the Strings below
     pub o: String,
     pub struct_declares: String,
@@ -20,94 +17,77 @@ pub struct Ctx {
     pub func_defines: String,
 }
 
-impl Ctx {
-    pub fn new() -> Self {
-        Self {
-            scopes: Default::default(),
+pub fn type_check_prelude(scopes: &mut Scopes, o: &mut Output) {
+    let mut i = String::new();
 
-            o: Default::default(),
-            struct_declares: Default::default(),
-            func_declares: Default::default(),
-            global_vars: Default::default(),
-            struct_defines: Default::default(),
-            func_defines: Default::default(),
+    fn op_funcs(
+        i: &mut String,
+        ops: &[&str],
+        num_args: usize,
+        arg_tys: &[PrimitiveType],
+        ret_ty: Option<PrimitiveType>,
+    ) {
+        for &op in ops {
+            for &arg_ty in arg_tys {
+                let ret_ty = ret_ty.unwrap_or(arg_ty);
+                i.push_str(&match num_args {
+                    1 => format!(
+                        "{} `{}`({} a) ret <{{ {} ${{ a }} }}> as {}\n",
+                        ret_ty, op, arg_ty, op, ret_ty
+                    ),
+                    2 => format!(
+                        "{} `{}`({} a, {} b) ret <{{ ${{ a }} {} ${{ b }} }}> as {}\n",
+                        ret_ty, op, arg_ty, arg_ty, op, ret_ty
+                    ),
+                    _ => unreachable!(),
+                });
+            }
         }
     }
-}
 
-impl Ctx {
-    pub fn type_check_prelude(&mut self) {
-        let mut i = String::new();
+    use PrimitiveType::*;
+    let num_prims = &[I8, U8, I16, U16, I32, U32, I64, U64, F32, F64];
 
-        fn op_funcs(
-            i: &mut String,
-            ops: &[&str],
-            num_args: usize,
-            arg_tys: &[PrimitiveType],
-            ret_ty: Option<PrimitiveType>,
-        ) {
-            for &op in ops {
-                for &arg_ty in arg_tys {
-                    let ret_ty = ret_ty.unwrap_or(arg_ty);
-                    i.push_str(&match num_args {
-                        1 => format!(
-                            "{} `{}`({} a) ret <{{ {} ${{ a }} }}> as {}\n",
-                            ret_ty, op, arg_ty, op, ret_ty
-                        ),
-                        2 => format!(
-                            "{} `{}`({} a, {} b) ret <{{ ${{ a }} {} ${{ b }} }}> as {}\n",
-                            ret_ty, op, arg_ty, arg_ty, op, ret_ty
-                        ),
-                        _ => unreachable!(),
-                    });
-                }
-            }
+    // binary
+    op_funcs(&mut i, &["+", "-", "*", "/"], 2, num_prims, None);
+    op_funcs(
+        &mut i,
+        &["%"],
+        2,
+        &[I8, U8, I16, U16, I32, U32, I64, U64],
+        None,
+    );
+    op_funcs(
+        &mut i,
+        &["<", "<=", ">", ">=", "==", "!="],
+        2,
+        num_prims,
+        Some(Bool),
+    );
+    op_funcs(&mut i, &["==", "!="], 2, &[Bool], Some(Bool));
+
+    // unary
+    op_funcs(&mut i, &["-"], 1, num_prims, None);
+    op_funcs(&mut i, &["!"], 1, &[Bool], None);
+
+    // cast
+    for &ret_ty in num_prims {
+        for &arg_ty in num_prims {
+            i.push_str(&format!(
+                "{} `as {}`({} a) ret <{{ ${{ a }} }}> as {}\n",
+                ret_ty, ret_ty, arg_ty, ret_ty,
+            ));
         }
+    }
 
-        use PrimitiveType::*;
-        let num_prims = &[I8, U8, I16, U16, I32, U32, I64, U64, F32, F64];
-
-        // binary
-        op_funcs(&mut i, &["+", "-", "*", "/"], 2, num_prims, None);
-        op_funcs(
-            &mut i,
-            &["%"],
-            2,
-            &[I8, U8, I16, U16, I32, U32, I64, U64],
-            None,
-        );
-        op_funcs(
-            &mut i,
-            &["<", "<=", ">", ">=", "==", "!="],
-            2,
-            num_prims,
-            Some(Bool),
-        );
-        op_funcs(&mut i, &["==", "!="], 2, &[Bool], Some(Bool));
-
-        // unary
-        op_funcs(&mut i, &["-"], 1, num_prims, None);
-        op_funcs(&mut i, &["!"], 1, &[Bool], None);
-
-        // cast
-        for &ret_ty in num_prims {
-            for &arg_ty in num_prims {
-                i.push_str(&format!(
-                    "{} `as {}`({} a) ret <{{ ${{ a }} }}> as {}\n",
-                    ret_ty, ret_ty, arg_ty, ret_ty,
-                ));
-            }
-        }
-
-        let defines = Node::parse(i.intern(), Kind::program)
-            .unwrap()
-            .visit::<Program>(self)
-            .0
-            .into_inner();
-        for define in defines {
-            let define = define.type_check(self).unwrap();
-            define.gen(self)
-        }
+    let defines = Node::parse(i.intern(), Kind::program)
+        .unwrap()
+        .visit::<Program>()
+        .0
+        .into_inner();
+    for define in defines {
+        let define = define.type_check(scopes).unwrap();
+        define.gen(o)
     }
 }
 
