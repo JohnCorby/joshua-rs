@@ -137,6 +137,28 @@ impl Display for Symbol {
                     Some(&arg_types.iter().vec()),
                 )
             ),
+            GenericFunc {
+                receiver_ty,
+                name,
+                generic_placeholders,
+                arg_types,
+                ..
+            } => write!(
+                f,
+                "generic func {}{}",
+                receiver_ty
+                    .as_ref()
+                    .map_or(String::new(), |it| format!("{}::", it)),
+                name.encode(
+                    &generic_placeholders
+                        .iter()
+                        .map(|it| Type::GenericPlaceholder(it))
+                        .vec()
+                        .iter()
+                        .vec(),
+                    Some(&arg_types.iter().vec()),
+                )
+            ),
             Var { name, .. } => write!(f, "var {}", name),
             Struct {
                 name,
@@ -147,8 +169,24 @@ impl Display for Symbol {
                 "struct {}",
                 name.encode(&generic_replacements.iter().vec(), None)
             ),
+            GenericStruct {
+                name,
+                generic_placeholders,
+                ..
+            } => write!(
+                f,
+                "generic struct {}",
+                name.encode(
+                    &generic_placeholders
+                        .iter()
+                        .map(|it| Type::GenericPlaceholder(it))
+                        .vec()
+                        .iter()
+                        .vec(),
+                    None
+                )
+            ),
             GenericPlaceholder(name) => write!(f, "generic placeholder {}", name),
-            _ => panic!("symbol {:?} shouldn't be displayed", self),
         }
     }
 }
@@ -259,11 +297,11 @@ impl Scopes {
             Symbol::Struct {
                 generic_replacements,
                 ..
-            }
-            | Symbol::Struct {
+            } if !generic_replacements.is_empty() => self.find_generic_struct(symbol, span),
+            Symbol::Func {
                 generic_replacements,
                 ..
-            } if !generic_replacements.is_empty() => self.find_generic(symbol, span),
+            } if !generic_replacements.is_empty() => self.find_generic_func(symbol, span),
 
             _ => {
                 for scope in self.0.iter().rev() {
