@@ -10,8 +10,8 @@ use crate::util::{IterExt, IterResExt, RcExt};
 use std::collections::HashMap;
 use std::ops::Deref;
 
-impl Program<'i> {
-    pub fn type_check(self, ctx: &mut Ctx<'i>) -> Res<'i, ast2::Program<'i>> {
+impl Program {
+    pub fn type_check(self, ctx: &mut Ctx) -> Res<ast2::Program> {
         ctx.scopes.push(Scope::new(None, false, None));
         ctx.type_check_prelude();
         let defines = self
@@ -26,8 +26,8 @@ impl Program<'i> {
     }
 }
 
-impl Define<'i> {
-    pub fn type_check(self, ctx: &mut Ctx<'i>) -> Res<'i, ast2::Define<'i>> {
+impl Define {
+    pub fn type_check(self, ctx: &mut Ctx) -> Res<ast2::Define> {
         use DefineKind::*;
         Ok(match self.kind {
             Struct {
@@ -53,7 +53,7 @@ impl Define<'i> {
                     ctx.scopes.pop();
 
                     // add symbol
-                    let nesting_prefix = ctx.scopes.nesting_prefix().intern(ctx);
+                    let nesting_prefix = ctx.scopes.nesting_prefix().intern();
                     ctx.scopes.add(
                         Symbol::Struct {
                             nesting_prefix,
@@ -98,7 +98,7 @@ impl Define<'i> {
                     body.extend(func_defines);
 
                     ast2::Define::Struct {
-                        full_name: format!("{}{}", nesting_prefix, name).intern(ctx),
+                        full_name: format!("{}{}", nesting_prefix, name).intern(),
                         generic_replacements: Default::default(),
                         body: body.into(),
                     }
@@ -145,12 +145,12 @@ impl Define<'i> {
                 };
 
                 if generic_placeholders.is_empty() {
-                    let nesting_prefix = ctx.scopes.nesting_prefix().intern(ctx);
+                    let nesting_prefix = ctx.scopes.nesting_prefix().intern();
 
                     ctx.scopes.push(Scope::new(
                         // scope name includes receiver ty
                         Some(receiver_ty.as_ref().map_or(name, |receiver_ty| {
-                            format!("{}::{}", receiver_ty, name).intern(ctx)
+                            format!("{}::{}", receiver_ty, name).intern()
                         })),
                         false,
                         Some(ty.clone()),
@@ -188,7 +188,7 @@ impl Define<'i> {
                             receiver_ty.map_or(String::new(), |it| format!("{}::", it)),
                             name
                         )
-                        .intern(ctx),
+                        .intern(),
                         generic_replacements: Default::default(),
                         args: args.into(),
                         body,
@@ -233,14 +233,14 @@ impl Define<'i> {
     }
 }
 
-impl VarDefine<'i> {
+impl VarDefine {
     pub fn type_check(
         self,
-        ctx: &mut Ctx<'i>,
+        ctx: &mut Ctx,
 
         is_func_arg: bool,
         is_for_init: bool,
-    ) -> Res<'i, ast2::VarDefine<'i>> {
+    ) -> Res<ast2::VarDefine> {
         if let TypeKind::Primitive(PrimitiveType::Void) = self.ty.kind {
             return err("vars can't have void type", self.span);
         }
@@ -297,8 +297,8 @@ impl VarDefine<'i> {
     }
 }
 
-impl Statement<'i> {
-    pub fn type_check(self, ctx: &mut Ctx<'i>) -> Res<'i, ast2::Statement<'i>> {
+impl Statement {
+    pub fn type_check(self, ctx: &mut Ctx) -> Res<ast2::Statement> {
         use StatementKind::*;
         Ok(match self.kind {
             Return(value) => {
@@ -407,8 +407,8 @@ impl Statement<'i> {
     }
 }
 
-impl Block<'i> {
-    pub fn type_check(self, ctx: &mut Ctx<'i>) -> Res<'i, ast2::Block<'i>> {
+impl Block {
+    pub fn type_check(self, ctx: &mut Ctx) -> Res<ast2::Block> {
         self.0
             .iter()
             .cloned()
@@ -418,8 +418,8 @@ impl Block<'i> {
     }
 }
 
-impl CCode<'i> {
-    pub fn type_check(self, ctx: &mut Ctx<'i>) -> Res<'i, ast2::CCode<'i>> {
+impl CCode {
+    pub fn type_check(self, ctx: &mut Ctx) -> Res<ast2::CCode> {
         self.0
             .iter()
             .cloned()
@@ -434,12 +434,8 @@ impl CCode<'i> {
     }
 }
 
-impl Expr<'i> {
-    pub fn type_check(
-        self,
-        ctx: &mut Ctx<'i>,
-        type_hint: Option<&ast2::Type<'i>>,
-    ) -> Res<'i, ast2::Expr<'i>> {
+impl Expr {
+    pub fn type_check(self, ctx: &mut Ctx, type_hint: Option<&ast2::Type>) -> Res<ast2::Expr> {
         use ExprKind::*;
         Ok(match self.kind {
             Cast { thing, ty } => {
@@ -453,7 +449,7 @@ impl Expr<'i> {
                         // casting will always work
                         Default::default()
                     } else {
-                        let name = format!("as {}", ty).intern(ctx);
+                        let name = format!("as {}", ty).intern();
                         let symbol = ctx.scopes.find(
                             &Symbol::new_func(
                                 None,
@@ -550,12 +546,8 @@ impl Expr<'i> {
     }
 }
 
-impl FuncCall<'i> {
-    pub fn type_check(
-        mut self,
-        ctx: &mut Ctx<'i>,
-        _type_hint: Option<&ast2::Type<'i>>,
-    ) -> Res<'i, ast2::Expr<'i>> {
+impl FuncCall {
+    pub fn type_check(mut self, ctx: &mut Ctx, _type_hint: Option<&ast2::Type>) -> Res<ast2::Expr> {
         let receiver_ty = if let Some(receiver_ty) = &self.receiver_ty {
             Some(receiver_ty.clone().type_check(ctx)?)
         } else {
@@ -563,7 +555,7 @@ impl FuncCall<'i> {
         };
 
         if let Some(receiver_ty) = &receiver_ty {
-            self.name = format!("{}::{}", receiver_ty, self.name).intern(ctx)
+            self.name = format!("{}::{}", receiver_ty, self.name).intern()
         }
 
         let generic_replacements = self
@@ -607,7 +599,7 @@ impl FuncCall<'i> {
         };
         Ok(ast2::Expr {
             kind: ast2::ExprKind::FuncCall {
-                full_name: format!("{}{}", nesting_prefix, self.name).intern(ctx),
+                full_name: format!("{}{}", nesting_prefix, self.name).intern(),
                 generic_replacements: Default::default(),
                 args: args.into(),
             },
@@ -616,8 +608,8 @@ impl FuncCall<'i> {
     }
 }
 
-impl Type<'i> {
-    pub fn type_check(self, ctx: &mut Ctx<'i>) -> Res<'i, ast2::Type<'i>> {
+impl Type {
+    pub fn type_check(self, ctx: &mut Ctx) -> Res<ast2::Type> {
         let span = self.span;
         use TypeKind::*;
         Ok(match self.kind {

@@ -17,45 +17,45 @@ use std::rc::Rc;
 #[allow(clippy::too_many_arguments)]
 #[derive(Debug, Clone, Derivative, new)]
 #[derivative(Hash, PartialEq)]
-pub enum Symbol<'i> {
+pub enum Symbol {
     Func {
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         #[new(default)]
-        ty: Type<'i>,
+        ty: Type,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         #[new(default)]
-        nesting_prefix: &'i str,
-        receiver_ty: Option<Type<'i>>,
-        name: &'i str,
-        generic_replacements: Rc<Vec<Type<'i>>>,
-        arg_types: Rc<Vec<Type<'i>>>,
+        nesting_prefix: &'static str,
+        receiver_ty: Option<Type>,
+        name: &'static str,
+        generic_replacements: Rc<Vec<Type>>,
+        arg_types: Rc<Vec<Type>>,
     },
     Var {
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         #[new(default)]
-        ty: Type<'i>,
-        name: &'i str,
+        ty: Type,
+        name: &'static str,
     },
     Struct {
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         #[new(default)]
-        nesting_prefix: &'i str,
-        name: &'i str,
-        generic_replacements: Rc<Vec<Type<'i>>>,
+        nesting_prefix: &'static str,
+        name: &'static str,
+        generic_replacements: Rc<Vec<Type>>,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         #[new(default)]
-        field_types: Rc<HashMap<&'i str, Type<'i>>>,
+        field_types: Rc<HashMap<&'static str, Type>>,
     },
-    GenericPlaceholder(&'i str),
+    GenericPlaceholder(&'static str),
     GenericStruct {
         // copied from struct define
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
-        span: Span<'i>,
-        name: &'i str,
+        span: Span,
+        name: &'static str,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
-        generic_placeholders: Rc<Vec<&'i str>>,
+        generic_placeholders: Rc<Vec<&'static str>>,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
-        body: Rc<Vec<ast1::Define<'i>>>,
+        body: Rc<Vec<ast1::Define>>,
 
         // codegen info
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
@@ -63,35 +63,35 @@ pub enum Symbol<'i> {
     },
     GenericFunc {
         // used only for eq/hash
-        receiver_ty: Option<Type<'i>>,
-        arg_types: Rc<Vec<Type<'i>>>,
+        receiver_ty: Option<Type>,
+        arg_types: Rc<Vec<Type>>,
 
         /// used only for generic inference
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
-        ty: Type<'i>,
+        ty: Type,
 
         // copied from func define
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
-        span: Span<'i>,
+        span: Span,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
-        ty_ast1: ast1::Type<'i>,
+        ty_ast1: ast1::Type,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
-        receiver_ty_ast1: Option<ast1::Type<'i>>,
-        name: &'i str,
+        receiver_ty_ast1: Option<ast1::Type>,
+        name: &'static str,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
-        generic_placeholders: Rc<Vec<&'i str>>,
+        generic_placeholders: Rc<Vec<&'static str>>,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
-        args: Rc<Vec<ast1::VarDefine<'i>>>,
+        args: Rc<Vec<ast1::VarDefine>>,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
-        body: ast1::Block<'i>,
+        body: ast1::Block,
 
         // codegen info
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         scopes_index: usize,
     },
 }
-impl Symbol<'i> {
-    pub fn ty(&self) -> Type<'i> {
+impl Symbol {
+    pub fn ty(&self) -> Type {
         use Symbol::*;
         match self {
             Func { ty, .. } | Var { ty, .. } => ty.deref().clone(),
@@ -110,10 +110,10 @@ impl Symbol<'i> {
         }
     }
 }
-impl Eq for Symbol<'_> {}
+impl Eq for Symbol {}
 
-impl Display for Symbol<'_> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+impl Display for Symbol {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         use Symbol::*;
         match self {
             Func {
@@ -150,31 +150,31 @@ impl Display for Symbol<'_> {
 }
 
 #[derive(Debug, Default)]
-pub struct Scopes<'i>(pub Vec<Scope<'i>>);
+pub struct Scopes(pub Vec<Scope>);
 
-impl Scopes<'i> {
-    pub fn push(&mut self, scope: Scope<'i>) {
+impl Scopes {
+    pub fn push(&mut self, scope: Scope) {
         self.0.push(scope)
     }
 
-    pub fn pop(&mut self) -> Scope<'i> {
+    pub fn pop(&mut self) -> Scope {
         self.0.pop().expect("tried to pop an empty scope stack")
     }
 }
 
 #[derive(Debug, new)]
-pub struct Scope<'i> {
-    nesting_name: Option<&'i str>, // todo give name to ALL blocks, not just funcs
+pub struct Scope {
+    nesting_name: Option<&'static str>, // todo give name to ALL blocks, not just funcs
     is_loop: bool,
-    func_return_type: Option<Type<'i>>,
+    func_return_type: Option<Type>,
     #[new(default)]
     return_called: bool,
 
     #[new(default)]
-    pub symbols: HashSet<Symbol<'i>>,
+    pub symbols: HashSet<Symbol>,
 }
 
-impl Scopes<'i> {
+impl Scopes {
     /// use for initializing ast nodes
     pub fn nesting_prefix(&self) -> String {
         self.0
@@ -196,7 +196,7 @@ impl Scopes<'i> {
         }
         false
     }
-    pub fn func_return_type(&self) -> &Type<'i> {
+    pub fn func_return_type(&self) -> &Type {
         for scope in self.0.iter().rev() {
             if let Some(ty) = &scope.func_return_type {
                 return ty;
@@ -216,7 +216,7 @@ impl Scopes<'i> {
         }
     }
     /// note: only checks one current scope and outer ones
-    pub fn check_return_called(&self, span: Span<'i>) -> Res<'i> {
+    pub fn check_return_called(&self, span: Span) -> Res {
         let return_called = self.0.last().unwrap().return_called;
         let is_void = self.func_return_type() == &Type::Primitive(PrimitiveType::Void);
 
@@ -229,8 +229,8 @@ impl Scopes<'i> {
 }
 
 /// these are simple and just use hash
-impl Scopes<'i> {
-    pub fn add(&mut self, symbol: Symbol<'i>, span: Span<'i>) -> Res<'i> {
+impl Scopes {
+    pub fn add(&mut self, symbol: Symbol, span: Span) -> Res {
         match symbol {
             // Symbol::Struct {
             //     generic_replacements,
@@ -251,7 +251,7 @@ impl Scopes<'i> {
         }
     }
 
-    pub fn find(&mut self, symbol: &Symbol<'i>, span: Span<'i>) -> Res<'i, Symbol<'i>> {
+    pub fn find(&mut self, symbol: &Symbol, span: Span) -> Res<Symbol> {
         match symbol {
             Symbol::Struct {
                 generic_replacements,

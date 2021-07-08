@@ -11,11 +11,11 @@ use crate::util::IterExt;
 use std::collections::HashMap;
 use std::ops::Deref;
 
-// impl Type<'i> {
+// impl Type {
 //     /// `Type::type_check` but for generic structs
 //     ///
 //     /// mostly duplicated from `Define::type_check` and `Type::type_check`
-//     pub fn type_check_generic(self, ctx: &mut Ctx<'i>) -> Res<'i, ast2::Type<'i>> {
+//     pub fn type_check_generic(self, ctx: &mut Ctx) -> Res<ast2::Type> {
 //         use DefineKind::*;
 //         use TypeKind::*;
 //         if let Named {
@@ -25,7 +25,7 @@ use std::ops::Deref;
 //         {
 //             debug_assert!(!generic_replacements_.is_empty());
 //
-//             let generic_replacements: Rc<Vec<ast2::Type<'i>>> = generic_replacements_
+//             let generic_replacements: Rc<Vec<ast2::Type>> = generic_replacements_
 //                 .iter()
 //                 .cloned()
 //                 .map(|replacement| replacement.type_check(ctx))
@@ -67,7 +67,7 @@ use std::ops::Deref;
 //                     .iter()
 //                     .copied()
 //                     .zip(generic_replacements_.iter().cloned())
-//                     .collect::<GenericMap<'i>>();
+//                     .collect::<GenericMap>();
 //
 //                 let (var_defines, func_defines) =
 //                     body.iter()
@@ -158,11 +158,11 @@ use std::ops::Deref;
 //     }
 // }
 
-// impl FuncCall<'i> {
+// impl FuncCall {
 //     /// `FuncCall::type_check` but for generic funcs
 //     ///
 //     /// mostly duplicated from `Define::type_check` and `FuncCall::type_check`
-//     pub fn type_check_generic(self, ctx: &mut Ctx<'i>) -> Res<'i, ast2::Expr<'i>> {
+//     pub fn type_check_generic(self, ctx: &mut Ctx) -> Res<ast2::Expr> {
 //         debug_assert!(!self.generic_replacements.is_empty());
 //
 //         let receiver_ty = if let Some(receiver_ty) = &self.receiver_ty {
@@ -170,7 +170,7 @@ use std::ops::Deref;
 //         } else {
 //             None
 //         };
-//         let generic_replacements: Rc<Vec<ast2::Type<'i>>> = self
+//         let generic_replacements: Rc<Vec<ast2::Type>> = self
 //             .generic_replacements
 //             .iter()
 //             .cloned()
@@ -212,7 +212,7 @@ use std::ops::Deref;
 //                 .iter()
 //                 .copied()
 //                 .zip(self.generic_replacements.iter().cloned())
-//                 .collect::<GenericMap<'i>>();
+//                 .collect::<GenericMap>();
 //
 //             ty.replace_generics(ctx, &generic_map);
 //             let ty = ty.type_check(ctx)?;
@@ -299,7 +299,7 @@ use std::ops::Deref;
 //     }
 // }
 
-impl ast2::Type<'i> {
+impl ast2::Type {
     /// check for eq fuzzily
     /// where `other` is possibly generic
     fn generic_eq(&self, other: &Self) -> bool {
@@ -334,7 +334,7 @@ impl ast2::Type<'i> {
     }
 
     /// revert an ast2 Type back into ast1
-    pub fn into_ast1(self, span: Span<'i>) -> Type<'i> {
+    pub fn into_ast1(self, span: Span) -> Type {
         Type {
             span,
             kind: match self {
@@ -379,14 +379,10 @@ impl ast2::Type<'i> {
     }
 }
 
-impl Scopes<'i> {
+impl Scopes {
     /// find a generic struct fuzzily
     /// and gen a specialized version if one doesn't exist
-    pub fn find_generic_struct(
-        &mut self,
-        symbol: &Symbol<'i>,
-        span: Span<'i>,
-    ) -> Res<'i, Symbol<'i>> {
+    pub fn find_generic_struct(&mut self, symbol: &Symbol, span: Span) -> Res<Symbol> {
         match symbol {
             Symbol::Struct {
                 name,
@@ -444,7 +440,7 @@ impl Scopes<'i> {
                                     .cloned()
                                     .map(|it| it.into_ast1(span)),
                             )
-                            .collect::<GenericMap<'i>>();
+                            .collect::<GenericMap>();
 
                         // do replacements
                         let body = body
@@ -468,8 +464,8 @@ impl Scopes<'i> {
                         };
 
                         let scopes_after = self.0.split_off(scopes_index);
-                        let ctx: &mut Ctx<'i> = unsafe { &mut *std::ptr::null_mut() }; // lol
-                        let nesting_prefix = ctx.scopes.nesting_prefix().intern(ctx);
+                        let ctx: &mut Ctx = unsafe { &mut *std::ptr::null_mut() }; // lol
+                        let nesting_prefix = ctx.scopes.nesting_prefix().intern();
                         let define = define.type_check(ctx)?;
                         self.0.extend(scopes_after);
 
@@ -507,11 +503,7 @@ impl Scopes<'i> {
 
     /// find a generic func fuzzily
     /// and gen a specialized version if one doesn't exist
-    pub fn find_generic_func(
-        &mut self,
-        symbol: &Symbol<'i>,
-        span: Span<'i>,
-    ) -> Res<'i, Symbol<'i>> {
+    pub fn find_generic_func(&mut self, symbol: &Symbol, span: Span) -> Res<Symbol> {
         match symbol {
             Symbol::Func {
                 receiver_ty,
@@ -596,7 +588,7 @@ impl Scopes<'i> {
                                     .cloned()
                                     .map(|it| it.into_ast1(span)),
                             )
-                            .collect::<GenericMap<'i>>();
+                            .collect::<GenericMap>();
 
                         // do replacements
                         let ty = {
@@ -643,8 +635,8 @@ impl Scopes<'i> {
                         };
 
                         let scopes_after = self.0.split_off(scopes_index);
-                        let ctx: &mut Ctx<'i> = unsafe { &mut *std::ptr::null_mut() }; // lol
-                        let nesting_prefix = ctx.scopes.nesting_prefix().intern(ctx);
+                        let ctx: &mut Ctx = unsafe { &mut *std::ptr::null_mut() }; // lol
+                        let nesting_prefix = ctx.scopes.nesting_prefix().intern();
                         // bruh
                         let receiver_ty = if let Some(it) = receiver_ty {
                             Some(it.type_check(ctx)?)
@@ -684,18 +676,18 @@ impl Scopes<'i> {
     }
 }
 
-// impl Scopes<'i> {
+// impl Scopes {
 //     /// find a generic func with inference
 //     ///
 //     /// the goal is the figure out what the generic replacements are without actually being given them
 //     pub fn find_generic_func_inference(
 //         &self,
-//         receiver_ty: Option<&ast2::Type<'i>>,
-//         name: &'i str,
-//         arg_types: &[&ast2::Type<'i>],
-//         type_hint: Option<&ast2::Type<'i>>,
-//         span: Span<'i>,
-//     ) -> Res<'i, &Symbol<'i>> {
+//         receiver_ty: Option<&ast2::Type>,
+//         name: &'static str,
+//         arg_types: &[&ast2::Type],
+//         type_hint: Option<&ast2::Type>,
+//         span: Span,
+//     ) -> Res<&Symbol> {
 //         for scope in self.0.iter().rev() {
 //             let symbol = scope
 //                 .symbols
@@ -762,11 +754,11 @@ impl Scopes<'i> {
 //                             ty, symbol_receiver_ty, generic_placeholders, symbol_arg_types
 //                         );
 //
-//                         impl ast2::Type<'i> {
+//                         impl ast2::Type {
 //                             /// replace a generic placeholder with a real type lol
 //                             ///
 //                             /// the same as the whole pass, except does it for ast2 Type instead of ast1
-//                             fn replace_generic(&mut self, map: (&'i str, &ast2::Type<'i>)) {
+//                             fn replace_generic(&mut self, map: (&'static str, &ast2::Type)) {
 //                                 use ast2::Type::*;
 //                                 match self {
 //                                     Struct {

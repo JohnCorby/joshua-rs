@@ -9,12 +9,12 @@
 //! - ownership? borrowing? lifetimes? oh goodness
 
 #![feature(backtrace)]
-#![feature(once_cell)]
 #![feature(panic_info_message)]
 #![feature(try_blocks)]
 #![feature(in_band_lifetimes)]
 #![feature(label_break_value)]
-#![warn(elided_lifetimes_in_paths)]
+#![feature(hash_set_entry)]
+#![feature(option_result_unwrap_unchecked)]
 
 #[macro_use]
 extern crate pest_derive;
@@ -43,18 +43,17 @@ mod util;
 fn main() {
     Err::init();
 
-    let is = &Default::default();
-    let ctx = &mut Ctx::new(is);
+    let ctx = &mut Ctx::new();
 
     let path = args().nth(1).unwrap();
     let path = &PathBuf::from(path);
-    let program = std::fs::read_to_string(path).unwrap();
+    let program = std::fs::read_to_string(path).unwrap().intern();
 
-    let result: Res<'_> = try {
+    let result: Res = try {
         println!("parsing");
-        let node = Node::parse(program.intern(ctx), Kind::program)?;
+        let node = Node::parse(program, Kind::program)?;
         println!("visiting");
-        let program = node.visit::<Program<'_>>(ctx);
+        let program = node.visit::<Program>(ctx);
         println!("type checking");
         let program = program.type_check(ctx)?;
         println!("generating");

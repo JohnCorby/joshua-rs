@@ -6,8 +6,8 @@ use crate::span::Span;
 use crate::util::{IterExt, StrExt};
 use std::fmt::{Display, Formatter};
 
-impl Type<'i> {
-    pub fn check(&self, expected: &Self, span: Span<'i>) -> Res<'i> {
+impl Type {
+    pub fn check(&self, expected: &Self, span: Span) -> Res {
         let actual = self;
         if expected == actual {
             Ok(())
@@ -16,17 +16,17 @@ impl Type<'i> {
         }
     }
 }
-impl Default for Type<'_> {
+impl Default for Type {
     fn default() -> Self {
         Self::Primitive(PrimitiveType::Void)
     }
 }
 
-impl Display for Type<'_> {
+impl Display for Type {
     /// also used in code gen
     ///
     /// NOTE: structs include nesting prefix
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         use Type::*;
         match self {
             Primitive(ty) => ty.fmt(f),
@@ -64,7 +64,7 @@ pub enum PrimitiveType {
     Void,
 }
 impl PrimitiveType {
-    pub const fn ty(&self) -> Type<'static> {
+    pub const fn ty(&self) -> Type {
         Type::Primitive(*self)
     }
 
@@ -93,7 +93,7 @@ pub enum LiteralType {
     Int,
 }
 impl LiteralType {
-    pub const fn ty(&self) -> Type<'static> {
+    pub const fn ty(&self) -> Type {
         Type::Literal(*self)
     }
 }

@@ -6,142 +6,142 @@ use crate::span::Span;
 use std::rc::Rc;
 
 #[derive(Debug, Clone)]
-pub struct Program<'i>(pub Rc<Vec<Define<'i>>>);
+pub struct Program(pub Rc<Vec<Define>>);
 
 #[derive(Debug, Clone)]
-pub struct Define<'i> {
-    pub span: Span<'i>,
-    pub kind: DefineKind<'i>,
+pub struct Define {
+    pub span: Span,
+    pub kind: DefineKind,
 }
 
 #[derive(Debug, Clone)]
-pub enum DefineKind<'i> {
+pub enum DefineKind {
     Struct {
-        name: &'i str,
-        generic_placeholders: Rc<Vec<&'i str>>,
-        body: Rc<Vec<Define<'i>>>,
+        name: &'static str,
+        generic_placeholders: Rc<Vec<&'static str>>,
+        body: Rc<Vec<Define>>,
     },
     Func {
-        ty: Type<'i>,
-        receiver_ty: Option<Type<'i>>,
-        name: &'i str,
-        generic_placeholders: Rc<Vec<&'i str>>,
-        args: Rc<Vec<VarDefine<'i>>>,
-        body: Block<'i>,
+        ty: Type,
+        receiver_ty: Option<Type>,
+        name: &'static str,
+        generic_placeholders: Rc<Vec<&'static str>>,
+        args: Rc<Vec<VarDefine>>,
+        body: Block,
     },
-    Var(VarDefine<'i>),
+    Var(VarDefine),
 
-    CCode(CCode<'i>),
+    CCode(CCode),
 }
 
 #[derive(Debug, Clone)]
-pub struct VarDefine<'i> {
-    pub span: Span<'i>,
-    pub ty: Type<'i>,
-    pub name: &'i str,
-    pub value: Option<Expr<'i>>,
+pub struct VarDefine {
+    pub span: Span,
+    pub ty: Type,
+    pub name: &'static str,
+    pub value: Option<Expr>,
 }
 
 #[derive(Debug, Clone)]
-pub struct Statement<'i> {
-    pub span: Span<'i>,
-    pub kind: StatementKind<'i>,
+pub struct Statement {
+    pub span: Span,
+    pub kind: StatementKind,
 }
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone)]
-pub enum StatementKind<'i> {
-    Return(Option<Expr<'i>>),
+pub enum StatementKind {
+    Return(Option<Expr>),
     Break,
     Continue,
     If {
-        cond: Expr<'i>,
-        then: Block<'i>,
-        otherwise: Option<Block<'i>>,
+        cond: Expr,
+        then: Block,
+        otherwise: Option<Block>,
     },
     Until {
-        cond: Expr<'i>,
-        block: Block<'i>,
+        cond: Expr,
+        block: Block,
     },
     For {
-        init: VarDefine<'i>,
-        cond: Expr<'i>,
-        update: Rc<Statement<'i>>,
-        block: Block<'i>,
+        init: VarDefine,
+        cond: Expr,
+        update: Rc<Statement>,
+        block: Block,
     },
     ExprAssign {
-        lvalue: Expr<'i>,
-        rvalue: Expr<'i>,
+        lvalue: Expr,
+        rvalue: Expr,
     },
-    Define(Define<'i>),
-    Expr(Expr<'i>),
+    Define(Define),
+    Expr(Expr),
 }
 
 #[derive(Debug, Clone)]
-pub struct Block<'i>(pub Rc<Vec<Statement<'i>>>);
+pub struct Block(pub Rc<Vec<Statement>>);
 
 #[derive(Debug, Clone)]
-pub struct CCode<'i>(pub Rc<Vec<CCodePart<'i>>>);
+pub struct CCode(pub Rc<Vec<CCodePart>>);
 
 #[derive(Debug, Clone)]
-pub enum CCodePart<'i> {
-    String(&'i str),
-    Expr(Expr<'i>),
+pub enum CCodePart {
+    String(&'static str),
+    Expr(Expr),
 }
 
 #[derive(Debug, Clone)]
-pub struct Expr<'i> {
-    pub span: Span<'i>,
-    pub kind: ExprKind<'i>,
+pub struct Expr {
+    pub span: Span,
+    pub kind: ExprKind,
 }
 
 #[derive(Debug, Clone)]
-pub enum ExprKind<'i> {
+pub enum ExprKind {
     Cast {
-        thing: Rc<Expr<'i>>,
-        ty: Type<'i>,
+        thing: Rc<Expr>,
+        ty: Type,
     },
 
     MethodCall {
-        receiver: Rc<Expr<'i>>,
-        func_call: FuncCall<'i>,
+        receiver: Rc<Expr>,
+        func_call: FuncCall,
     },
     Field {
-        receiver: Rc<Expr<'i>>,
-        var: &'i str,
+        receiver: Rc<Expr>,
+        var: &'static str,
     },
 
     // primary
-    Literal(Literal<'i>),
-    FuncCall(FuncCall<'i>),
-    Var(&'i str),
+    Literal(Literal),
+    FuncCall(FuncCall),
+    Var(&'static str),
 
-    CCode(CCode<'i>),
+    CCode(CCode),
 }
 
 #[derive(Debug, Clone)]
-pub struct FuncCall<'i> {
-    pub span: Span<'i>,
-    pub receiver_ty: Option<Type<'i>>,
-    pub name: &'i str,
-    pub generic_replacements: Rc<Vec<Type<'i>>>,
-    pub args: Rc<Vec<Expr<'i>>>,
+pub struct FuncCall {
+    pub span: Span,
+    pub receiver_ty: Option<Type>,
+    pub name: &'static str,
+    pub generic_replacements: Rc<Vec<Type>>,
+    pub args: Rc<Vec<Expr>>,
 }
 
 #[derive(Debug, Clone)]
-pub struct Type<'i> {
-    pub span: Span<'i>,
-    pub kind: TypeKind<'i>,
+pub struct Type {
+    pub span: Span,
+    pub kind: TypeKind,
 }
 
 #[derive(Debug, Clone)]
-pub enum TypeKind<'i> {
+pub enum TypeKind {
     Primitive(PrimitiveType),
     Named {
-        name: &'i str,
-        generic_replacements: Rc<Vec<Type<'i>>>,
+        name: &'static str,
+        generic_replacements: Rc<Vec<Type>>,
     },
-    Ptr(Rc<Type<'i>>),
+    Ptr(Rc<Type>),
 
     Auto,
 }

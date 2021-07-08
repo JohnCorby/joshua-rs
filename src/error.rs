@@ -3,15 +3,15 @@ use crate::span::Span;
 use std::backtrace::{Backtrace, BacktraceStatus};
 use std::fmt::{Debug, Display, Formatter};
 
-pub type Res<'i, T = ()> = Result<T, Err<'i>>;
-pub struct Err<'i> {
+pub type Res<T = ()> = Result<T, Err>;
+pub struct Err {
     message: String,
     /// should only be None when internal error
-    span: Option<Span<'i>>,
+    span: Option<Span>,
     backtrace: Backtrace,
 }
 
-impl Err<'_> {
+impl Err {
     pub fn init() {
         std::panic::set_hook(Box::new(|info| {
             // get message
@@ -29,8 +29,8 @@ impl Err<'_> {
     }
 }
 
-impl Display for Err<'_> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+impl Display for Err {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         if let Some(span) = self.span {
             write!(f, "{}", span.make_error(&self.message))?;
         } else {
@@ -44,17 +44,17 @@ impl Display for Err<'_> {
         Ok(())
     }
 }
-impl Debug for Err<'_> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+impl Debug for Err {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         Display::fmt(self, f)
     }
 }
 
 pub trait IntoErr {
-    fn into_err(self, span: Option<Span<'_>>) -> Err<'_>;
+    fn into_err(self, span: Option<Span>) -> Err;
 }
 impl<T: ToString> IntoErr for T {
-    fn into_err(self, span: Option<Span<'_>>) -> Err<'_> {
+    fn into_err(self, span: Option<Span>) -> Err {
         Err {
             message: self.to_string(),
             span,
@@ -63,11 +63,11 @@ impl<T: ToString> IntoErr for T {
     }
 }
 
-pub fn err<T>(str: &str, span: Span<'i>) -> Res<'i, T> {
+pub fn err<T>(str: &str, span: Span) -> Res<T> {
     Err(str.into_err(Some(span)))
 }
 #[allow(dead_code)]
-pub fn warn(str: &str, span: Span<'_>) {
+pub fn warn(str: &str, span: Span) {
     eprintln!("Warning: {}", str.into_err(Some(span)));
 }
 #[allow(dead_code)]
@@ -75,6 +75,6 @@ pub fn warn_internal(str: &str) {
     eprintln!("Internal Warning: {}", str.into_err(None));
 }
 
-pub fn unexpected_kind(node: Node<'_>) -> ! {
+pub fn unexpected_kind(node: Node) -> ! {
     panic!("unexpected node kind {:?} (node: {})", node.kind(), node)
 }

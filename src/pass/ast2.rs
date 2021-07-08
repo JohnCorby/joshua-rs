@@ -6,112 +6,112 @@ use crate::span::Span;
 use std::rc::Rc;
 
 #[derive(Debug, Clone)]
-pub struct Program<'i>(pub Rc<Vec<Define<'i>>>);
+pub struct Program(pub Rc<Vec<Define>>);
 
 #[derive(Debug, Clone)]
-pub enum Define<'i> {
+pub enum Define {
     Struct {
-        full_name: &'i str,
-        generic_replacements: Rc<Vec<Type<'i>>>,
-        body: Rc<Vec<Define<'i>>>,
+        full_name: &'static str,
+        generic_replacements: Rc<Vec<Type>>,
+        body: Rc<Vec<Define>>,
     },
     Func {
-        ty: Type<'i>,
-        full_name: &'i str,
-        generic_replacements: Rc<Vec<Type<'i>>>,
-        args: Rc<Vec<VarDefine<'i>>>,
-        body: Block<'i>,
+        ty: Type,
+        full_name: &'static str,
+        generic_replacements: Rc<Vec<Type>>,
+        args: Rc<Vec<VarDefine>>,
+        body: Block,
     },
-    Var(VarDefine<'i>),
+    Var(VarDefine),
 
-    CCode(CCode<'i>),
+    CCode(CCode),
 
     /// used for generic template that should not generate anything
     NoGen,
 }
 
 #[derive(Debug, Clone)]
-pub struct VarDefine<'i> {
-    pub ty: Type<'i>,
-    pub name: &'i str,
-    pub value: Option<Expr<'i>>,
+pub struct VarDefine {
+    pub ty: Type,
+    pub name: &'static str,
+    pub value: Option<Expr>,
 
     /// used for gen. kinda hacky, oh well
     pub is_global: bool,
 }
 
 #[derive(Debug, Clone)]
-pub enum Statement<'i> {
-    Return(Option<Expr<'i>>),
+pub enum Statement {
+    Return(Option<Expr>),
     Break,
     Continue,
     If {
-        cond: Expr<'i>,
-        then: Block<'i>,
-        otherwise: Option<Block<'i>>,
+        cond: Expr,
+        then: Block,
+        otherwise: Option<Block>,
     },
     Until {
-        cond: Expr<'i>,
-        block: Block<'i>,
+        cond: Expr,
+        block: Block,
     },
     For {
-        init: VarDefine<'i>,
-        cond: Expr<'i>,
-        update: Rc<Statement<'i>>,
-        block: Block<'i>,
+        init: VarDefine,
+        cond: Expr,
+        update: Rc<Statement>,
+        block: Block,
     },
     ExprAssign {
-        lvalue: Expr<'i>,
-        rvalue: Expr<'i>,
+        lvalue: Expr,
+        rvalue: Expr,
     },
-    Define(Define<'i>),
-    Expr(Expr<'i>),
+    Define(Define),
+    Expr(Expr),
 }
 
 #[derive(Debug, Clone)]
-pub struct Block<'i>(pub Rc<Vec<Statement<'i>>>);
+pub struct Block(pub Rc<Vec<Statement>>);
 
 #[derive(Debug, Clone)]
-pub struct CCode<'i>(pub Rc<Vec<CCodePart<'i>>>);
+pub struct CCode(pub Rc<Vec<CCodePart>>);
 
 #[derive(Debug, Clone)]
-pub enum CCodePart<'i> {
-    String(&'i str),
-    Expr(Expr<'i>),
+pub enum CCodePart {
+    String(&'static str),
+    Expr(Expr),
 }
 
 #[derive(Debug, Clone)]
-pub struct Expr<'i> {
-    pub kind: ExprKind<'i>,
-    pub ty: Type<'i>,
+pub struct Expr {
+    pub kind: ExprKind,
+    pub ty: Type,
 }
 
 #[derive(Debug, Clone)]
-pub enum ExprKind<'i> {
+pub enum ExprKind {
     Cast {
-        nesting_prefix: &'i str,
-        thing: Rc<Expr<'i>>,
+        nesting_prefix: &'static str,
+        thing: Rc<Expr>,
     },
 
     Field {
-        receiver: Rc<Expr<'i>>,
-        var: &'i str,
+        receiver: Rc<Expr>,
+        var: &'static str,
     },
 
     // primary
-    Literal(Literal<'i>),
+    Literal(Literal),
     FuncCall {
-        full_name: &'i str,
-        generic_replacements: Rc<Vec<Type<'i>>>,
-        args: Rc<Vec<Expr<'i>>>,
+        full_name: &'static str,
+        generic_replacements: Rc<Vec<Type>>,
+        args: Rc<Vec<Expr>>,
     },
-    Var(&'i str),
+    Var(&'static str),
 
-    CCode(CCode<'i>),
+    CCode(CCode),
 }
 
-impl Expr<'i> {
-    pub fn check_assignable(&self, span: Span<'i>) -> Res<'i> {
+impl Expr {
+    pub fn check_assignable(&self, span: Span) -> Res {
         use ExprKind::*;
         let is_ptr = matches!(self.ty, Type::Ptr(_));
         let is_non_void = self.ty != PrimitiveType::Void.ty();
@@ -131,16 +131,16 @@ impl Expr<'i> {
 }
 
 #[derive(Debug, Copy, Clone)]
-pub enum Literal<'i> {
+pub enum Literal {
     Float(f64),
     Int(i64),
     Bool(bool),
     Char(char),
-    StrZ(&'i str),
+    StrZ(&'static str),
 }
 
-impl Literal<'i> {
-    pub fn ty(&self) -> Type<'i> {
+impl Literal {
+    pub fn ty(&self) -> Type {
         use Literal::*;
         match self {
             Float(_) => LiteralType::Float.ty(),
@@ -155,20 +155,20 @@ impl Literal<'i> {
 /// NOTE: hash is only simple way to prevent duplicates. extra checking is needed
 #[derive(Debug, Clone, Derivative)]
 #[derivative(Hash, PartialEq)]
-pub enum Type<'i> {
+pub enum Type {
     Primitive(PrimitiveType),
     Struct {
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
-        nesting_prefix: &'i str,
-        name: &'i str,
-        generic_replacements: Rc<Vec<Type<'i>>>,
+        nesting_prefix: &'static str,
+        name: &'static str,
+        generic_replacements: Rc<Vec<Type>>,
     },
-    Ptr(Rc<Type<'i>>),
+    Ptr(Rc<Type>),
 
     /// fixme merge these into generics when we get type inference
     Literal(LiteralType),
     /// replaced with concrete type on specialization
-    GenericPlaceholder(&'i str),
+    GenericPlaceholder(&'static str),
     /// for inferring with var define and probably other stuff later
     Auto,
     CCode,

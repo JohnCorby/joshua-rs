@@ -5,8 +5,8 @@ use crate::pass::ast2::*;
 use crate::util::{IterExt, RcExt, StrExt};
 use std::ops::Deref;
 
-impl Program<'i> {
-    pub fn gen(self, ctx: &mut Ctx<'i>) {
+impl Program {
+    pub fn gen(self, ctx: &mut Ctx) {
         for define in self.0.into_inner() {
             define.gen(ctx);
         }
@@ -30,8 +30,8 @@ impl Program<'i> {
     }
 }
 
-impl Define<'i> {
-    pub fn gen(self, ctx: &mut Ctx<'i>) {
+impl Define {
+    pub fn gen(self, ctx: &mut Ctx) {
         use Define::*;
         match self {
             Struct {
@@ -132,8 +132,8 @@ impl Define<'i> {
     }
 }
 
-impl VarDefine<'i> {
-    pub fn gen(self, ctx: &mut Ctx<'i>) {
+impl VarDefine {
+    pub fn gen(self, ctx: &mut Ctx) {
         self.ty.gen(ctx);
         ctx.o.push(' ');
         ctx.o.push_str(&self.name.mangle());
@@ -144,8 +144,8 @@ impl VarDefine<'i> {
     }
 }
 
-impl Statement<'i> {
-    pub fn gen(self, ctx: &mut Ctx<'i>) {
+impl Statement {
+    pub fn gen(self, ctx: &mut Ctx) {
         use Statement::*;
         match self {
             Return(value) => {
@@ -210,8 +210,8 @@ impl Statement<'i> {
     }
 }
 
-impl Block<'i> {
-    pub fn gen(self, ctx: &mut Ctx<'i>) {
+impl Block {
+    pub fn gen(self, ctx: &mut Ctx) {
         ctx.o.push_str("{\n");
         for statement in self.0.into_inner() {
             statement.gen(ctx);
@@ -220,8 +220,8 @@ impl Block<'i> {
     }
 }
 
-impl CCode<'i> {
-    pub fn gen(self, ctx: &mut Ctx<'i>) {
+impl CCode {
+    pub fn gen(self, ctx: &mut Ctx) {
         ctx.o.push_str("/*<{*/");
         for part in self.0.into_inner() {
             match part {
@@ -233,8 +233,8 @@ impl CCode<'i> {
     }
 }
 
-impl Expr<'i> {
-    pub fn gen(self, ctx: &mut Ctx<'i>) {
+impl Expr {
+    pub fn gen(self, ctx: &mut Ctx) {
         use ExprKind::*;
         match self.kind {
             Cast {
@@ -250,7 +250,7 @@ impl Expr<'i> {
                 } else {
                     self::Expr {
                         kind: self::ExprKind::FuncCall {
-                            full_name: format!("{}as {}", nesting_prefix, self.ty).intern(ctx),
+                            full_name: format!("{}as {}", nesting_prefix, self.ty).intern(),
                             generic_replacements: Default::default(),
                             args: vec![thing.into_inner()].into(),
                         },
@@ -309,8 +309,8 @@ impl Expr<'i> {
     }
 }
 
-impl Literal<'i> {
-    pub fn gen(self, ctx: &mut Ctx<'i>) {
+impl Literal {
+    pub fn gen(self, ctx: &mut Ctx) {
         use Literal::*;
         ctx.o.push_str(&match self {
             Float(value) => value.to_string(),
@@ -322,8 +322,8 @@ impl Literal<'i> {
     }
 }
 
-impl Type<'i> {
-    pub fn gen(self, ctx: &mut Ctx<'i>) {
+impl Type {
+    pub fn gen(self, ctx: &mut Ctx) {
         use Type::*;
         match self {
             Primitive(ty) => ctx.o.push_str(ty.c_type()),

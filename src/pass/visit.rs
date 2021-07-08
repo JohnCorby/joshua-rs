@@ -7,16 +7,16 @@ use crate::pass::ast1::*;
 use crate::pass::ast2::Literal;
 use crate::util::IterExt;
 
-pub trait Visit<'i> {
-    fn visit(node: Node<'i>, ctx: &mut Ctx<'i>) -> Self;
+pub trait Visit {
+    fn visit(node: Node, ctx: &mut Ctx) -> Self;
 }
 
-impl Node<'i> {
-    pub fn visit<V: Visit<'i>>(self, ctx: &mut Ctx<'i>) -> V {
+impl Node {
+    pub fn visit<V: Visit>(self, ctx: &mut Ctx) -> V {
         V::visit(self, ctx)
     }
 
-    fn visit_ident(&self) -> &'i str {
+    fn visit_ident(&self) -> &'static str {
         debug_assert_eq!(self.kind(), Kind::ident);
         let str = self.str();
         str.strip_prefix('`')
@@ -26,16 +26,16 @@ impl Node<'i> {
     }
 }
 
-impl Nodes<'i> {
+impl Nodes {
     /// visits any not iterated nodes,
     /// short circuiting if any of them error
-    pub fn visit_rest<V: Visit<'i>>(self, ctx: &mut Ctx<'i>) -> Vec<V> {
+    pub fn visit_rest<V: Visit>(self, ctx: &mut Ctx) -> Vec<V> {
         self.map(|node| node.visit(ctx)).collect()
     }
 }
 
-impl Visit<'i> for Program<'i> {
-    fn visit(node: Node<'i>, ctx: &mut Ctx<'i>) -> Self {
+impl Visit for Program {
+    fn visit(node: Node, ctx: &mut Ctx) -> Self {
         Self(
             node.children_checked(Kind::program)
                 .filter_map(|node| match node.kind() {
@@ -48,8 +48,8 @@ impl Visit<'i> for Program<'i> {
     }
 }
 
-impl Visit<'i> for Define<'i> {
-    fn visit(node: Node<'i>, ctx: &mut Ctx<'i>) -> Self {
+impl Visit for Define {
+    fn visit(node: Node, ctx: &mut Ctx) -> Self {
         let span = node.span();
         use DefineKind::*;
         let kind = match node.kind() {
@@ -112,8 +112,8 @@ impl Visit<'i> for Define<'i> {
     }
 }
 
-impl Visit<'i> for VarDefine<'i> {
-    fn visit(node: Node<'i>, ctx: &mut Ctx<'i>) -> Self {
+impl Visit for VarDefine {
+    fn visit(node: Node, ctx: &mut Ctx) -> Self {
         let span = node.span();
         let mut nodes = node.children_checked(Kind::var_define);
 
@@ -126,8 +126,8 @@ impl Visit<'i> for VarDefine<'i> {
     }
 }
 
-impl Visit<'i> for Statement<'i> {
-    fn visit(node: Node<'i>, ctx: &mut Ctx<'i>) -> Self {
+impl Visit for Statement {
+    fn visit(node: Node, ctx: &mut Ctx) -> Self {
         let span = node.span();
         use StatementKind::*;
         let kind = match node.kind() {
@@ -157,7 +157,7 @@ impl Visit<'i> for Statement<'i> {
                 For {
                     init: nodes.next().unwrap().visit(ctx),
                     cond: nodes.next().unwrap().visit(ctx),
-                    update: nodes.next().unwrap().visit::<Statement<'i>>(ctx).into(),
+                    update: nodes.next().unwrap().visit::<Statement>(ctx).into(),
                     block: nodes.next().unwrap().visit(ctx),
                 }
             }
@@ -180,14 +180,14 @@ impl Visit<'i> for Statement<'i> {
     }
 }
 
-impl Visit<'i> for Block<'i> {
-    fn visit(node: Node<'i>, ctx: &mut Ctx<'i>) -> Self {
+impl Visit for Block {
+    fn visit(node: Node, ctx: &mut Ctx) -> Self {
         Self(node.children_checked(Kind::block).visit_rest(ctx).into())
     }
 }
 
-impl Visit<'i> for CCode<'i> {
-    fn visit(node: Node<'i>, ctx: &mut Ctx<'i>) -> Self {
+impl Visit for CCode {
+    fn visit(node: Node, ctx: &mut Ctx) -> Self {
         Self(
             node.children_checked(Kind::c_code)
                 .into_iter()
@@ -203,21 +203,21 @@ impl Visit<'i> for CCode<'i> {
     }
 }
 
-impl Visit<'i> for Expr<'i> {
-    fn visit(node: Node<'i>, ctx: &mut Ctx<'i>) -> Self {
+impl Visit for Expr {
+    fn visit(node: Node, ctx: &mut Ctx) -> Self {
         let span = node.span();
         use ExprKind::*;
         let kind = match node.kind() {
-            Kind::expr => node.children().next().unwrap().visit::<Expr<'i>>(ctx).kind,
+            Kind::expr => node.children().next().unwrap().visit::<Expr>(ctx).kind,
             Kind::equality_expr | Kind::compare_expr | Kind::add_expr | Kind::mul_expr => {
                 // left assoc
                 let mut nodes = node.children();
 
-                let mut left = nodes.next().unwrap().visit::<Expr<'i>>(ctx);
+                let mut left = nodes.next().unwrap().visit::<Expr>(ctx);
                 while let Some(op) = nodes.next() {
                     let old_left = left.clone();
                     let op = op.str();
-                    let right = nodes.next().unwrap().visit::<Expr<'i>>(ctx);
+                    let right = nodes.next().unwrap().visit::<Expr>(ctx);
                     left.kind = FuncCall(self::FuncCall {
                         span,
                         receiver_ty: None,
@@ -233,7 +233,7 @@ impl Visit<'i> for Expr<'i> {
                 // right assoc
                 let mut rev_nodes = node.children().rev();
 
-                let mut thing = rev_nodes.next().unwrap().visit::<Expr<'i>>(ctx);
+                let mut thing = rev_nodes.next().unwrap().visit::<Expr>(ctx);
                 for op in rev_nodes {
                     let op = op.str();
                     let old_thing = thing.clone();
@@ -252,7 +252,7 @@ impl Visit<'i> for Expr<'i> {
                 // left assoc
                 let mut nodes = node.children();
 
-                let mut thing = nodes.next().unwrap().visit::<Expr<'i>>(ctx);
+                let mut thing = nodes.next().unwrap().visit::<Expr>(ctx);
                 for ty in nodes {
                     thing.kind = Cast {
                         thing: thing.clone().into(),
@@ -267,7 +267,7 @@ impl Visit<'i> for Expr<'i> {
                 // left assoc
                 let mut nodes = node.children();
 
-                let mut left = nodes.next().unwrap().visit::<Expr<'i>>(ctx);
+                let mut left = nodes.next().unwrap().visit::<Expr>(ctx);
                 for right in nodes {
                     let old_left = left.clone();
                     left.kind = match right.kind() {
@@ -301,8 +301,8 @@ impl Visit<'i> for Expr<'i> {
     }
 }
 
-impl Visit<'i> for FuncCall<'i> {
-    fn visit(node: Node<'i>, ctx: &mut Ctx<'i>) -> Self {
+impl Visit for FuncCall {
+    fn visit(node: Node, ctx: &mut Ctx) -> Self {
         let span = node.span();
         let mut nodes = node.children_checked(Kind::func_call);
 
@@ -327,8 +327,8 @@ impl Visit<'i> for FuncCall<'i> {
     }
 }
 
-impl Visit<'i> for Literal<'i> {
-    fn visit(node: Node<'i>, _: &mut Ctx<'i>) -> Self {
+impl Visit for Literal {
+    fn visit(node: Node, _: &mut Ctx) -> Self {
         use Literal::*;
         match node.kind() {
             Kind::float_literal => Float(node.str().parse().unwrap()),
@@ -342,19 +342,14 @@ impl Visit<'i> for Literal<'i> {
     }
 }
 
-impl Visit<'i> for Type<'i> {
-    fn visit(node: Node<'i>, ctx: &mut Ctx<'i>) -> Self {
+impl Visit for Type {
+    fn visit(node: Node, ctx: &mut Ctx) -> Self {
         let node = node.children_checked(Kind::ty).next().unwrap();
         let span = node.span();
         use TypeKind::*;
         let ty = match node.kind() {
             Kind::primitive => Primitive(node.str().parse().unwrap()),
-            Kind::ptr => Ptr(node
-                .children()
-                .next()
-                .unwrap()
-                .visit::<Type<'i>>(ctx)
-                .into()),
+            Kind::ptr => Ptr(node.children().next().unwrap().visit::<Type>(ctx).into()),
             Kind::named => {
                 let mut nodes = node.children();
                 Named {

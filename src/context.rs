@@ -2,15 +2,14 @@ use crate::parse::{Kind, Node};
 use crate::pass::ast1::Program;
 use crate::pass::scope::Scopes;
 use crate::pass::ty::PrimitiveType;
-use crate::util::frozen_index_set::FrozenIndexSet;
 use crate::util::RcExt;
+use parking_lot::Mutex;
+use std::collections::HashSet;
 
 /// stores general program context
 #[derive(Debug)]
-pub struct Ctx<'i> {
-    pub inputs: &'i FrozenIndexSet<String>,
-
-    pub scopes: Scopes<'i>,
+pub struct Ctx {
+    pub scopes: Scopes,
 
     /// general buffer, eventually this should be empty as everything is transferred to the Strings below
     pub o: String,
@@ -21,10 +20,9 @@ pub struct Ctx<'i> {
     pub func_defines: String,
 }
 
-impl Ctx<'i> {
-    pub fn new(inputs: &'i FrozenIndexSet<String>) -> Self {
+impl Ctx {
+    pub fn new() -> Self {
         Self {
-            inputs,
             scopes: Default::default(),
 
             o: Default::default(),
@@ -37,7 +35,7 @@ impl Ctx<'i> {
     }
 }
 
-impl Ctx<'_> {
+impl Ctx {
     pub fn type_check_prelude(&mut self) {
         let mut i = String::new();
 
@@ -101,9 +99,9 @@ impl Ctx<'_> {
             }
         }
 
-        let defines = Node::parse(i.intern(self), Kind::program)
+        let defines = Node::parse(i.intern(), Kind::program)
             .unwrap()
-            .visit::<Program<'_>>(self)
+            .visit::<Program>(self)
             .0
             .into_inner();
         for define in defines {
@@ -113,14 +111,29 @@ impl Ctx<'_> {
     }
 }
 
-pub trait Intern<'i> {
-    /// insert self into `ctx` or return already existing
+pub trait Intern {
+    /// insert self into static list of strings, or return already existing
     ///
     /// prevents duplicates and lets us simply copy
-    fn intern(self, ctx: &Ctx<'i>) -> &'i str;
+    fn intern(self) -> &'static str;
 }
-impl Intern<'i> for String {
-    fn intern(self, ctx: &Ctx<'i>) -> &'i str {
-        ctx.inputs.insert(self)
+impl Intern for String {
+    fn intern(self) -> &'static str {
+        static LOCK: Mutex<()> = Mutex::new(());
+        let lock = LOCK.lock();
+
+        let str = unsafe {
+            // thread safe because we do locking above
+            static mut STRINGS: Option<HashSet<String>> = None;
+            if STRINGS.is_none() {
+                STRINGS = Some(Default::default())
+            }
+            let strings = STRINGS.as_mut().unwrap_unchecked();
+            // deref is safe because hashset only grows, meaning the strings only move, but not the underlying pointer to the data
+            strings.get_or_insert(self).as_str()
+        };
+
+        drop(lock);
+        str
     }
 }

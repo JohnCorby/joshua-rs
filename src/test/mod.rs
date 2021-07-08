@@ -16,9 +16,7 @@ fn check(i: &str) {
 
     let is = &Default::default();
     let ctx = &mut Ctx::new(is);
-    let program = Node::parse(i, Kind::program)
-        .unwrap()
-        .visit::<Program<'_>>(ctx);
+    let program = Node::parse(i, Kind::program).unwrap().visit::<Program>(ctx);
     program.type_check(ctx).unwrap();
     program.gen(ctx);
     println!("\no = \n{}", ctx.o.unindent());

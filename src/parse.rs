@@ -11,37 +11,37 @@ pub type Kind = inner::Rule;
 
 /// newtype wrapper for pest pair
 #[derive(Clone)]
-pub struct Node<'i>(Pair<'i, Kind>);
-impl From<Pair<'i, Kind>> for Node<'i> {
-    fn from(p: Pair<'i, Kind>) -> Self {
+pub struct Node(Pair<'static, Kind>);
+impl From<Pair<'static, Kind>> for Node {
+    fn from(p: Pair<'static, Kind>) -> Self {
         Self(p)
     }
 }
-impl Node<'i> {
+impl Node {
     /// parse an input string into a node based on a kind
-    pub fn parse(i: &'i str, kind: Kind) -> Res<'i, Self> {
-        let result: Result<Pairs<'i, Kind>, Error<Kind>> = inner::Parser::parse(kind, i);
+    pub fn parse(input: &'static str, kind: Kind) -> Res<Self> {
+        let result: Result<Pairs<'static, Kind>, Error<Kind>> = inner::Parser::parse(kind, input);
         result
             .map(|pairs| Nodes::from(pairs).next().unwrap())
             .map_err(|e| e.into_err(None))
     }
 
-    pub fn children(self) -> Nodes<'i> {
+    pub fn children(self) -> Nodes {
         self.0.into_inner().into()
     }
     pub fn kind(&self) -> Kind {
         self.0.as_rule()
     }
-    pub fn span(&self) -> Span<'i> {
+    pub fn span(&self) -> Span {
         self.0.as_span().into()
     }
-    pub fn str(&self) -> &'i str {
+    pub fn str(&self) -> &'static str {
         self.0.as_str()
     }
 
     /// check that a node matches a kind, and then return its inner nodes
     #[cfg(debug_assertions)]
-    pub fn children_checked(self, expected: Kind) -> Nodes<'i> {
+    pub fn children_checked(self, expected: Kind) -> Nodes {
         let actual = self.kind();
         if expected == actual {
             self.children()
@@ -51,17 +51,17 @@ impl Node<'i> {
     }
     /// check that a node matches a kind, and then return its inner nodes
     #[cfg(not(debug_assertions))]
-    pub fn children_checked(self, _expected: Kind) -> Nodes<'i> {
+    pub fn children_checked(self, _expected: Kind) -> Nodes {
         self.children()
     }
 }
-impl Debug for Node<'_> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+impl Debug for Node {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         Debug::fmt(&self.0, f)
     }
 }
-impl Display for Node<'_> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+impl Display for Node {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         let kind = style(self.kind());
         let str = style(self.str());
         let children = self.clone().children().map(|node| node.to_string()).vec();
@@ -77,25 +77,25 @@ impl Display for Node<'_> {
 
 /// newtype wrapper for pest pairs
 #[derive(Clone)]
-pub struct Nodes<'i>(Pairs<'i, Kind>);
-impl From<Pairs<'i, Kind>> for Nodes<'i> {
-    fn from(p: Pairs<'i, Kind>) -> Self {
+pub struct Nodes(Pairs<'static, Kind>);
+impl From<Pairs<'static, Kind>> for Nodes {
+    fn from(p: Pairs<'static, Kind>) -> Self {
         Self(p)
     }
 }
-impl Iterator for Nodes<'i> {
-    type Item = Node<'i>;
+impl Iterator for Nodes {
+    type Item = Node;
     fn next(&mut self) -> Option<Self::Item> {
         self.0.next().map(Node::from)
     }
 }
-impl DoubleEndedIterator for Nodes<'i> {
+impl DoubleEndedIterator for Nodes {
     fn next_back(&mut self) -> Option<Self::Item> {
         self.0.next_back().map(Node::from)
     }
 }
-impl Display for Nodes<'_> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+impl Display for Nodes {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         write!(
             f,
             "[{}]",
@@ -103,8 +103,8 @@ impl Display for Nodes<'_> {
         )
     }
 }
-impl Debug for Nodes<'_> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+impl Debug for Nodes {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         Debug::fmt(&self.0, f)
     }
 }

@@ -3,22 +3,15 @@ use crate::pass::ast2::Type;
 use std::ops::Deref;
 use std::rc::Rc;
 
-pub mod frozen_index_set;
-
 pub trait StrExt {
     /// make a proper name by attaching formatted stuff
-    fn encode(&self, generic_replacements: &[&Type<'_>], arg_types: Option<&[&Type<'_>]>)
-        -> String;
+    fn encode(&self, generic_replacements: &[&Type], arg_types: Option<&[&Type]>) -> String;
 
     /// mangle string for c usage
     fn mangle(&self) -> String;
 }
 impl StrExt for str {
-    fn encode(
-        &self,
-        generic_replacements: &[&Type<'_>],
-        arg_types: Option<&[&Type<'_>]>,
-    ) -> String {
+    fn encode(&self, generic_replacements: &[&Type], arg_types: Option<&[&Type]>) -> String {
         let generic_replacements = if !generic_replacements.is_empty() {
             format!(
                 "<{}>",
@@ -55,13 +48,13 @@ pub trait IterExt: Iterator + Sized {
 }
 impl<T: Iterator> IterExt for T {}
 
-pub trait IterResExt<'i, T>: Iterator<Item = Res<'i, T>> + Sized {
-    /// shorthand for `self.collect::<Res<'i, Vec<_>>>()`
-    fn res_vec(self) -> Res<'i, Vec<T>> {
+pub trait IterResExt<T>: Iterator<Item = Res<T>> + Sized {
+    /// shorthand for `self.collect::<Res<Vec<_>>>()`
+    fn res_vec(self) -> Res<Vec<T>> {
         self.collect()
     }
 }
-impl<T, I: Iterator<Item = Res<'i, T>>> IterResExt<'i, T> for I {}
+impl<T, I: Iterator<Item = Res<T>>> IterResExt<T> for I {}
 
 pub trait RcExt<T> {
     /// shorthand for `Rc::try_unwrap(self).unwrap()`

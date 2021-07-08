@@ -13,10 +13,9 @@ mangling = "*"
 console = "*"
 strum = { version = "*", features = ["derive"] }
 quit = "*"
-stable_deref_trait = "*"
+parking_lot = { version = "*", features = ["nightly"] }
 derivative = "*"
 derive-new = "*"
-indexmap = "*"
 
 [dev-dependencies]
 unindent = "*"
