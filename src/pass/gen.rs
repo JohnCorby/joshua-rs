@@ -13,6 +13,11 @@ impl Program {
         debug_assert!(o.o.is_empty());
         // combine all the buffers
         o.o.clear();
+
+        o.o.push_str("#pragma region prelude\n");
+        o.o.push_str(&o.prelude);
+        o.o.push_str("#pragma endregion prelude\n");
+
         o.o.push_str("#pragma region struct declares\n");
         o.o.push_str(&o.struct_declares);
         o.o.push_str("#pragma endregion struct declares\n");
@@ -36,14 +41,14 @@ impl Define {
     pub fn gen(self, o: &mut Output) {
         use Define::*;
         match self {
-            Struct { full_name, body } => {
+            Struct { encoded_name, body } => {
                 let old_o = std::mem::take(&mut o.o);
 
                 o.o.push_str("struct ");
-                o.o.push_str(&full_name.mangle());
+                o.o.push_str(&encoded_name.mangle());
 
-                o.struct_declares.push_str(&o.o);
-                o.struct_declares.push_str(";\n");
+                o.prelude.push_str(&o.o);
+                o.prelude.push_str(";\n");
 
                 o.o.push_str(" {\n");
                 for define in body.into_inner() {
@@ -57,7 +62,7 @@ impl Define {
 
             Func {
                 ty,
-                full_name,
+                encoded_name,
                 args,
                 body,
             } => {
@@ -66,11 +71,11 @@ impl Define {
                 ty.gen(o);
                 o.o.push(' ');
                 // special case for entry point
-                if full_name == "main" && args.is_empty() {
+                if encoded_name == "main" && args.is_empty() {
                     o.o.push_str("main")
                 } else {
                     o.o.push_str(
-                        &full_name
+                        &encoded_name
                             .encode(
                                 "",
                                 None,
@@ -245,7 +250,7 @@ impl Expr {
                 } else {
                     self::Expr {
                         kind: self::ExprKind::FuncCall {
-                            full_name: format!("as {}", self.ty)
+                            encoded_name: format!("as {}", self.ty)
                                 .encode(nesting_prefix, None, Default::default(), None)
                                 .intern(),
                             args: vec![thing.into_inner()].into(),
@@ -269,13 +274,13 @@ impl Expr {
             }
 
             Literal(literal) => literal.gen(o),
-            FuncCall { full_name, args } => {
+            FuncCall { encoded_name, args } => {
                 // special case for entry point
-                if full_name == "main" && args.is_empty() {
+                if encoded_name == "main" && args.is_empty() {
                     o.o.push_str("main")
                 } else {
                     o.o.push_str(
-                        &full_name
+                        &encoded_name
                             .encode(
                                 "",
                                 None,

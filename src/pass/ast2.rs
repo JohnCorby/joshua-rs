@@ -11,12 +11,12 @@ pub struct Program(pub Rc<Vec<Define>>);
 #[derive(Debug, Clone)]
 pub enum Define {
     Struct {
-        full_name: &'static str,
+        encoded_name: &'static str,
         body: Rc<Vec<Define>>,
     },
     Func {
         ty: Type,
-        full_name: &'static str,
+        encoded_name: &'static str,
         args: Rc<Vec<VarDefine>>,
         body: Block,
     },
@@ -99,7 +99,7 @@ pub enum ExprKind {
     // primary
     Literal(Literal),
     FuncCall {
-        full_name: &'static str,
+        encoded_name: &'static str,
         args: Rc<Vec<Expr>>,
     },
     Var(&'static str),
@@ -111,10 +111,8 @@ impl Expr {
     pub fn check_assignable(&self, span: Span) -> Res {
         use ExprKind::*;
         let is_ptr = matches!(self.ty, Type::Ptr(_));
-        let is_non_void = self.ty != PrimitiveType::Void.ty();
         let is_assignable = match self.kind {
-            Var(_) if is_non_void => true,
-            Field { .. } if is_non_void => true,
+            Var(_) | Field { .. } => true,
             FuncCall { .. } if is_ptr => true,
             _ => false,
         };

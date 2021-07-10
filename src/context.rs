@@ -8,6 +8,8 @@ use std::collections::HashSet;
 
 #[derive(Default)]
 pub struct Output {
+    pub prelude: String,
+
     /// general buffer, eventually this should be empty as everything is transferred to the Strings below
     pub o: String,
     pub struct_declares: String,
@@ -89,6 +91,9 @@ pub fn type_check_prelude(scopes: &mut Scopes, o: &mut Output) {
         let define = define.type_check(scopes, o, Default::default()).unwrap();
         define.gen(o)
     }
+
+    o.func_declares.clear();
+    o.prelude = std::mem::take(&mut o.func_defines);
 }
 
 pub trait Intern {

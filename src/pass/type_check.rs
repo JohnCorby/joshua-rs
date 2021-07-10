@@ -110,7 +110,7 @@ impl Define {
                     body.extend(func_defines);
 
                     ast2::Define::Struct {
-                        full_name: name
+                        encoded_name: name
                             .encode(nesting_prefix, None, generic_replacements, None)
                             .intern(),
                         body: body.into(),
@@ -198,7 +198,7 @@ impl Define {
 
                     ast2::Define::Func {
                         ty,
-                        full_name: name
+                        encoded_name: name
                             .encode(nesting_prefix, receiver_ty, generic_replacements, None)
                             .intern(),
                         args: args.into(),
@@ -474,15 +474,15 @@ impl Expr {
                         // casting will always work
                         ""
                     } else {
-                        let name = format!("as {}", ty).intern();
                         let symbol = scopes.find(
                             o,
                             &Symbol::new_func(
                                 None,
-                                name,
+                                format!("as {}", ty).intern(),
                                 Default::default(),
                                 vec![thing.ty.clone()].into(),
                             ),
+                            None,
                             self.span,
                         )?;
                         debug_assert_eq!(ty, symbol.ty());
@@ -526,7 +526,7 @@ impl Expr {
                     } => Symbol::new_struct(name, generic_replacements),
                     ty => return err(&format!("expected struct type, but got {}", ty), self.span),
                 };
-                let symbol = scopes.find(o, &symbol, self.span)?;
+                let symbol = scopes.find(o, &symbol, None, self.span)?;
                 let field_types = match &symbol {
                     Symbol::Struct { field_types, .. } => field_types,
                     _ => unreachable!(),
@@ -553,7 +553,9 @@ impl Expr {
             FuncCall(func_call) => func_call.type_check(scopes, o, type_hint)?,
             Var(name) => {
                 // symbol check
-                let ty = scopes.find(o, &Symbol::new_var(name), self.span)?.ty();
+                let ty = scopes
+                    .find(o, &Symbol::new_var(name), None, self.span)?
+                    .ty();
                 ast2::Expr {
                     kind: ast2::ExprKind::Var(name),
                     ty,
@@ -572,7 +574,7 @@ impl FuncCall {
         self,
         scopes: &mut Scopes,
         o: &mut Output,
-        _type_hint: Option<&ast2::Type>,
+        type_hint: Option<&ast2::Type>,
     ) -> Res<ast2::Expr> {
         let receiver_ty = self
             .receiver_ty
@@ -594,17 +596,6 @@ impl FuncCall {
             .res_vec()?
             .into();
 
-        // funny moment
-        // {
-        //     let _ = scopes.find_generic_func_inference(
-        //         receiver_ty.as_ref(),
-        //         self.name,
-        //         &args.iter().map(|it| &it.ty).vec(),
-        //         _type_hint,
-        //         self.span,
-        //     );
-        // }
-
         // symbol check
         let symbol = scopes.find(
             o,
@@ -614,6 +605,7 @@ impl FuncCall {
                 generic_replacements.clone(),
                 args.iter().cloned().map(|it| it.ty).vec().into(),
             ),
+            type_hint,
             self.span,
         )?;
         let nesting_prefix = match symbol {
@@ -622,7 +614,7 @@ impl FuncCall {
         };
         Ok(ast2::Expr {
             kind: ast2::ExprKind::FuncCall {
-                full_name: self
+                encoded_name: self
                     .name
                     .encode(nesting_prefix, receiver_ty, generic_replacements, None)
                     .intern(),
@@ -656,9 +648,10 @@ impl Type {
                     .find(
                         o,
                         &Symbol::new_struct(name, generic_replacements.clone()),
+                        None,
                         span,
                     )
-                    .or_else(|_| scopes.find(o, &Symbol::new_generic_placeholder(name), span))
+                    .or_else(|_| scopes.find(o, &Symbol::new_generic_placeholder(name), None, span))
                     .or_else(|_| {
                         err(
                             &format!(

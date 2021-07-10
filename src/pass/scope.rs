@@ -292,7 +292,14 @@ impl Scopes {
         }
     }
 
-    pub fn find(&mut self, o: &mut Output, symbol: &Symbol, span: Span) -> Res<Symbol> {
+    /// `type_hint` is used for generic func inference
+    pub fn find(
+        &mut self,
+        o: &mut Output,
+        symbol: &Symbol,
+        type_hint: Option<&Type>,
+        span: Span,
+    ) -> Res<Symbol> {
         match symbol {
             // specialized symbols use the special find fn
             Symbol::Struct {
@@ -310,6 +317,25 @@ impl Scopes {
                         return Ok(existing.clone());
                     }
                 }
+
+                // try using inference
+                if let Symbol::Func {
+                    receiver_ty,
+                    name,
+                    arg_types,
+                    ..
+                } = symbol.clone()
+                {
+                    if let Some(existing) = self.find_generic_func_inference(
+                        o,
+                        &Symbol::new_func(receiver_ty, name, Default::default(), arg_types),
+                        type_hint,
+                        span,
+                    )? {
+                        return Ok(existing);
+                    }
+                }
+
                 err(&format!("could not find {}", symbol), span)
             }
         }

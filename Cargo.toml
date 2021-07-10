@@ -16,6 +16,7 @@ quit = "*"
 parking_lot = { version = "*", features = ["nightly"] }
 derivative = "*"
 derive-new = "*"
+indexmap = "*"
 
 [dev-dependencies]
 unindent = "*"
