@@ -44,11 +44,7 @@ impl Define {
                 let old_o = std::mem::take(&mut o.o);
 
                 o.o.push_str("struct ");
-                o.o.push_str(
-                    &full_name
-                        .encode(&generic_replacements.iter().vec(), None)
-                        .mangle(),
-                );
+                o.o.push_str(&full_name.encode(generic_replacements, None).mangle());
 
                 o.struct_declares.push_str(&o.o);
                 o.struct_declares.push_str(";\n");
@@ -75,14 +71,14 @@ impl Define {
                 ty.gen(o);
                 o.o.push(' ');
                 // special case for entry point
-                if *full_name == *"main" && generic_replacements.is_empty() && args.is_empty() {
+                if full_name == "main" && generic_replacements.is_empty() && args.is_empty() {
                     o.o.push_str(full_name)
                 } else {
                     o.o.push_str(
                         &full_name
                             .encode(
-                                &generic_replacements.iter().vec(),
-                                Some(&args.iter().map(|it| &it.ty).vec()),
+                                generic_replacements,
+                                Some(args.iter().cloned().map(|it| it.ty).vec().into()),
                             )
                             .mangle(),
                     )
@@ -281,14 +277,14 @@ impl Expr {
                 args,
             } => {
                 // special case for entry point
-                if *full_name == *"main" && generic_replacements.is_empty() && args.is_empty() {
+                if full_name == "main" && generic_replacements.is_empty() && args.is_empty() {
                     o.o.push_str(full_name)
                 } else {
                     o.o.push_str(
                         &full_name
                             .encode(
-                                &generic_replacements.iter().vec(),
-                                Some(&args.iter().map(|it| &it.ty).vec()),
+                                generic_replacements,
+                                Some(args.iter().cloned().map(|it| it.ty).vec().into()),
                             )
                             .mangle(),
                     )

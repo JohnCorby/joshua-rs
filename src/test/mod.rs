@@ -1,25 +1,23 @@
 #![cfg(test)]
 
-use crate::context::Ctx;
+use crate::context::{Intern, Output};
 use crate::parse::{Kind, Node};
-use crate::pass1::ast1::Program;
-use crate::pass1::compile_program;
-use crate::pass2::gen::Gen;
-use crate::pass2::type_check::TypeCheck;
+use crate::pass::ast1::Program;
+use crate::pass::compile_program;
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use unindent::Unindent;
 
 /// tries to gen and compile an input program
 fn check(i: &str) {
+    let i = i.to_string().intern();
     println!("i = \n{}", i.unindent());
 
-    let is = &Default::default();
-    let ctx = &mut Ctx::new(is);
-    let program = Node::parse(i, Kind::program).unwrap().visit::<Program>(ctx);
-    program.type_check(ctx).unwrap();
-    program.gen(ctx);
-    println!("\no = \n{}", ctx.o.unindent());
+    let program = Node::parse(i, Kind::program).unwrap().visit::<Program>();
+    let mut o = Output::default();
+    let program = program.type_check(&mut o).unwrap();
+    let o = program.gen(o);
+    println!("\no = \n{}", o.unindent());
 
     let file = thread_rng()
         .sample_iter(Alphanumeric)
@@ -27,7 +25,7 @@ fn check(i: &str) {
         .map(char::from)
         .collect::<String>();
     let file = file.as_ref();
-    let success = compile_program(&ctx.o, file).success();
+    let success = compile_program(&o, file).success();
     std::fs::remove_file(file.with_extension("c")).unwrap();
     std::fs::remove_file(file.with_extension("exe")).unwrap();
     assert!(success);

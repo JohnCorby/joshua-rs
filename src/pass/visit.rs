@@ -29,7 +29,7 @@ impl Nodes {
     /// visits any not iterated nodes,
     /// short circuiting if any of them error
     pub fn visit_rest<V: Visit>(self) -> Vec<V> {
-        self.map(|node| node.visit()).collect()
+        self.map(|it| it.visit()).collect()
     }
 }
 
@@ -61,7 +61,7 @@ impl Visit for Define {
                         .next()
                         .unwrap()
                         .children_checked(Kind::generic_placeholders)
-                        .map(|node| node.visit_ident())
+                        .map(|it| it.visit_ident())
                         .vec()
                         .into(),
                     body: nodes.visit_rest().into(),
@@ -76,13 +76,13 @@ impl Visit for Define {
                     .unwrap()
                     .children_checked(Kind::func_receiver_ty)
                     .next()
-                    .map(|node| node.visit());
+                    .map(|it| it.visit());
                 let name = nodes.next().unwrap().visit_ident();
                 let generic_placeholders = nodes
                     .next()
                     .unwrap()
                     .children_checked(Kind::generic_placeholders)
-                    .map(|node| node.visit_ident())
+                    .map(|it| it.visit_ident())
                     .vec()
                     .into();
                 let mut args = vec![];
@@ -120,7 +120,7 @@ impl Visit for VarDefine {
             span,
             ty: nodes.next().unwrap().visit(),
             name: nodes.next().unwrap().visit_ident(),
-            value: nodes.next().map(|node| node.visit()),
+            value: nodes.next().map(|it| it.visit()),
         }
     }
 }
@@ -130,7 +130,7 @@ impl Visit for Statement {
         let span = node.span();
         use StatementKind::*;
         let kind = match node.kind() {
-            Kind::ret => Return(node.children().next().map(|node| node.visit())),
+            Kind::ret => Return(node.children().next().map(|it| it.visit())),
             Kind::brk => Break,
             Kind::cont => Continue,
             Kind::iff => {
@@ -139,7 +139,7 @@ impl Visit for Statement {
                 If {
                     cond: nodes.next().unwrap().visit(),
                     then: nodes.next().unwrap().visit(),
-                    otherwise: nodes.next().map(|node| node.visit()),
+                    otherwise: nodes.next().map(|it| it.visit()),
                 }
             }
             Kind::until => {
@@ -190,11 +190,11 @@ impl Visit for CCode {
         Self(
             node.children_checked(Kind::c_code)
                 .into_iter()
-                .map(|node| match node.kind() {
-                    Kind::c_code_str => CCodePart::String(node.str()),
-                    Kind::expr => CCodePart::Expr(node.visit()),
+                .map(|it| match it.kind() {
+                    Kind::c_code_str => CCodePart::String(it.str()),
+                    Kind::expr => CCodePart::Expr(it.visit()),
 
-                    _ => unexpected_kind(node),
+                    _ => unexpected_kind(it),
                 })
                 .vec()
                 .into(),
@@ -312,13 +312,13 @@ impl Visit for FuncCall {
                 .unwrap()
                 .children_checked(Kind::func_receiver_ty)
                 .next()
-                .map(|node| node.visit()),
+                .map(|it| it.visit()),
             name: nodes.next().unwrap().visit_ident(),
             generic_replacements: nodes
                 .next()
                 .unwrap()
                 .children_checked(Kind::generic_replacements)
-                .map(|node| node.visit())
+                .map(|it| it.visit())
                 .vec()
                 .into(),
             args: nodes.visit_rest().into(),
@@ -357,7 +357,7 @@ impl Visit for Type {
                         .next()
                         .unwrap()
                         .children_checked(Kind::generic_replacements)
-                        .map(|node| node.visit())
+                        .map(|it| it.visit())
                         .vec()
                         .into(),
                 }

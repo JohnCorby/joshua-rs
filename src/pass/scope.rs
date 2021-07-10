@@ -2,6 +2,7 @@
 //! scopes contain symbols
 //! symbols allow us to check for existence and type of stuff we define
 
+use crate::context::Intern;
 use crate::error::{err, Res};
 use crate::pass::ast1;
 use crate::pass::ast2::Type;
@@ -132,10 +133,7 @@ impl Display for Symbol {
                 receiver_ty
                     .as_ref()
                     .map_or(String::new(), |it| format!("{}::", it)),
-                name.encode(
-                    &generic_replacements.iter().vec(),
-                    Some(&arg_types.iter().vec()),
-                )
+                name.encode(generic_replacements.clone(), Some(arg_types.clone()))
             ),
             GenericFunc {
                 receiver_ty,
@@ -150,13 +148,12 @@ impl Display for Symbol {
                     .as_ref()
                     .map_or(String::new(), |it| format!("{}::", it)),
                 name.encode(
-                    &generic_placeholders
+                    generic_placeholders
                         .iter()
-                        .map(|it| Type::GenericPlaceholder(it))
+                        .map(|&it| Type::GenericPlaceholder(it))
                         .vec()
-                        .iter()
-                        .vec(),
-                    Some(&arg_types.iter().vec()),
+                        .into(),
+                    Some(arg_types.clone()),
                 )
             ),
             Var { name, .. } => write!(f, "var {}", name),
@@ -167,7 +164,7 @@ impl Display for Symbol {
             } => write!(
                 f,
                 "struct {}",
-                name.encode(&generic_replacements.iter().vec(), None)
+                name.encode(generic_replacements.clone(), None)
             ),
             GenericStruct {
                 name,
@@ -177,12 +174,11 @@ impl Display for Symbol {
                 f,
                 "generic struct {}",
                 name.encode(
-                    &generic_placeholders
+                    generic_placeholders
                         .iter()
-                        .map(|it| Type::GenericPlaceholder(it))
+                        .map(|&it| Type::GenericPlaceholder(it))
                         .vec()
-                        .iter()
-                        .vec(),
+                        .into(),
                     None
                 )
             ),
@@ -218,12 +214,13 @@ pub struct Scope {
 
 impl Scopes {
     /// use for initializing ast nodes
-    pub fn nesting_prefix(&self) -> String {
+    pub fn nesting_prefix(&self) -> &'static str {
         self.0
             .iter()
             .rev()
             .filter_map(|scope| scope.nesting_name.map(|it| format!("{}$", it)))
-            .collect()
+            .collect::<String>()
+            .intern()
     }
 
     pub fn in_loop(&self) -> bool {
@@ -273,8 +270,25 @@ impl Scopes {
 impl Scopes {
     pub fn add(&mut self, symbol: Symbol, span: Span) -> Res {
         let symbols = &mut self.0.last_mut().unwrap().symbols;
+
+        // specialized symbols are fine to already exist
+        match &symbol {
+            Symbol::Struct {
+                generic_replacements,
+                ..
+            }
+            | Symbol::Func {
+                generic_replacements,
+                ..
+            } if !generic_replacements.is_empty() => {
+                symbols.insert(symbol);
+                return Ok(());
+            }
+            _ => {}
+        }
+
         let existing = match &symbol {
-            // placeholders are eq if their len is eq
+            // placeholders always eq any other placeholder
             Symbol::GenericStruct { .. } => symbols
                 .iter()
                 .find(|&s| matches!(s, Symbol::GenericStruct { .. }) && symbol.generic_eq(s)),
@@ -284,8 +298,8 @@ impl Scopes {
 
             _ => symbols.get(&symbol),
         };
-        if let Some(symbol) = existing {
-            err(&format!("{} already defined", symbol), span)
+        if let Some(existing) = existing {
+            err(&format!("{} already defined", existing), span)
         } else {
             symbols.insert(symbol);
             Ok(())
@@ -294,14 +308,15 @@ impl Scopes {
 
     pub fn find(&mut self, symbol: &Symbol, span: Span) -> Res<Symbol> {
         match symbol {
+            // specialized symbols use the special find fn
             Symbol::Struct {
                 generic_replacements,
                 ..
-            } if !generic_replacements.is_empty() => self.find_generic_struct(symbol, span),
-            Symbol::Func {
+            }
+            | Symbol::Func {
                 generic_replacements,
                 ..
-            } if !generic_replacements.is_empty() => self.find_generic_func(symbol, span),
+            } if !generic_replacements.is_empty() => self.find_generic(symbol, span),
 
             _ => {
                 for scope in self.0.iter().rev() {

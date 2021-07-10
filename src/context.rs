@@ -86,7 +86,7 @@ pub fn type_check_prelude(scopes: &mut Scopes, o: &mut Output) {
         .0
         .into_inner();
     for define in defines {
-        let define = define.type_check(scopes).unwrap();
+        let define = define.type_check(scopes, Default::default()).unwrap();
         define.gen(o)
     }
 }

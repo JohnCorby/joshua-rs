@@ -1,14 +1,12 @@
 //! generic helper stuff
 
-use crate::context::Intern;
 use crate::error::{IntoErr, Res};
 use crate::pass::ast1::*;
 use crate::pass::ast2;
 use crate::pass::replace_generics::GenericMap;
-use crate::pass::scope::{Scopes, Symbol};
+use crate::pass::scope::{Scope, Scopes, Symbol};
 use crate::span::Span;
-use crate::util::{IterExt, RcExt};
-use std::collections::HashMap;
+use crate::util::{IterExt, IterResExt, RcExt};
 use std::ops::Deref;
 
 // impl Type {
@@ -320,8 +318,8 @@ impl Symbol {
         use Symbol::*;
         match (self, other) {
             // generic vs generic
-            // used in scopes add
-            // uses placeholder eq placeholder
+            // used in Scopes::add
+            // placeholder == placeholder
             (
                 GenericStruct {
                     name,
@@ -364,8 +362,8 @@ impl Symbol {
             }
 
             // normal vs generic
-            // used in scopes find generic
-            // uses placeholder eq any
+            // used in Scopes::find_generic
+            // placeholder == any
             (
                 Struct {
                     name,
@@ -440,35 +438,6 @@ impl Symbol {
     }
 }
 impl ast2::Type {
-    /// placeholder will match any other TYPE
-    fn placeholder_eq_any(&self, other: &Self) -> bool {
-        use ast2::Type::*;
-        match (self, other) {
-            (_, GenericPlaceholder(_)) | (GenericPlaceholder(_), _) => true,
-            (
-                Struct {
-                    name,
-                    generic_replacements,
-                    ..
-                },
-                Struct {
-                    name: other_name,
-                    generic_replacements: other_replacements,
-                    ..
-                },
-            ) => {
-                name == other_name
-                    && iter_eq(
-                        generic_replacements.iter(),
-                        other_replacements.iter(),
-                        ast2::Type::placeholder_eq_any,
-                    )
-            }
-            (Ptr(inner), Ptr(other_inner)) => inner.placeholder_eq_any(other_inner),
-
-            _ => self == other,
-        }
-    }
     /// placeholder will match any other PLACEHOLDER
     fn placeholder_eq_placeholder(&self, other: &Self) -> bool {
         use ast2::Type::*;
@@ -494,6 +463,35 @@ impl ast2::Type {
                     )
             }
             (Ptr(inner), Ptr(other_inner)) => inner.placeholder_eq_placeholder(other_inner),
+
+            _ => self == other,
+        }
+    }
+    /// placeholder will match any other TYPE
+    fn placeholder_eq_any(&self, other: &Self) -> bool {
+        use ast2::Type::*;
+        match (self, other) {
+            (_, GenericPlaceholder(_)) | (GenericPlaceholder(_), _) => true,
+            (
+                Struct {
+                    name,
+                    generic_replacements,
+                    ..
+                },
+                Struct {
+                    name: other_name,
+                    generic_replacements: other_replacements,
+                    ..
+                },
+            ) => {
+                name == other_name
+                    && iter_eq(
+                        generic_replacements.iter(),
+                        other_replacements.iter(),
+                        ast2::Type::placeholder_eq_any,
+                    )
+            }
+            (Ptr(inner), Ptr(other_inner)) => inner.placeholder_eq_any(other_inner),
 
             _ => self == other,
         }
@@ -531,25 +529,26 @@ impl ast2::Type {
         }
     }
 
-    // /// check if self has a placeholder type in it
-    // fn contains_placeholder(&self) -> bool {
-    //     use ast2::Type::*;
-    //     match self {
-    //         GenericPlaceholder(_) => true,
-    //         Struct {
-    //             generic_replacements,
-    //             ..
-    //         } => generic_replacements.iter().any(Self::contains_placeholder),
-    //         Ptr(inner) => inner.contains_placeholder(),
-    //         _ => false,
-    //     }
-    // }
+    /// check if self has a placeholder type in it
+    #[allow(dead_code)]
+    fn contains_placeholder(&self) -> bool {
+        use ast2::Type::*;
+        match self {
+            GenericPlaceholder(_) => true,
+            Struct {
+                generic_replacements,
+                ..
+            } => generic_replacements.iter().any(Self::contains_placeholder),
+            Ptr(inner) => inner.contains_placeholder(),
+            _ => false,
+        }
+    }
 }
 
 impl Scopes {
-    /// find a generic struct fuzzily
-    /// and gen a specialized version if one doesn't exist
-    pub fn find_generic_struct(&mut self, symbol: &Symbol, span: Span) -> Res<Symbol> {
+    /// find a generic symbol using a specialized one.
+    /// add and gen that specialized one if it hasn't already been
+    pub fn find_generic(&mut self, symbol: &Symbol, span: Span) -> Res<Symbol> {
         match symbol {
             Symbol::Struct {
                 generic_replacements,
@@ -575,6 +574,7 @@ impl Scopes {
                         name,
                         generic_placeholders,
                         mut body,
+
                         scopes_index,
                     } => {
                         let generic_map = generic_placeholders
@@ -595,57 +595,33 @@ impl Scopes {
                             }
                         });
 
-                        let define = Define {
+                        let scopes_after = self.0.split_off(scopes_index);
+                        Define {
                             span,
                             kind: DefineKind::Struct {
                                 name,
-                                generic_placeholders, // fixme CRAP
+                                generic_placeholders: Default::default(),
                                 body,
                             },
-                        };
-
-                        let scopes_after = self.0.split_off(scopes_index);
-                        let nesting_prefix = self.nesting_prefix().intern();
-                        // fixme this SHOULD error if you do it twice, since it'll try to create the specialized symbol twice
-                        let define = define.type_check(self)?;
-                        self.0.extend(scopes_after);
-
-                        // define.clone().gen(&mut Default::default());
-
-                        match define {
-                            ast2::Define::Struct { body, .. } => {
-                                let symbol = Symbol::Struct {
-                                    nesting_prefix,
-                                    name,
-                                    generic_replacements: generic_replacements.clone(),
-                                    field_types: body
-                                        .iter()
-                                        .cloned()
-                                        .filter_map(|define| match define {
-                                            ast2::Define::Var(ast2::VarDefine {
-                                                name, ty, ..
-                                            }) => Some((name, ty)),
-                                            _ => None,
-                                        })
-                                        .collect::<HashMap<_, _>>()
-                                        .into(),
-                                };
-                                Ok(symbol)
-                            }
-                            _ => unreachable!(),
                         }
+                        .type_check(self, generic_replacements.clone())?
+                        .gen(&mut Default::default());
+
+                        let symbol = self
+                            .0
+                            .last()
+                            .unwrap()
+                            .symbols
+                            .get(&Symbol::new_struct(name, generic_replacements.clone()))
+                            .unwrap()
+                            .clone();
+                        self.0.extend(scopes_after);
+                        Ok(symbol)
                     }
                     _ => unreachable!(),
                 }
             }
-            _ => unreachable!(),
-        }
-    }
 
-    /// find a generic func fuzzily
-    /// and gen a specialized version if one doesn't exist
-    pub fn find_generic_func(&mut self, symbol: &Symbol, span: Span) -> Res<Symbol> {
-        match symbol {
             Symbol::Func {
                 generic_replacements,
                 ..
@@ -704,51 +680,50 @@ impl Scopes {
                             }
                         });
 
-                        let define = Define {
-                            span,
-                            kind: DefineKind::Func {
-                                ty: ty_ast1,
-                                receiver_ty: receiver_ty_ast1.clone(),
-                                name,
-                                generic_placeholders, // fixme CRAP
-                                args,
-                                body,
-                            },
-                        };
-
                         let scopes_after = self.0.split_off(scopes_index);
-                        let nesting_prefix = self.nesting_prefix().intern();
-                        // bruh
-                        let receiver_ty = if let Some(it) = receiver_ty_ast1 {
-                            Some(it.type_check(self)?)
-                        } else {
-                            None
-                        };
-                        // fixme this SHOULD error if you do it twice, since it'll try to create the specialized symbol twice
-                        let define = define.type_check(self)?;
+                        // Define {
+                        //     span,
+                        //     kind: DefineKind::Func {
+                        //         ty: ty_ast1,
+                        //         receiver_ty: receiver_ty_ast1.clone(),
+                        //         name,
+                        //         generic_placeholders: Default::default(),
+                        //         args: args.clone(),
+                        //         body,
+                        //     },
+                        // }
+                        // .type_check(self, generic_replacements.clone())?
+                        // .gen(&mut Default::default());
+
+                        // modified from Define::type_check
+                        let receiver_ty = receiver_ty_ast1
+                            .as_ref()
+                            .map(|it| it.clone().type_check(self))
+                            .transpose()?;
+                        self.push(Scope::new(None, false, None));
+                        let arg_types = args
+                            .iter()
+                            .cloned()
+                            .map(|it| it.type_check(self, true, false).map(|it| it.ty))
+                            .res_vec()?
+                            .into();
+                        self.pop();
+
+                        let symbol = self
+                            .0
+                            .last()
+                            .unwrap()
+                            .symbols
+                            .get(&Symbol::new_func(
+                                receiver_ty,
+                                name,
+                                generic_replacements.clone(),
+                                arg_types,
+                            ))
+                            .unwrap()
+                            .clone();
                         self.0.extend(scopes_after);
-
-                        // define.clone().gen(&mut Default::default());
-
-                        match define {
-                            ast2::Define::Func {
-                                ty,
-                                generic_replacements,
-                                args,
-                                ..
-                            } => {
-                                let symbol = Symbol::Func {
-                                    ty,
-                                    nesting_prefix,
-                                    receiver_ty,
-                                    name,
-                                    generic_replacements,
-                                    arg_types: args.iter().cloned().map(|it| it.ty).vec().into(),
-                                };
-                                Ok(symbol)
-                            }
-                            _ => unreachable!(),
-                        }
+                        Ok(symbol)
                     }
                     _ => unreachable!(),
                 }
@@ -757,6 +732,19 @@ impl Scopes {
         }
     }
 }
+
+// // test
+// fn bruh() {
+//     struct Hello;
+//
+//     fn yes<T>(t: T) {}
+//
+//     fn bruh2() {
+//         struct Hello2;
+//         yes(Hello2);
+//     }
+//     yes(Hello2);
+// }
 
 // impl Scopes {
 //     /// find a generic func with inference

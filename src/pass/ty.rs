@@ -3,7 +3,7 @@
 use crate::error::{err, Res};
 use crate::pass::ast2::Type;
 use crate::span::Span;
-use crate::util::{IterExt, StrExt};
+use crate::util::StrExt;
 use std::fmt::{Display, Formatter};
 
 impl Type {
@@ -38,7 +38,7 @@ impl Display for Type {
                 f,
                 "{}{}",
                 nesting_prefix,
-                name.encode(&generic_replacements.iter().vec(), None)
+                name.encode(generic_replacements.clone(), None)
             ),
             Ptr(ty) => write!(f, "ptr<{}>", ty),
             GenericPlaceholder(name) => f.write_str(name),

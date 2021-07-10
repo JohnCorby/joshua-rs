@@ -5,13 +5,21 @@ use std::rc::Rc;
 
 pub trait StrExt {
     /// make a proper name by attaching formatted stuff
-    fn encode(&self, generic_replacements: &[&Type], arg_types: Option<&[&Type]>) -> String;
+    fn encode(
+        &self,
+        generic_replacements: Rc<Vec<Type>>,
+        arg_types: Option<Rc<Vec<Type>>>,
+    ) -> String;
 
     /// mangle string for c usage
     fn mangle(&self) -> String;
 }
 impl StrExt for str {
-    fn encode(&self, generic_replacements: &[&Type], arg_types: Option<&[&Type]>) -> String {
+    fn encode(
+        &self,
+        generic_replacements: Rc<Vec<Type>>,
+        arg_types: Option<Rc<Vec<Type>>>,
+    ) -> String {
         let generic_replacements = if !generic_replacements.is_empty() {
             format!(
                 "<{}>",
