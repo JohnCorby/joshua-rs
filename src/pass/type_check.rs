@@ -19,7 +19,7 @@ impl Program {
             .0
             .iter()
             .cloned()
-            .map(|define| define.type_check(&mut scopes, Default::default()))
+            .map(|define| define.type_check(&mut scopes, o, Default::default()))
             .res_vec()?;
         debug_assert_eq!(scopes.0.len(), 1);
         Ok(ast2::Program(defines.into()))
@@ -31,6 +31,7 @@ impl Define {
     pub fn type_check(
         self,
         scopes: &mut Scopes,
+        o: &mut Output,
         generic_replacements: Rc<Vec<ast2::Type>>,
     ) -> Res<ast2::Define> {
         use DefineKind::*;
@@ -55,7 +56,7 @@ impl Define {
                     scopes.push(Scope::new(None, false, None));
                     let var_defines = var_defines
                         .into_iter()
-                        .map(|it| it.type_check(scopes, Default::default()))
+                        .map(|it| it.type_check(scopes, o, Default::default()))
                         .res_vec()?;
                     scopes.pop();
 
@@ -101,7 +102,7 @@ impl Define {
                                 })
                             }
 
-                            it.type_check(scopes, Default::default())
+                            it.type_check(scopes, o, Default::default())
                         })
                         .res_vec()?;
 
@@ -149,11 +150,11 @@ impl Define {
                     }
                 }
 
-                let ty = ty_ast1.clone().type_check(scopes)?;
+                let ty = ty_ast1.clone().type_check(scopes, o)?;
                 let receiver_ty = receiver_ty_ast1
                     .as_ref()
                     .cloned()
-                    .map(|it| it.type_check(scopes))
+                    .map(|it| it.type_check(scopes, o))
                     .transpose()?;
 
                 if generic_placeholders.is_empty() {
@@ -172,7 +173,7 @@ impl Define {
                     let args = args
                         .iter()
                         .cloned()
-                        .map(|it| it.type_check(scopes, true, false))
+                        .map(|it| it.type_check(scopes, o, true, false))
                         .res_vec()?;
 
                     // add symbol
@@ -190,7 +191,7 @@ impl Define {
                     )?;
                     scopes.push(scope);
 
-                    let body = body.type_check(scopes)?;
+                    let body = body.type_check(scopes, o)?;
                     scopes.check_return_called(self.span)?;
                     scopes.pop();
 
@@ -211,7 +212,7 @@ impl Define {
                     let arg_types = args
                         .iter()
                         .cloned()
-                        .map(|it| it.type_check(scopes, true, false).map(|it| it.ty))
+                        .map(|it| it.type_check(scopes, o, true, false).map(|it| it.ty))
                         .res_vec()?
                         .into();
                     scopes.pop();
@@ -243,11 +244,11 @@ impl Define {
 
             Var(var_define) => {
                 debug_assert!(generic_replacements.is_empty());
-                ast2::Define::Var(var_define.type_check(scopes, false, false)?)
+                ast2::Define::Var(var_define.type_check(scopes, o, false, false)?)
             }
             CCode(c_code) => {
                 debug_assert!(generic_replacements.is_empty());
-                ast2::Define::CCode(c_code.type_check(scopes)?)
+                ast2::Define::CCode(c_code.type_check(scopes, o)?)
             }
         })
     }
@@ -257,6 +258,7 @@ impl VarDefine {
     pub fn type_check(
         self,
         scopes: &mut Scopes,
+        o: &mut Output,
 
         is_func_arg: bool,
         is_for_init: bool,
@@ -279,16 +281,16 @@ impl VarDefine {
         // special case for auto type, where lvalue is inferred from rvalue instead of the other way around
         let (ty, value) = if matches!(self.ty.kind, TypeKind::Auto) {
             if let Some(value) = self.value {
-                let value = value.type_check(scopes, None)?;
+                let value = value.type_check(scopes, o, None)?;
                 let ty = value.ty.clone();
                 (ty, Some(value))
             } else {
                 return err("cannot infer type", self.span);
             }
         } else {
-            let ty = self.ty.type_check(scopes)?;
+            let ty = self.ty.type_check(scopes, o)?;
             if let Some(value) = self.value {
-                let value = value.type_check(scopes, Some(&ty))?;
+                let value = value.type_check(scopes, o, Some(&ty))?;
 
                 // check matching
                 value.ty.check(&ty, self.span)?;
@@ -318,12 +320,12 @@ impl VarDefine {
 }
 
 impl Statement {
-    pub fn type_check(self, scopes: &mut Scopes) -> Res<ast2::Statement> {
+    pub fn type_check(self, scopes: &mut Scopes, o: &mut Output) -> Res<ast2::Statement> {
         use StatementKind::*;
         Ok(match self.kind {
             Return(value) => {
                 let value = value
-                    .map(|it| it.type_check(scopes, Some(&scopes.func_return_type().clone())))
+                    .map(|it| it.type_check(scopes, o, Some(&scopes.func_return_type().clone())))
                     .transpose()?;
 
                 // check return type
@@ -353,14 +355,14 @@ impl Statement {
                 then,
                 otherwise,
             } => {
-                let cond = cond.type_check(scopes, Some(&PrimitiveType::Bool.ty()))?;
+                let cond = cond.type_check(scopes, o, Some(&PrimitiveType::Bool.ty()))?;
                 scopes.push(Scope::new(None, false, None));
-                let then = then.type_check(scopes)?;
+                let then = then.type_check(scopes, o)?;
                 scopes.pop();
                 let otherwise = otherwise
                     .map(|otherwise| {
                         scopes.push(Scope::new(None, false, None));
-                        let otherwise = otherwise.type_check(scopes);
+                        let otherwise = otherwise.type_check(scopes, o);
                         scopes.pop();
                         otherwise
                     })
@@ -376,9 +378,9 @@ impl Statement {
                 }
             }
             Until { cond, block } => {
-                let cond = cond.type_check(scopes, Some(&PrimitiveType::Bool.ty()))?;
+                let cond = cond.type_check(scopes, o, Some(&PrimitiveType::Bool.ty()))?;
                 scopes.push(Scope::new(None, true, None));
-                let block = block.type_check(scopes)?;
+                let block = block.type_check(scopes, o)?;
                 scopes.pop();
 
                 // check condition
@@ -393,10 +395,10 @@ impl Statement {
                 block,
             } => {
                 scopes.push(Scope::new(None, true, None));
-                let init = init.type_check(scopes, false, true)?;
-                let cond = cond.type_check(scopes, Some(&PrimitiveType::Bool.ty()))?;
-                let update = update.deref().clone().type_check(scopes)?;
-                let block = block.type_check(scopes)?;
+                let init = init.type_check(scopes, o, false, true)?;
+                let cond = cond.type_check(scopes, o, Some(&PrimitiveType::Bool.ty()))?;
+                let update = update.deref().clone().type_check(scopes, o)?;
+                let block = block.type_check(scopes, o)?;
                 scopes.pop();
 
                 // check condition
@@ -410,8 +412,8 @@ impl Statement {
                 }
             }
             ExprAssign { lvalue, rvalue } => {
-                let lvalue = lvalue.type_check(scopes, None)?;
-                let rvalue = rvalue.type_check(scopes, Some(&lvalue.ty))?;
+                let lvalue = lvalue.type_check(scopes, o, None)?;
+                let rvalue = rvalue.type_check(scopes, o, Some(&lvalue.ty))?;
 
                 // check matching
                 lvalue.check_assignable(self.span)?;
@@ -420,33 +422,35 @@ impl Statement {
                 ast2::Statement::ExprAssign { lvalue, rvalue }
             }
             Define(define) => {
-                ast2::Statement::Define(define.type_check(scopes, Default::default())?)
+                ast2::Statement::Define(define.type_check(scopes, o, Default::default())?)
             }
-            Expr(expr) => ast2::Statement::Expr(expr.type_check(scopes, None)?),
+            Expr(expr) => ast2::Statement::Expr(expr.type_check(scopes, o, None)?),
         })
     }
 }
 
 impl Block {
-    pub fn type_check(self, scopes: &mut Scopes) -> Res<ast2::Block> {
+    pub fn type_check(self, scopes: &mut Scopes, o: &mut Output) -> Res<ast2::Block> {
         self.0
             .iter()
             .cloned()
-            .map(|statement| statement.type_check(scopes))
+            .map(|statement| statement.type_check(scopes, o))
             .res_vec()
             .map(|statements| ast2::Block(statements.into()))
     }
 }
 
 impl CCode {
-    pub fn type_check(self, scopes: &mut Scopes) -> Res<ast2::CCode> {
+    pub fn type_check(self, scopes: &mut Scopes, o: &mut Output) -> Res<ast2::CCode> {
         self.0
             .iter()
             .cloned()
             .map(|part| {
                 Ok(match part {
                     CCodePart::String(str) => ast2::CCodePart::String(str),
-                    CCodePart::Expr(expr) => ast2::CCodePart::Expr(expr.type_check(scopes, None)?),
+                    CCodePart::Expr(expr) => {
+                        ast2::CCodePart::Expr(expr.type_check(scopes, o, None)?)
+                    }
                 })
             })
             .res_vec()
@@ -458,13 +462,14 @@ impl Expr {
     pub fn type_check(
         self,
         scopes: &mut Scopes,
+        o: &mut Output,
         type_hint: Option<&ast2::Type>,
     ) -> Res<ast2::Expr> {
         use ExprKind::*;
         Ok(match self.kind {
             Cast { thing, ty } => {
-                let ty = ty.type_check(scopes)?;
-                let thing = thing.deref().clone().type_check(scopes, Some(&ty))?;
+                let ty = ty.type_check(scopes, o)?;
+                let thing = thing.deref().clone().type_check(scopes, o, Some(&ty))?;
 
                 // symbol check
                 // fixme hacky as shit
@@ -475,6 +480,7 @@ impl Expr {
                     } else {
                         let name = format!("as {}", ty).intern();
                         let symbol = scopes.find(
+                            o,
                             &Symbol::new_func(
                                 None,
                                 name,
@@ -512,13 +518,13 @@ impl Expr {
                     .modify(|args| args.insert(0, receiver.clone()));
                 func_call.span = self.span;
 
-                let receiver = receiver.type_check(scopes, None)?;
+                let receiver = receiver.type_check(scopes, o, None)?;
                 func_call.receiver_ty = Some(receiver.ty.into_ast1(receiver_span));
 
-                func_call.type_check(scopes, type_hint)?
+                func_call.type_check(scopes, o, type_hint)?
             }
             Field { receiver, var } => {
-                let receiver = receiver.deref().clone().type_check(scopes, None)?;
+                let receiver = receiver.deref().clone().type_check(scopes, o, None)?;
 
                 // field check
                 let symbol = match receiver.ty.clone() {
@@ -529,7 +535,7 @@ impl Expr {
                     } => Symbol::new_struct(name, generic_replacements),
                     ty => return err(&format!("expected struct type, but got {}", ty), self.span),
                 };
-                let symbol = scopes.find(&symbol, self.span)?;
+                let symbol = scopes.find(o, &symbol, self.span)?;
                 let field_types = match &symbol {
                     Symbol::Struct { field_types, .. } => field_types,
                     _ => unreachable!(),
@@ -553,17 +559,17 @@ impl Expr {
                 kind: ast2::ExprKind::Literal(literal),
                 ty: literal.ty(),
             },
-            FuncCall(func_call) => func_call.type_check(scopes, type_hint)?,
+            FuncCall(func_call) => func_call.type_check(scopes, o, type_hint)?,
             Var(name) => {
                 // symbol check
-                let ty = scopes.find(&Symbol::new_var(name), self.span)?.ty();
+                let ty = scopes.find(o, &Symbol::new_var(name), self.span)?.ty();
                 ast2::Expr {
                     kind: ast2::ExprKind::Var(name),
                     ty,
                 }
             }
             CCode(c_code) => ast2::Expr {
-                kind: ast2::ExprKind::CCode(c_code.type_check(scopes)?),
+                kind: ast2::ExprKind::CCode(c_code.type_check(scopes, o)?),
                 ty: ast2::Type::CCode,
             },
         })
@@ -572,31 +578,28 @@ impl Expr {
 
 impl FuncCall {
     pub fn type_check(
-        mut self,
+        self,
         scopes: &mut Scopes,
+        o: &mut Output,
         _type_hint: Option<&ast2::Type>,
     ) -> Res<ast2::Expr> {
         let receiver_ty = self
             .receiver_ty
-            .map(|it| it.type_check(scopes))
+            .map(|it| it.type_check(scopes, o))
             .transpose()?;
 
-        if let Some(receiver_ty) = &receiver_ty {
-            self.name = format!("{}::{}", receiver_ty, self.name).intern()
-        }
-
-        let generic_replacements = self
+        let generic_replacements: Rc<Vec<_>> = self
             .generic_replacements
             .iter()
             .cloned()
-            .map(|it| it.type_check(scopes))
+            .map(|it| it.type_check(scopes, o))
             .res_vec()?
             .into();
         let args: Rc<Vec<_>> = self
             .args
             .iter()
             .cloned()
-            .map(|it| it.type_check(scopes, None))
+            .map(|it| it.type_check(scopes, o, None))
             .res_vec()?
             .into();
 
@@ -613,10 +616,11 @@ impl FuncCall {
 
         // symbol check
         let symbol = scopes.find(
+            o,
             &Symbol::new_func(
-                receiver_ty,
+                receiver_ty.clone(),
                 self.name,
-                generic_replacements,
+                generic_replacements.clone(),
                 args.iter().cloned().map(|it| it.ty).vec().into(),
             ),
             self.span,
@@ -627,8 +631,14 @@ impl FuncCall {
         };
         Ok(ast2::Expr {
             kind: ast2::ExprKind::FuncCall {
-                full_name: format!("{}{}", nesting_prefix, self.name).intern(),
-                generic_replacements: Default::default(),
+                full_name: format!(
+                    "{}{}{}",
+                    nesting_prefix,
+                    receiver_ty.map_or(String::new(), |it| format!("{}::", it)),
+                    self.name
+                )
+                .intern(),
+                generic_replacements,
                 args,
             },
             ty: symbol.ty(),
@@ -637,12 +647,12 @@ impl FuncCall {
 }
 
 impl Type {
-    pub fn type_check(self, scopes: &mut Scopes) -> Res<ast2::Type> {
+    pub fn type_check(self, scopes: &mut Scopes, o: &mut Output) -> Res<ast2::Type> {
         let span = self.span;
         use TypeKind::*;
         Ok(match self.kind {
             Primitive(ty) => ast2::Type::Primitive(ty),
-            Ptr(inner) => ast2::Type::Ptr(inner.deref().clone().type_check(scopes)?.into()),
+            Ptr(inner) => ast2::Type::Ptr(inner.deref().clone().type_check(scopes, o)?.into()),
             Named {
                 name,
                 generic_replacements,
@@ -650,17 +660,18 @@ impl Type {
                 let generic_replacements: Rc<Vec<_>> = generic_replacements
                     .iter()
                     .cloned()
-                    .map(|it| it.type_check(scopes))
+                    .map(|it| it.type_check(scopes, o))
                     .res_vec()?
                     .into();
 
                 // symbol check
                 scopes
                     .find(
+                        o,
                         &Symbol::new_struct(name, generic_replacements.clone()),
                         span,
                     )
-                    .or_else(|_| scopes.find(&Symbol::new_generic_placeholder(name), span))
+                    .or_else(|_| scopes.find(o, &Symbol::new_generic_placeholder(name), span))
                     .or_else(|_| {
                         err(
                             &format!(

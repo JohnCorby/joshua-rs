@@ -2,7 +2,7 @@
 //! scopes contain symbols
 //! symbols allow us to check for existence and type of stuff we define
 
-use crate::context::Intern;
+use crate::context::{Intern, Output};
 use crate::error::{err, Res};
 use crate::pass::ast1;
 use crate::pass::ast2::Type;
@@ -289,7 +289,7 @@ impl Scopes {
         }
     }
 
-    pub fn find(&mut self, symbol: &Symbol, span: Span) -> Res<Symbol> {
+    pub fn find(&mut self, o: &mut Output, symbol: &Symbol, span: Span) -> Res<Symbol> {
         match symbol {
             // specialized symbols use the special find fn
             Symbol::Struct {
@@ -299,7 +299,7 @@ impl Scopes {
             | Symbol::Func {
                 generic_replacements,
                 ..
-            } if !generic_replacements.is_empty() => self.find_generic(symbol, span),
+            } if !generic_replacements.is_empty() => self.find_generic(o, symbol, span),
 
             _ => {
                 for scope in self.0.iter().rev() {
