@@ -36,15 +36,11 @@ impl Define {
     pub fn gen(self, o: &mut Output) {
         use Define::*;
         match self {
-            Struct {
-                full_name,
-                generic_replacements,
-                body,
-            } => {
+            Struct { full_name, body } => {
                 let old_o = std::mem::take(&mut o.o);
 
                 o.o.push_str("struct ");
-                o.o.push_str(&full_name.encode(generic_replacements, None).mangle());
+                o.o.push_str(&full_name.mangle());
 
                 o.struct_declares.push_str(&o.o);
                 o.struct_declares.push_str(";\n");
@@ -62,7 +58,6 @@ impl Define {
             Func {
                 ty,
                 full_name,
-                generic_replacements,
                 args,
                 body,
             } => {
@@ -71,13 +66,15 @@ impl Define {
                 ty.gen(o);
                 o.o.push(' ');
                 // special case for entry point
-                if full_name == "main" && generic_replacements.is_empty() && args.is_empty() {
-                    o.o.push_str(full_name)
+                if full_name == "main" && args.is_empty() {
+                    o.o.push_str("main")
                 } else {
                     o.o.push_str(
                         &full_name
                             .encode(
-                                generic_replacements,
+                                "",
+                                None,
+                                Default::default(),
                                 Some(args.iter().cloned().map(|it| it.ty).vec().into()),
                             )
                             .mangle(),
@@ -248,8 +245,9 @@ impl Expr {
                 } else {
                     self::Expr {
                         kind: self::ExprKind::FuncCall {
-                            full_name: format!("{}as {}", nesting_prefix, self.ty).intern(),
-                            generic_replacements: Default::default(),
+                            full_name: format!("as {}", self.ty)
+                                .encode(nesting_prefix, None, Default::default(), None)
+                                .intern(),
                             args: vec![thing.into_inner()].into(),
                         },
                         ty: Default::default(),
@@ -271,19 +269,17 @@ impl Expr {
             }
 
             Literal(literal) => literal.gen(o),
-            FuncCall {
-                full_name,
-                generic_replacements,
-                args,
-            } => {
+            FuncCall { full_name, args } => {
                 // special case for entry point
-                if full_name == "main" && generic_replacements.is_empty() && args.is_empty() {
-                    o.o.push_str(full_name)
+                if full_name == "main" && args.is_empty() {
+                    o.o.push_str("main")
                 } else {
                     o.o.push_str(
                         &full_name
                             .encode(
-                                generic_replacements,
+                                "",
+                                None,
+                                Default::default(),
                                 Some(args.iter().cloned().map(|it| it.ty).vec().into()),
                             )
                             .mangle(),

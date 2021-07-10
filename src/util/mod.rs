@@ -7,6 +7,8 @@ pub trait StrExt {
     /// make a proper name by attaching formatted stuff
     fn encode(
         &self,
+        nesting_prefix: &str,
+        receiver_ty: Option<Type>,
         generic_replacements: Rc<Vec<Type>>,
         arg_types: Option<Rc<Vec<Type>>>,
     ) -> String;
@@ -17,9 +19,12 @@ pub trait StrExt {
 impl StrExt for str {
     fn encode(
         &self,
+        nesting_prefix: &str,
+        receiver_ty: Option<Type>,
         generic_replacements: Rc<Vec<Type>>,
         arg_types: Option<Rc<Vec<Type>>>,
     ) -> String {
+        let receiver_ty = receiver_ty.map_or(String::new(), |it| format!("{}::", it));
         let generic_replacements = if !generic_replacements.is_empty() {
             format!(
                 "<{}>",
@@ -40,7 +45,10 @@ impl StrExt for str {
         } else {
             String::new()
         };
-        format!("{}{}{}", self, generic_replacements, arg_types)
+        format!(
+            "{}{}{}{}{}",
+            nesting_prefix, receiver_ty, self, generic_replacements, arg_types
+        )
     }
 
     fn mangle(&self) -> String {

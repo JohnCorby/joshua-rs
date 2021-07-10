@@ -11,8 +11,8 @@ impl Define {
     pub fn replace_generics(&mut self, generic_map: &GenericMap) {
         use DefineKind::*;
         match &mut self.kind {
-            Struct { body, .. } => body.modify(|body| {
-                for define in body {
+            Struct { body, .. } => body.modify(|it| {
+                for define in it {
                     define.replace_generics(generic_map)
                 }
             }),
@@ -27,8 +27,8 @@ impl Define {
                 if let Some(receiver_ty) = receiver_ty {
                     receiver_ty.replace_generics(generic_map)
                 }
-                args.modify(|args| {
-                    for arg in args {
+                args.modify(|it| {
+                    for arg in it {
                         arg.replace_generics(generic_map)
                     }
                 });
@@ -83,7 +83,7 @@ impl Statement {
             } => {
                 init.replace_generics(generic_map);
                 cond.replace_generics(generic_map);
-                update.modify(|update| update.replace_generics(generic_map));
+                update.modify(|it| it.replace_generics(generic_map));
                 block.replace_generics(generic_map);
             }
             ExprAssign { lvalue, rvalue } => {
@@ -124,19 +124,17 @@ impl Expr {
         use ExprKind::*;
         match &mut self.kind {
             Cast { thing, ty, .. } => {
-                thing.modify(|thing| thing.replace_generics(generic_map));
+                thing.modify(|it| it.replace_generics(generic_map));
                 ty.replace_generics(generic_map);
             }
             MethodCall {
                 receiver,
                 func_call,
             } => {
-                receiver.modify(|receiver| receiver.replace_generics(generic_map));
+                receiver.modify(|it| it.replace_generics(generic_map));
                 func_call.replace_generics(generic_map);
             }
-            Field { receiver, .. } => {
-                receiver.modify(|receiver| receiver.replace_generics(generic_map))
-            }
+            Field { receiver, .. } => receiver.modify(|it| it.replace_generics(generic_map)),
             Literal(_) => {}
             FuncCall(func_call) => func_call.replace_generics(generic_map),
             Var(_) => {}
@@ -150,13 +148,13 @@ impl FuncCall {
         if let Some(receiver_ty) = &mut self.receiver_ty {
             receiver_ty.replace_generics(generic_map)
         }
-        self.generic_replacements.modify(|replacements| {
-            for replacement in replacements {
+        self.generic_replacements.modify(|it| {
+            for replacement in it {
                 replacement.replace_generics(generic_map)
             }
         });
-        self.args.modify(|args| {
-            for arg in args {
+        self.args.modify(|it| {
+            for arg in it {
                 arg.replace_generics(generic_map)
             }
         });
@@ -167,7 +165,7 @@ impl Type {
     pub fn replace_generics(&mut self, generic_map: &GenericMap) {
         use TypeKind::*;
         match &mut self.kind {
-            Ptr(inner) => inner.modify(|inner| inner.replace_generics(generic_map)),
+            Ptr(inner) => inner.modify(|it| it.replace_generics(generic_map)),
             Named {
                 name,
                 generic_replacements,
@@ -177,8 +175,8 @@ impl Type {
                     *self = generic_map[name].clone();
                 } else {
                     // we are a struct
-                    generic_replacements.modify(|replacements| {
-                        for replacement in replacements {
+                    generic_replacements.modify(|it| {
+                        for replacement in it {
                             replacement.replace_generics(generic_map)
                         }
                     });

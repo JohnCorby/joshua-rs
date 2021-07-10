@@ -34,12 +34,9 @@ impl Display for Type {
                 nesting_prefix,
                 name,
                 generic_replacements,
-            } => write!(
-                f,
-                "{}{}",
-                nesting_prefix,
-                name.encode(generic_replacements.clone(), None)
-            ),
+            } => {
+                f.write_str(&name.encode(nesting_prefix, None, generic_replacements.clone(), None))
+            }
             Ptr(ty) => write!(f, "ptr<{}>", ty),
             GenericPlaceholder(name) => f.write_str(name),
             _ => panic!("type {:?} shouldn't be displayed or encoded", self),

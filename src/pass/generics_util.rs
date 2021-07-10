@@ -284,7 +284,7 @@ impl Scopes {
                     .rev()
                     .map(|scope| &scope.symbols)
                     .flatten()
-                    .find(|&s| matches!(s, Symbol::GenericStruct { .. }) && symbol.generic_eq(s))
+                    .find(|s| matches!(s, Symbol::GenericStruct { .. }) && symbol.generic_eq(s))
                     .ok_or_else(|| {
                         format!("could not find generic struct matching {}", symbol)
                             .into_err(Some(span))
@@ -365,7 +365,7 @@ impl Scopes {
                     .rev()
                     .map(|scope| &scope.symbols)
                     .flatten()
-                    .find(|&s| matches!(s, Symbol::GenericFunc { .. }) && symbol.generic_eq(s))
+                    .find(|s| matches!(s, Symbol::GenericFunc { .. }) && symbol.generic_eq(s))
                     .ok_or_else(|| {
                         format!("could not find generic func matching {}", symbol)
                             .into_err(Some(span))

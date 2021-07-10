@@ -129,31 +129,12 @@ impl Display for Symbol {
                 ..
             } => write!(
                 f,
-                "func {}{}",
-                receiver_ty
-                    .as_ref()
-                    .map_or(String::new(), |it| format!("{}::", it)),
-                name.encode(generic_replacements.clone(), Some(arg_types.clone()))
-            ),
-            GenericFunc {
-                receiver_ty,
-                name,
-                generic_placeholders,
-                arg_types,
-                ..
-            } => write!(
-                f,
-                "generic func {}{}",
-                receiver_ty
-                    .as_ref()
-                    .map_or(String::new(), |it| format!("{}::", it)),
+                "func {}",
                 name.encode(
-                    generic_placeholders
-                        .iter()
-                        .map(|&it| Type::GenericPlaceholder(it))
-                        .vec()
-                        .into(),
-                    Some(arg_types.clone()),
+                    "",
+                    receiver_ty.clone(),
+                    generic_replacements.clone(),
+                    Some(arg_types.clone())
                 )
             ),
             Var { name, .. } => write!(f, "var {}", name),
@@ -164,7 +145,28 @@ impl Display for Symbol {
             } => write!(
                 f,
                 "struct {}",
-                name.encode(generic_replacements.clone(), None)
+                name.encode("", None, generic_replacements.clone(), None)
+            ),
+            GenericPlaceholder(name) => write!(f, "generic placeholder {}", name),
+            GenericFunc {
+                receiver_ty,
+                name,
+                generic_placeholders,
+                arg_types,
+                ..
+            } => write!(
+                f,
+                "generic func {}",
+                name.encode(
+                    "",
+                    receiver_ty.clone(),
+                    generic_placeholders
+                        .iter()
+                        .map(|it| Type::GenericPlaceholder(it))
+                        .vec()
+                        .into(),
+                    Some(arg_types.clone()),
+                )
             ),
             GenericStruct {
                 name,
@@ -174,15 +176,16 @@ impl Display for Symbol {
                 f,
                 "generic struct {}",
                 name.encode(
+                    "",
+                    None,
                     generic_placeholders
                         .iter()
-                        .map(|&it| Type::GenericPlaceholder(it))
+                        .map(|it| Type::GenericPlaceholder(it))
                         .vec()
                         .into(),
                     None
                 )
             ),
-            GenericPlaceholder(name) => write!(f, "generic placeholder {}", name),
         }
     }
 }
@@ -274,10 +277,10 @@ impl Scopes {
             // placeholders always eq any other placeholder
             Symbol::GenericStruct { .. } => symbols
                 .iter()
-                .find(|&s| matches!(s, Symbol::GenericStruct { .. }) && symbol.generic_eq(s)),
+                .find(|s| matches!(s, Symbol::GenericStruct { .. }) && symbol.generic_eq(s)),
             Symbol::GenericFunc { .. } => symbols
                 .iter()
-                .find(|&s| matches!(s, Symbol::GenericFunc { .. }) && symbol.generic_eq(s)),
+                .find(|s| matches!(s, Symbol::GenericFunc { .. }) && symbol.generic_eq(s)),
 
             _ => symbols.get(&symbol),
         };

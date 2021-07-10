@@ -12,13 +12,11 @@ pub struct Program(pub Rc<Vec<Define>>);
 pub enum Define {
     Struct {
         full_name: &'static str,
-        generic_replacements: Rc<Vec<Type>>,
         body: Rc<Vec<Define>>,
     },
     Func {
         ty: Type,
         full_name: &'static str,
-        generic_replacements: Rc<Vec<Type>>,
         args: Rc<Vec<VarDefine>>,
         body: Block,
     },
@@ -102,7 +100,6 @@ pub enum ExprKind {
     Literal(Literal),
     FuncCall {
         full_name: &'static str,
-        generic_replacements: Rc<Vec<Type>>,
         args: Rc<Vec<Expr>>,
     },
     Var(&'static str),

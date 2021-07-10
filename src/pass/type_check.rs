@@ -110,8 +110,9 @@ impl Define {
                     body.extend(func_defines);
 
                     ast2::Define::Struct {
-                        full_name: format!("{}{}", nesting_prefix, name).intern(),
-                        generic_replacements,
+                        full_name: name
+                            .encode(nesting_prefix, None, generic_replacements, None)
+                            .intern(),
                         body: body.into(),
                     }
                 } else {
@@ -197,14 +198,9 @@ impl Define {
 
                     ast2::Define::Func {
                         ty,
-                        full_name: format!(
-                            "{}{}{}",
-                            nesting_prefix,
-                            receiver_ty.map_or(String::new(), |it| format!("{}::", it)),
-                            name
-                        )
-                        .intern(),
-                        generic_replacements,
+                        full_name: name
+                            .encode(nesting_prefix, receiver_ty, generic_replacements, None)
+                            .intern(),
                         args: args.into(),
                         body,
                     }
@@ -476,7 +472,7 @@ impl Expr {
                 let nesting_prefix =
                     if matches!(thing.ty, ast2::Type::Literal(_) | ast2::Type::CCode) {
                         // casting will always work
-                        Default::default()
+                        ""
                     } else {
                         let name = format!("as {}", ty).intern();
                         let symbol = scopes.find(
@@ -491,10 +487,7 @@ impl Expr {
                         )?;
                         debug_assert_eq!(ty, symbol.ty());
                         match symbol {
-                            Symbol::Func {
-                                nesting_prefix: symbol_nesting_prefix,
-                                ..
-                            } => symbol_nesting_prefix,
+                            Symbol::Func { nesting_prefix, .. } => nesting_prefix,
                             _ => unreachable!(),
                         }
                     };
@@ -513,9 +506,7 @@ impl Expr {
             } => {
                 let receiver = receiver.deref().clone();
                 let receiver_span = receiver.span;
-                func_call
-                    .args
-                    .modify(|args| args.insert(0, receiver.clone()));
+                func_call.args.modify(|it| it.insert(0, receiver.clone()));
                 func_call.span = self.span;
 
                 let receiver = receiver.type_check(scopes, o, None)?;
@@ -631,14 +622,10 @@ impl FuncCall {
         };
         Ok(ast2::Expr {
             kind: ast2::ExprKind::FuncCall {
-                full_name: format!(
-                    "{}{}{}",
-                    nesting_prefix,
-                    receiver_ty.map_or(String::new(), |it| format!("{}::", it)),
-                    self.name
-                )
-                .intern(),
-                generic_replacements,
+                full_name: self
+                    .name
+                    .encode(nesting_prefix, receiver_ty, generic_replacements, None)
+                    .intern(),
                 args,
             },
             ty: symbol.ty(),
@@ -676,7 +663,7 @@ impl Type {
                         err(
                             &format!(
                                 "could not find struct or generic placeholder {}",
-                                name.encode(generic_replacements, None)
+                                name.encode("", None, generic_replacements, None)
                             ),
                             span,
                         )
