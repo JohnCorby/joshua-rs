@@ -152,7 +152,8 @@ impl Define {
                 let ty = ty_ast1.clone().type_check(scopes)?;
                 let receiver_ty = receiver_ty_ast1
                     .as_ref()
-                    .map(|it| it.clone().type_check(scopes))
+                    .cloned()
+                    .map(|it| it.type_check(scopes))
                     .transpose()?;
 
                 if generic_placeholders.is_empty() {

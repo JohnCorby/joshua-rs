@@ -8,6 +8,7 @@ use crate::pass::scope::{Scope, Scopes, Symbol};
 use crate::span::Span;
 use crate::util::{IterExt, IterResExt, RcExt};
 use std::ops::Deref;
+use std::rc::Rc;
 
 // impl Type {
 //     /// `Type::type_check` but for generic structs
@@ -554,6 +555,15 @@ impl Scopes {
                 generic_replacements,
                 ..
             } if !generic_replacements.is_empty() => {
+                // this should only happen when type checking generic func's args or receiver ty
+                // and there's a struct with a replacement of one of the func's placeholders
+                if generic_replacements
+                    .iter()
+                    .any(ast2::Type::contains_placeholder)
+                {
+                    return Ok(symbol.clone());
+                }
+
                 // find associated generic symbol
                 let generic_symbol = self
                     .0
@@ -596,25 +606,34 @@ impl Scopes {
                         });
 
                         let scopes_after = self.0.split_off(scopes_index);
-                        Define {
-                            span,
-                            kind: DefineKind::Struct {
-                                name,
-                                generic_placeholders: Default::default(),
-                                body,
-                            },
-                        }
-                        .type_check(self, generic_replacements.clone())?
-                        .gen(&mut Default::default());
-
-                        let symbol = self
+                        let symbol = if let Some(symbol) = self
                             .0
                             .last()
                             .unwrap()
                             .symbols
                             .get(&Symbol::new_struct(name, generic_replacements.clone()))
-                            .unwrap()
-                            .clone();
+                        {
+                            symbol
+                        } else {
+                            Define {
+                                span,
+                                kind: DefineKind::Struct {
+                                    name,
+                                    generic_placeholders: Default::default(),
+                                    body,
+                                },
+                            }
+                            .type_check(self, generic_replacements.clone())?
+                            .gen(&mut Default::default());
+
+                            self.0
+                                .last()
+                                .unwrap()
+                                .symbols
+                                .get(&Symbol::new_struct(name, generic_replacements.clone()))
+                                .unwrap()
+                        }
+                        .clone();
                         self.0.extend(scopes_after);
                         Ok(symbol)
                     }
@@ -681,27 +700,14 @@ impl Scopes {
                         });
 
                         let scopes_after = self.0.split_off(scopes_index);
-                        // Define {
-                        //     span,
-                        //     kind: DefineKind::Func {
-                        //         ty: ty_ast1,
-                        //         receiver_ty: receiver_ty_ast1.clone(),
-                        //         name,
-                        //         generic_placeholders: Default::default(),
-                        //         args: args.clone(),
-                        //         body,
-                        //     },
-                        // }
-                        // .type_check(self, generic_replacements.clone())?
-                        // .gen(&mut Default::default());
-
                         // modified from Define::type_check
                         let receiver_ty = receiver_ty_ast1
                             .as_ref()
-                            .map(|it| it.clone().type_check(self))
+                            .cloned()
+                            .map(|it| it.type_check(self))
                             .transpose()?;
                         self.push(Scope::new(None, false, None));
-                        let arg_types = args
+                        let arg_types: Rc<Vec<_>> = args
                             .iter()
                             .cloned()
                             .map(|it| it.type_check(self, true, false).map(|it| it.ty))
@@ -709,19 +715,42 @@ impl Scopes {
                             .into();
                         self.pop();
 
-                        let symbol = self
-                            .0
-                            .last()
-                            .unwrap()
-                            .symbols
-                            .get(&Symbol::new_func(
-                                receiver_ty,
+                        let symbol = if let Some(symbol) =
+                            self.0.last().unwrap().symbols.get(&Symbol::new_func(
+                                receiver_ty.clone(),
                                 name,
                                 generic_replacements.clone(),
-                                arg_types,
-                            ))
-                            .unwrap()
-                            .clone();
+                                arg_types.clone(),
+                            )) {
+                            symbol
+                        } else {
+                            Define {
+                                span,
+                                kind: DefineKind::Func {
+                                    ty: ty_ast1,
+                                    receiver_ty: receiver_ty_ast1,
+                                    name,
+                                    generic_placeholders: Default::default(),
+                                    args,
+                                    body,
+                                },
+                            }
+                            .type_check(self, generic_replacements.clone())?
+                            .gen(&mut Default::default());
+
+                            self.0
+                                .last()
+                                .unwrap()
+                                .symbols
+                                .get(&Symbol::new_func(
+                                    receiver_ty,
+                                    name,
+                                    generic_replacements.clone(),
+                                    arg_types,
+                                ))
+                                .unwrap()
+                        }
+                        .clone();
                         self.0.extend(scopes_after);
                         Ok(symbol)
                     }

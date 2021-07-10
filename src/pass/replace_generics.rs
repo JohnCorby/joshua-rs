@@ -1,5 +1,4 @@
 //! replaces generic placeholders with real types
-//! converting back so ast1 so we have to type check again
 
 use crate::pass::ast1::*;
 use crate::util::RcExt;

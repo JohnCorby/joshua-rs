@@ -270,23 +270,6 @@ impl Scopes {
 impl Scopes {
     pub fn add(&mut self, symbol: Symbol, span: Span) -> Res {
         let symbols = &mut self.0.last_mut().unwrap().symbols;
-
-        // specialized symbols are fine to already exist
-        match &symbol {
-            Symbol::Struct {
-                generic_replacements,
-                ..
-            }
-            | Symbol::Func {
-                generic_replacements,
-                ..
-            } if !generic_replacements.is_empty() => {
-                symbols.insert(symbol);
-                return Ok(());
-            }
-            _ => {}
-        }
-
         let existing = match &symbol {
             // placeholders always eq any other placeholder
             Symbol::GenericStruct { .. } => symbols
