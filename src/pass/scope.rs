@@ -323,20 +323,28 @@ impl Scopes {
                 arg_types,
                 ..
             } if generic_replacements.is_empty() => {
-                if let Some(existing) = self.find_generic_func_inference(
-                    o,
-                    &Symbol::new_func(
-                        receiver_ty.clone(),
-                        name,
-                        Default::default(),
-                        arg_types.clone(),
+                match self.infer_generic_replacements(symbol, type_hint) {
+                    Some(generic_replacements) => Ok(self
+                        .find(
+                            o,
+                            &Symbol::new_func(
+                                receiver_ty.clone(),
+                                name,
+                                generic_replacements.into(),
+                                arg_types.clone(),
+                            ),
+                            type_hint,
+                            span,
+                        )
+                        .unwrap()),
+                    None => err(
+                        &format!(
+                            "could not find {} (including with generic replacement inference)",
+                            symbol
+                        ),
+                        span,
                     ),
-                    type_hint,
-                    span,
-                )? {
-                    return Ok(existing);
                 }
-                err(&format!("could not find {}", symbol), span)
             }
 
             _ => err(&format!("could not find {}", symbol), span),

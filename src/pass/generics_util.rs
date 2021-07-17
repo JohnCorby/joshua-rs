@@ -76,7 +76,7 @@ impl Symbol {
         }
     }
     /// generic symbol == normal counterpart
-    fn normal_eq_generic(&self, other: &Self) -> bool {
+    fn generic_eq_normal(&self, other: &Self) -> bool {
         use Symbol::*;
         match (self, other) {
             (
@@ -292,7 +292,7 @@ impl Scopes {
 
                         // then find the generic symbol
                         for existing in scope.symbols.iter() {
-                            if symbol.normal_eq_generic(existing) {
+                            if symbol.generic_eq_normal(existing) {
                                 return Some(existing);
                             }
                         }
@@ -305,8 +305,6 @@ impl Scopes {
                     .clone();
 
                 match generic_symbol {
-                    Symbol::Struct { .. } => Ok(generic_symbol.clone()),
-
                     Symbol::GenericStruct {
                         span,
                         generic_placeholders,
@@ -369,7 +367,7 @@ impl Scopes {
                     .rev()
                     .map(|scope| &scope.symbols)
                     .flatten()
-                    .find(|s| symbol.normal_eq_generic(s))
+                    .find(|s| symbol.generic_eq_normal(s))
                     .ok_or_else(|| {
                         format!("could not find generic func matching {}", symbol)
                             .into_err(Some(span))
@@ -377,8 +375,6 @@ impl Scopes {
                     .clone();
 
                 match generic_symbol {
-                    Symbol::Func { .. } => Ok(generic_symbol.clone()),
-
                     Symbol::GenericFunc {
                         span,
                         mut ty_ast1,
@@ -494,13 +490,11 @@ impl Scopes {
     /// find a generic func with inference
     ///
     /// the goal is the figure out what the generic replacements are without actually being given them
-    pub fn find_generic_func_inference(
+    pub fn infer_generic_replacements(
         &mut self,
-        o: &mut Output,
         symbol: &Symbol,
         type_hint: Option<&ast2::Type>,
-        span: Span,
-    ) -> Res<Option<Symbol>> {
+    ) -> Option<Vec<ast2::Type>> {
         match symbol {
             Symbol::Func {
                 receiver_ty,
@@ -512,9 +506,7 @@ impl Scopes {
                     "match --- {:?} {:?} :: {} < ?? >( {:?} )",
                     type_hint, receiver_ty, name, arg_types
                 );
-
-                let generic_replacements = self
-                    .0
+                self.0
                     .iter()
                     .rev()
                     .map(|scope| &scope.symbols)
@@ -531,12 +523,12 @@ impl Scopes {
                             option_eq(
                                 receiver_ty.as_ref(),
                                 other_receiver_ty.as_ref(),
-                                ast2::Type::placeholder_eq_placeholder,
+                                ast2::Type::placeholder_eq_any,
                             ) && name == other_name
                                 && iter_eq(
                                     arg_types.iter(),
                                     other_arg_types.iter(),
-                                    ast2::Type::placeholder_eq_placeholder,
+                                    ast2::Type::placeholder_eq_any,
                                 )
                         }
                         _ => false,
@@ -682,31 +674,9 @@ impl Scopes {
                             }
                             _ => unreachable!(),
                         }
-                    });
-                let generic_replacements = match generic_replacements {
-                    Some(it) => it,
-                    None => return Ok(None),
-                };
-
-                let mut symbol = symbol.clone();
-                match &mut symbol {
-                    Symbol::Func {
-                        generic_replacements: other_generic_replacements,
-                        ..
-                    } => other_generic_replacements.modify(|it| *it = generic_replacements),
-                    _ => unreachable!(),
-                }
-                Some(self.add_specialized(o, &symbol, span)).transpose()
-                // None
+                    })
             }
             _ => unreachable!(),
         }
-        // err(
-        //     &format!(
-        //         "could not find generic func matching func {} using generic replacement inference",
-        //         name.encode(&[], Some(arg_types))
-        //     ),
-        //     Some(span),
-        // )
     }
 }
