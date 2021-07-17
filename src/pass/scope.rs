@@ -297,8 +297,15 @@ impl Scopes {
         type_hint: Option<&Type>,
         span: Span,
     ) -> Res<Symbol> {
+        // first just try normal method
+        for scope in self.0.iter().rev() {
+            if let Some(existing) = scope.symbols.get(symbol) {
+                return Ok(existing.clone());
+            }
+        }
+
         match symbol {
-            // specialized symbols use the special find fn
+            // then do either specialized symbol creation
             Symbol::Struct {
                 generic_replacements,
                 ..
@@ -306,35 +313,33 @@ impl Scopes {
             | Symbol::Func {
                 generic_replacements,
                 ..
-            } if !generic_replacements.is_empty() => self.find_generic(o, symbol, span),
+            } if !generic_replacements.is_empty() => self.add_specialized(o, symbol, span),
 
-            _ => {
-                for scope in self.0.iter().rev() {
-                    if let Some(existing) = scope.symbols.get(symbol) {
-                        return Ok(existing.clone());
-                    }
+            // or do inference from no-replacements func
+            Symbol::Func {
+                receiver_ty,
+                name,
+                generic_replacements,
+                arg_types,
+                ..
+            } if generic_replacements.is_empty() => {
+                if let Some(existing) = self.find_generic_func_inference(
+                    o,
+                    &Symbol::new_func(
+                        receiver_ty.clone(),
+                        name,
+                        Default::default(),
+                        arg_types.clone(),
+                    ),
+                    type_hint,
+                    span,
+                )? {
+                    return Ok(existing);
                 }
-
-                // try using inference
-                if let Symbol::Func {
-                    receiver_ty,
-                    name,
-                    arg_types,
-                    ..
-                } = symbol.clone()
-                {
-                    if let Some(existing) = self.find_generic_func_inference(
-                        o,
-                        &Symbol::new_func(receiver_ty, name, Default::default(), arg_types),
-                        type_hint,
-                        span,
-                    )? {
-                        return Ok(existing);
-                    }
-                }
-
                 err(&format!("could not find {}", symbol), span)
             }
+
+            _ => err(&format!("could not find {}", symbol), span),
         }
     }
 }

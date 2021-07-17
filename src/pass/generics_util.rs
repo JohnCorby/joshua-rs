@@ -10,7 +10,6 @@ use crate::span::Span;
 use crate::util::{IterExt, IterResExt, RcExt};
 use indexmap::IndexSet;
 use std::ops::Deref;
-use std::rc::Rc;
 
 fn option_eq<A, B>(a: Option<A>, b: Option<B>, mut eq: impl FnMut(A, B) -> bool) -> bool {
     match (a, b) {
@@ -261,15 +260,16 @@ impl ast2::Type {
 }
 
 impl Scopes {
-    /// find a generic symbol using a specialized one.
-    /// add and gen that specialized one if it hasn't already been
-    pub fn find_generic(&mut self, o: &mut Output, symbol: &Symbol, span: Span) -> Res<Symbol> {
+    /// create a specialized symbol and return it
+    pub fn add_specialized(&mut self, o: &mut Output, symbol: &Symbol, span: Span) -> Res<Symbol> {
         match symbol {
             Symbol::Struct {
                 name,
                 generic_replacements,
                 ..
-            } if !generic_replacements.is_empty() => {
+            } => {
+                debug_assert!(!generic_replacements.is_empty());
+
                 // this should only happen when type checking generic func's args or receiver ty
                 // and there's a struct with a replacement of one of the func's placeholders
                 if generic_replacements
@@ -284,9 +284,20 @@ impl Scopes {
                     .0
                     .iter()
                     .rev()
-                    .map(|scope| &scope.symbols)
-                    .flatten()
-                    .find(|s| symbol.normal_eq_generic(s))
+                    .find_map(|scope| {
+                        // try to find the specialized symbol first
+                        if let Some(existing) = scope.symbols.get(symbol) {
+                            return Some(existing);
+                        }
+
+                        // then find the generic symbol
+                        for existing in scope.symbols.iter() {
+                            if symbol.normal_eq_generic(existing) {
+                                return Some(existing);
+                            }
+                        }
+                        None
+                    })
                     .ok_or_else(|| {
                         format!("could not find generic struct matching {}", symbol)
                             .into_err(Some(span))
@@ -294,6 +305,8 @@ impl Scopes {
                     .clone();
 
                 match generic_symbol {
+                    Symbol::Struct { .. } => Ok(generic_symbol.clone()),
+
                     Symbol::GenericStruct {
                         span,
                         generic_placeholders,
@@ -321,24 +334,18 @@ impl Scopes {
                         });
 
                         let scopes_after = self.0.split_off(scopes_index);
-                        let symbol =
-                            if let Some(symbol) = self.0.last().unwrap().symbols.get(symbol) {
-                                symbol
-                            } else {
-                                Define {
-                                    span,
-                                    kind: DefineKind::Struct {
-                                        name,
-                                        generic_placeholders: Default::default(),
-                                        body,
-                                    },
-                                }
-                                .type_check(self, o, generic_replacements.clone())?
-                                .gen(o);
+                        Define {
+                            span,
+                            kind: DefineKind::Struct {
+                                name,
+                                generic_placeholders: Default::default(),
+                                body,
+                            },
+                        }
+                        .type_check(self, o, generic_replacements.clone())?
+                        .gen(o);
 
-                                self.0.last().unwrap().symbols.get(symbol).unwrap()
-                            }
-                            .clone();
+                        let symbol = self.0.last().unwrap().symbols.get(symbol).unwrap().clone();
                         self.0.extend(scopes_after);
                         Ok(symbol)
                     }
@@ -352,7 +359,9 @@ impl Scopes {
                 generic_replacements,
                 arg_types,
                 ..
-            } if !generic_replacements.is_empty() => {
+            } => {
+                debug_assert!(!generic_replacements.is_empty());
+
                 // find associated generic symbol
                 let generic_symbol = self
                     .0
@@ -368,6 +377,8 @@ impl Scopes {
                     .clone();
 
                 match generic_symbol {
+                    Symbol::Func { .. } => Ok(generic_symbol.clone()),
+
                     Symbol::GenericFunc {
                         span,
                         mut ty_ast1,
@@ -407,6 +418,7 @@ impl Scopes {
                         });
 
                         let scopes_after = self.0.split_off(scopes_index);
+                        // check that the types actually match
                         // modified from Define::type_check
                         let other_receiver_ty = receiver_ty_ast1
                             .as_ref()
@@ -414,14 +426,12 @@ impl Scopes {
                             .map(|it| it.type_check(self, o))
                             .transpose()?;
                         self.push(Scope::new(None, false, None));
-                        let other_arg_types: Rc<Vec<_>> = args
+                        let other_arg_types = args
                             .iter()
                             .cloned()
                             .map(|it| it.type_check(self, o, true, false).map(|it| it.ty))
-                            .res_vec()?
-                            .into();
+                            .res_vec()?;
                         self.pop();
-                        // check that the types actually match
                         receiver_ty
                             .as_ref()
                             .map(|it| {
@@ -440,27 +450,21 @@ impl Scopes {
                             })
                             .res_vec()?;
 
-                        let symbol =
-                            if let Some(symbol) = self.0.last().unwrap().symbols.get(symbol) {
-                                symbol
-                            } else {
-                                Define {
-                                    span,
-                                    kind: DefineKind::Func {
-                                        ty: ty_ast1,
-                                        receiver_ty: receiver_ty_ast1,
-                                        name,
-                                        generic_placeholders: Default::default(),
-                                        args,
-                                        body,
-                                    },
-                                }
-                                .type_check(self, o, generic_replacements.clone())?
-                                .gen(o);
+                        Define {
+                            span,
+                            kind: DefineKind::Func {
+                                ty: ty_ast1,
+                                receiver_ty: receiver_ty_ast1,
+                                name,
+                                generic_placeholders: Default::default(),
+                                args,
+                                body,
+                            },
+                        }
+                        .type_check(self, o, generic_replacements.clone())?
+                        .gen(o);
 
-                                self.0.last().unwrap().symbols.get(symbol).unwrap()
-                            }
-                            .clone();
+                        let symbol = self.0.last().unwrap().symbols.get(symbol).unwrap().clone();
                         self.0.extend(scopes_after);
                         Ok(symbol)
                     }
@@ -692,7 +696,7 @@ impl Scopes {
                     } => other_generic_replacements.modify(|it| *it = generic_replacements),
                     _ => unreachable!(),
                 }
-                Some(self.find_generic(o, &symbol, span)).transpose()
+                Some(self.add_specialized(o, &symbol, span)).transpose()
                 // None
             }
             _ => unreachable!(),
