@@ -21,6 +21,9 @@
       <sourceFolder url="file://$MODULE_DIR$/target/debug/build/indexmap-bbb9498d12d36247/out" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/target/debug/build/winapi-43bd369acb0d7690/out" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/target/debug/build/indexmap-675d3f84b312962e/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/debug/build/libc-bb2d1cc705da6188/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/debug/build/proc-macro2-e726ea16b37e4e87/out" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/target/debug/build/syn-4988607c0985f7ce/out" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>
     <orderEntry type="inheritedJdk" />

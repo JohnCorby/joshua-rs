@@ -257,7 +257,7 @@ impl Scopes {
             }
         }
     }
-    /// note: only checks one current scope and outer ones -284 -1278
+    /// note: only checks one current scope and outer ones
     pub fn check_return_called(&self, span: Span) -> Res {
         let return_called = self.0.last().unwrap().return_called;
         let is_void = self.func_return_type() == &Type::Primitive(PrimitiveType::Void);

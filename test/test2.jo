@@ -35,7 +35,7 @@ struct str {
         auto chr = <{ *${ptr} }> as u8
         until(chr == 0 as u8) {
             result.len = result.len + 1 as u64
-                    <{ ${ptr}++ }>
+            <{ ${ptr}++ }>
             chr = <{ *${ptr} }> as u8
         }
 
