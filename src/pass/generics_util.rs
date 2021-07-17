@@ -28,15 +28,10 @@ fn iter_eq<A, B>(
 }
 
 impl Symbol {
-    /// special eq check used in various places
-    ///
-    /// this is a bit messy. maybe clean it up at some point? it doesn't really matter
-    pub fn generic_eq(&self, other: &Self) -> bool {
+    /// generic symbol == generic symbol
+    pub fn generic_eq_generic(&self, other: &Self) -> bool {
         use Symbol::*;
         match (self, other) {
-            // generic vs generic
-            // used in Scopes::add
-            // placeholder == placeholder
             (
                 GenericStruct {
                     name,
@@ -78,9 +73,13 @@ impl Symbol {
                     )
             }
 
-            // normal vs generic
-            // used in Scopes::find_generic
-            // placeholder == any
+            _ => false,
+        }
+    }
+    /// generic symbol == normal counterpart
+    fn normal_eq_generic(&self, other: &Self) -> bool {
+        use Symbol::*;
+        match (self, other) {
             (
                 Struct {
                     name,
@@ -150,7 +149,7 @@ impl Symbol {
                     )
             }
 
-            _ => unreachable!(),
+            _ => false,
         }
     }
 }
@@ -287,7 +286,7 @@ impl Scopes {
                     .rev()
                     .map(|scope| &scope.symbols)
                     .flatten()
-                    .find(|s| matches!(s, Symbol::GenericStruct { .. }) && symbol.generic_eq(s))
+                    .find(|s| symbol.normal_eq_generic(s))
                     .ok_or_else(|| {
                         format!("could not find generic struct matching {}", symbol)
                             .into_err(Some(span))
@@ -361,7 +360,7 @@ impl Scopes {
                     .rev()
                     .map(|scope| &scope.symbols)
                     .flatten()
-                    .find(|s| matches!(s, Symbol::GenericFunc { .. }) && symbol.generic_eq(s))
+                    .find(|s| symbol.normal_eq_generic(s))
                     .ok_or_else(|| {
                         format!("could not find generic func matching {}", symbol)
                             .into_err(Some(span))

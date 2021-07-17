@@ -275,12 +275,9 @@ impl Scopes {
         let symbols = &mut self.0.last_mut().unwrap().symbols;
         let existing = match &symbol {
             // placeholders always eq any other placeholder
-            Symbol::GenericStruct { .. } => symbols
-                .iter()
-                .find(|s| matches!(s, Symbol::GenericStruct { .. }) && symbol.generic_eq(s)),
-            Symbol::GenericFunc { .. } => symbols
-                .iter()
-                .find(|s| matches!(s, Symbol::GenericFunc { .. }) && symbol.generic_eq(s)),
+            Symbol::GenericStruct { .. } | Symbol::GenericFunc { .. } => {
+                symbols.iter().find(|s| symbol.generic_eq_generic(s))
+            }
 
             _ => symbols.get(&symbol),
         };
