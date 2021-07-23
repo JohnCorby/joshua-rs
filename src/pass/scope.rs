@@ -220,8 +220,7 @@ impl Scopes {
     pub fn nesting_prefix(&self) -> &'static str {
         self.0
             .iter()
-            .rev()
-            .filter_map(|scope| scope.nesting_name.map(|it| format!("{}$", it)))
+            .filter_map(|scope| scope.nesting_name.map(|it| format!("{}`", it)))
             .collect::<String>()
             .intern()
     }
@@ -316,37 +315,12 @@ impl Scopes {
             } if !generic_replacements.is_empty() => self.add_specialized(o, symbol, span),
 
             // or do inference from no-replacements func
-            Symbol::Func {
-                receiver_ty,
-                name,
-                generic_replacements,
-                arg_types,
-                ..
-            } if generic_replacements.is_empty() => {
-                match self.infer_generic_replacements(symbol, type_hint) {
-                    Some(generic_replacements) => Ok(self
-                        .find(
-                            o,
-                            &Symbol::new_func(
-                                receiver_ty.clone(),
-                                name,
-                                generic_replacements.into(),
-                                arg_types.clone(),
-                            ),
-                            type_hint,
-                            span,
-                        )
-                        .unwrap()),
-                    None => err(
-                        &format!(
-                            "could not find {} (including with generic replacement inference)",
-                            symbol
-                        ),
-                        span,
-                    ),
-                }
-            }
-
+            // Symbol::Func {
+            //     generic_replacements,
+            //     ..
+            // } if generic_replacements.is_empty() => {
+            //     self.find_generic_func_inference(o, symbol, type_hint, span)
+            // }
             _ => err(&format!("could not find {}", symbol), span),
         }
     }

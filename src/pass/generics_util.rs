@@ -261,6 +261,10 @@ impl ast2::Type {
 
 impl Scopes {
     /// create a specialized symbol and return it
+    ///
+    /// assumes the specialized version doesn't already exist
+    ///
+    /// the created symbol will be at the same scope level as the generic symbol
     pub fn add_specialized(&mut self, o: &mut Output, symbol: &Symbol, span: Span) -> Res<Symbol> {
         match symbol {
             Symbol::Struct {
@@ -284,20 +288,9 @@ impl Scopes {
                     .0
                     .iter()
                     .rev()
-                    .find_map(|scope| {
-                        // try to find the specialized symbol first
-                        if let Some(existing) = scope.symbols.get(symbol) {
-                            return Some(existing);
-                        }
-
-                        // then find the generic symbol
-                        for existing in scope.symbols.iter() {
-                            if symbol.generic_eq_normal(existing) {
-                                return Some(existing);
-                            }
-                        }
-                        None
-                    })
+                    .map(|scope| &scope.symbols)
+                    .flatten()
+                    .find(|s| symbol.generic_eq_normal(s))
                     .ok_or_else(|| {
                         format!("could not find generic struct matching {}", symbol)
                             .into_err(Some(span))
@@ -486,197 +479,200 @@ impl Scopes {
 //     yes(Hello2);
 // }
 
-impl Scopes {
-    /// find a generic func with inference
-    ///
-    /// the goal is the figure out what the generic replacements are without actually being given them
-    pub fn infer_generic_replacements(
-        &mut self,
-        symbol: &Symbol,
-        type_hint: Option<&ast2::Type>,
-    ) -> Option<Vec<ast2::Type>> {
-        match symbol {
-            Symbol::Func {
-                receiver_ty,
-                name,
-                arg_types,
-                ..
-            } => {
-                println!(
-                    "match --- {:?} {:?} :: {} < ?? >( {:?} )",
-                    type_hint, receiver_ty, name, arg_types
-                );
-                self.0
-                    .iter()
-                    .rev()
-                    .map(|scope| &scope.symbols)
-                    .flatten()
-                    .filter(|s| match s {
-                        // filter non candidates
-                        // this is filter instead of find because there can be multiple (with different # of placeholders)
-                        Symbol::GenericFunc {
-                            receiver_ty: other_receiver_ty,
-                            name: other_name,
-                            arg_types: other_arg_types,
-                            ..
-                        } => {
-                            option_eq(
-                                receiver_ty.as_ref(),
-                                other_receiver_ty.as_ref(),
-                                ast2::Type::placeholder_eq_any,
-                            ) && name == other_name
-                                && iter_eq(
-                                    arg_types.iter(),
-                                    other_arg_types.iter(),
-                                    ast2::Type::placeholder_eq_any,
-                                )
-                        }
-                        _ => false,
-                    })
-                    .find_map(|s| {
-                        // actually do the replacements
-                        match s {
-                            Symbol::GenericFunc {
-                                ty,
-                                receiver_ty: other_receiver_ty,
-                                name,
-                                generic_placeholders,
-                                arg_types: other_arg_types,
-                                ..
-                            } => {
-                                let mut ty = ty.clone();
-                                let mut other_receiver_ty = other_receiver_ty.clone();
-                                let mut other_arg_types = other_arg_types.deref().clone();
-                                let mut generic_placeholders = generic_placeholders
-                                    .iter()
-                                    .copied()
-                                    .collect::<IndexSet<_>>();
-                                let mut generic_replacements =
-                                    vec![Default::default(); generic_placeholders.len()]; // uninitialized values lol
-
-                                println!(
-                                    "candidate? --- {} {:?} :: {} < {:?} >( {:?} )",
-                                    ty,
-                                    other_receiver_ty,
-                                    name,
-                                    generic_placeholders,
-                                    other_arg_types
-                                );
-
-                                impl ast2::Type {
-                                    /// replace a generic placeholder with a real type lol
-                                    ///
-                                    /// the same as the whole pass, except does it for ast2 Type instead of ast1
-                                    fn replace_generic(
-                                        &mut self,
-                                        map: (&'static str, &ast2::Type),
-                                    ) {
-                                        use ast2::Type::*;
-                                        match self {
-                                            Struct {
-                                                generic_replacements,
-                                                ..
-                                            } => generic_replacements.modify(|replacements| {
-                                                for replacement in replacements {
-                                                    replacement.replace_generic(map)
-                                                }
-                                            }),
-                                            Ptr(inner) => {
-                                                inner.modify(|inner| inner.replace_generic(map))
-                                            }
-                                            GenericPlaceholder(name) if *name == map.0 => {
-                                                *self = map.1.clone()
-                                            }
-                                            _ => {}
-                                        }
-                                    }
-                                }
-
-                                // first, try to infer placeholders from arg types
-                                'replace_generics: while !generic_placeholders.is_empty() {
-                                    for (i, replacement) in arg_types.iter().enumerate() {
-                                        if let ast2::Type::GenericPlaceholder(placeholder) =
-                                            other_arg_types[i]
-                                        {
-                                            let map = (placeholder, replacement);
-                                            ty.replace_generic(map);
-                                            if let Some(it) = &mut other_receiver_ty {
-                                                it.replace_generic(map)
-                                            }
-                                            for ty in other_arg_types.iter_mut() {
-                                                ty.replace_generic(map)
-                                            }
-
-                                            let i = generic_placeholders
-                                                .swap_remove_full(&placeholder)
-                                                .unwrap()
-                                                .0;
-                                            generic_replacements[i] = replacement.clone();
-                                            continue 'replace_generics;
-                                        }
-                                    }
-                                    // out of args to replace
-                                    break;
-                                }
-
-                                // then, try to infer placeholder from type hint
-                                if let Some(replacement) = type_hint {
-                                    if let ast2::Type::GenericPlaceholder(placeholder) = ty {
-                                        let map = (placeholder, replacement);
-                                        ty.replace_generic(map);
-                                        if let Some(it) = &mut other_receiver_ty {
-                                            it.replace_generic(map)
-                                        }
-                                        for ty in other_arg_types.iter_mut() {
-                                            ty.replace_generic(map)
-                                        }
-
-                                        let i = generic_placeholders
-                                            .swap_remove_full(&placeholder)
-                                            .unwrap()
-                                            .0;
-                                        generic_replacements[i] = replacement.clone();
-                                    }
-                                }
-
-                                if !generic_placeholders.is_empty() {
-                                    // we still have placeholders, but nothing left to replace, so func doesn't match
-                                    // fixme we actually allow unused placeholders elsewhere, so make that not possible please
-                                    return None;
-                                }
-
-                                println!(
-                                    "candidate! --- {} {:?} :: {} < {:?} >( {:?} )",
-                                    ty,
-                                    other_receiver_ty,
-                                    name,
-                                    generic_replacements,
-                                    other_arg_types
-                                );
-
-                                // finally, check that the types still match after replacement
-                                if receiver_ty != &other_receiver_ty
-                                    || arg_types.deref() != &other_arg_types
-                                {
-                                    return None;
-                                }
-
-                                println!(
-                                    "match! --- {} {:?} :: {} < {:?} >( {:?} )",
-                                    ty,
-                                    other_receiver_ty,
-                                    name,
-                                    generic_replacements,
-                                    other_arg_types
-                                );
-
-                                Some(generic_replacements)
-                            }
-                            _ => unreachable!(),
-                        }
-                    })
-            }
-            _ => unreachable!(),
-        }
-    }
-}
+// impl Scopes {
+//     /// find a generic func with inference
+//     ///
+//     /// the goal is the figure out what the generic replacements are without actually being given them
+//     pub fn find_generic_func_inference(
+//         &mut self,
+//         o: &mut Output,
+//         symbol: &Symbol,
+//         type_hint: Option<&ast2::Type>,
+//         span: Span,
+//     ) -> Res<Symbol> {
+//         match symbol {
+//             Symbol::Func {
+//                 receiver_ty,
+//                 name,
+//                 arg_types,
+//                 ..
+//             } => {
+//                 println!(
+//                     "match --- {:?} {:?} :: {} < ?? >( {:?} )",
+//                     type_hint, receiver_ty, name, arg_types
+//                 );
+//                 let generic_symbol = self.0
+//                     .iter()
+//                     .rev()
+//                     .map(|scope| &scope.symbols)
+//                     .flatten()
+//                     .filter(|s| match s {
+//                         // filter non candidates
+//                         // this is filter instead of find because there can be multiple (with different # of placeholders)
+//                         Symbol::GenericFunc {
+//                             receiver_ty: other_receiver_ty,
+//                             name: other_name,
+//                             arg_types: other_arg_types,
+//                             ..
+//                         } => {
+//                             //
+//                             option_eq(
+//                                 receiver_ty.as_ref(),
+//                                 other_receiver_ty.as_ref(),
+//                                 ast2::Type::placeholder_eq_any,
+//                             ) && name == other_name
+//                                 && iter_eq(
+//                                     arg_types.iter(),
+//                                     other_arg_types.iter(),
+//                                     ast2::Type::placeholder_eq_any,
+//                                 )
+//                         }
+//                         _ => false,
+//                     })
+//                     .find_map(|s| {
+//                         // actually do the replacements
+//                         match s {
+//                             Symbol::GenericFunc {
+//                                 ty,
+//                                 receiver_ty: other_receiver_ty,
+//                                 name,
+//                                 generic_placeholders,
+//                                 arg_types: other_arg_types,
+//                                 ..
+//                             } => {
+//                                 let mut ty = ty.clone();
+//                                 let mut other_receiver_ty = other_receiver_ty.clone();
+//                                 let mut other_arg_types = other_arg_types.deref().clone();
+//                                 let mut generic_placeholders = generic_placeholders
+//                                     .iter()
+//                                     .copied()
+//                                     .collect::<IndexSet<_>>();
+//                                 let mut generic_replacements =
+//                                     vec![Default::default(); generic_placeholders.len()]; // uninitialized values lol
+//
+//                                 println!(
+//                                     "candidate? --- {} {:?} :: {} < {:?} >( {:?} )",
+//                                     ty,
+//                                     other_receiver_ty,
+//                                     name,
+//                                     generic_placeholders,
+//                                     other_arg_types
+//                                 );
+//
+//                                 impl ast2::Type {
+//                                     /// replace a generic placeholder with a real type lol
+//                                     ///
+//                                     /// the same as the whole pass, except does it for ast2 Type instead of ast1
+//                                     fn replace_generic(
+//                                         &mut self,
+//                                         map: (&'static str, &ast2::Type),
+//                                     ) {
+//                                         use ast2::Type::*;
+//                                         match self {
+//                                             Struct {
+//                                                 generic_replacements,
+//                                                 ..
+//                                             } => generic_replacements.modify(|replacements| {
+//                                                 for replacement in replacements {
+//                                                     replacement.replace_generic(map)
+//                                                 }
+//                                             }),
+//                                             Ptr(inner) => {
+//                                                 inner.modify(|inner| inner.replace_generic(map))
+//                                             }
+//                                             GenericPlaceholder(name) if *name == map.0 => {
+//                                                 *self = map.1.clone()
+//                                             }
+//                                             _ => {}
+//                                         }
+//                                     }
+//                                 }
+//
+//                                 // first, try to infer placeholders from arg types
+//                                 'replace_generics: while !generic_placeholders.is_empty() {
+//                                     for (i, replacement) in arg_types.iter().enumerate() {
+//                                         if let ast2::Type::GenericPlaceholder(placeholder) =
+//                                             other_arg_types[i]
+//                                         {
+//                                             let map = (placeholder, replacement);
+//                                             ty.replace_generic(map);
+//                                             if let Some(it) = &mut other_receiver_ty {
+//                                                 it.replace_generic(map)
+//                                             }
+//                                             for ty in other_arg_types.iter_mut() {
+//                                                 ty.replace_generic(map)
+//                                             }
+//
+//                                             let i = generic_placeholders
+//                                                 .swap_remove_full(&placeholder)
+//                                                 .unwrap()
+//                                                 .0;
+//                                             generic_replacements[i] = replacement.clone();
+//                                             continue 'replace_generics;
+//                                         }
+//                                     }
+//                                     // out of args to replace
+//                                     break;
+//                                 }
+//
+//                                 // then, try to infer placeholder from type hint
+//                                 if let Some(replacement) = type_hint {
+//                                     if let ast2::Type::GenericPlaceholder(placeholder) = ty {
+//                                         let map = (placeholder, replacement);
+//                                         ty.replace_generic(map);
+//                                         if let Some(it) = &mut other_receiver_ty {
+//                                             it.replace_generic(map)
+//                                         }
+//                                         for ty in other_arg_types.iter_mut() {
+//                                             ty.replace_generic(map)
+//                                         }
+//
+//                                         let i = generic_placeholders
+//                                             .swap_remove_full(&placeholder)
+//                                             .unwrap()
+//                                             .0;
+//                                         generic_replacements[i] = replacement.clone();
+//                                     }
+//                                 }
+//
+//                                 if !generic_placeholders.is_empty() {
+//                                     // we still have placeholders, but nothing left to replace, so func doesn't match
+//                                     // fixme we actually allow unused placeholders elsewhere, so make that not possible please
+//                                     return None;
+//                                 }
+//
+//                                 println!(
+//                                     "candidate! --- {} {:?} :: {} < {:?} >( {:?} )",
+//                                     ty,
+//                                     other_receiver_ty,
+//                                     name,
+//                                     generic_replacements,
+//                                     other_arg_types
+//                                 );
+//
+//                                 // finally, check that the types still match after replacement
+//                                 if receiver_ty != &other_receiver_ty
+//                                     || arg_types.deref() != &other_arg_types
+//                                 {
+//                                     return None;
+//                                 }
+//
+//                                 println!(
+//                                     "match! --- {} {:?} :: {} < {:?} >( {:?} )",
+//                                     ty,
+//                                     other_receiver_ty,
+//                                     name,
+//                                     generic_replacements,
+//                                     other_arg_types
+//                                 );
+//
+//                                 Some(generic_replacements)
+//                             }
+//                             _ => unreachable!(),
+//                         }
+//                     })
+//             }
+//             _ => unreachable!(),
+//         }
+//     }
+// }

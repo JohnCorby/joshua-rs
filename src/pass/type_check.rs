@@ -86,7 +86,6 @@ impl Define {
                         .into_iter()
                         .map(|mut it| {
                             // set func receiver ty to struct
-                            // fixme since both func calls and types add nested prefix, methods in structs will have the nested prefix added twice
                             if let Func { receiver_ty, .. } = &mut it.kind {
                                 *receiver_ty = Some(Type {
                                     span,
@@ -164,9 +163,8 @@ impl Define {
                     scopes.push(Scope::new(
                         // scope name includes receiver ty
                         Some(
-                            receiver_ty
-                                .as_ref()
-                                .map_or(name, |it| format!("{}::{}", it, name).intern()),
+                            name.encode("", receiver_ty.clone(), Default::default(), None)
+                                .intern(),
                         ),
                         false,
                         Some(ty.clone()),

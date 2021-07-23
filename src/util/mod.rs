@@ -24,7 +24,13 @@ impl StrExt for str {
         generic_replacements: Rc<Vec<Type>>,
         arg_types: Option<Rc<Vec<Type>>>,
     ) -> String {
-        let receiver_ty = receiver_ty.map_or(String::new(), |it| format!("{}::", it));
+        let receiver_ty = receiver_ty.map_or(String::new(), |mut it| {
+            // receiver ty will not include nesting prefix
+            if let Type::Struct { nesting_prefix, .. } = &mut it {
+                *nesting_prefix = ""
+            }
+            format!("{}::", it)
+        });
         let generic_replacements = if !generic_replacements.is_empty() {
             format!(
                 "<{}>",

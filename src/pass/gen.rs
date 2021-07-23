@@ -47,8 +47,8 @@ impl Define {
                 o.o.push_str("struct ");
                 o.o.push_str(&encoded_name.mangle());
 
-                o.prelude.push_str(&o.o);
-                o.prelude.push_str(";\n");
+                o.struct_declares.push_str(&o.o);
+                o.struct_declares.push_str(";\n");
 
                 o.o.push_str(" {\n");
                 for define in body.into_inner() {
