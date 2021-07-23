@@ -79,8 +79,8 @@ impl Define {
                             .encode(
                                 "",
                                 None,
-                                Default::default(),
-                                Some(args.iter().cloned().map(|it| it.ty).vec().into()),
+                                &[],
+                                Some(&args.iter().cloned().map(|it| it.ty).vec()),
                                 true,
                             )
                             .mangle(),
@@ -252,7 +252,7 @@ impl Expr {
                     self::Expr {
                         kind: self::ExprKind::FuncCall {
                             encoded_name: format!("as {}", self.ty.encode(true))
-                                .encode(nesting_prefix, None, Default::default(), None, true)
+                                .encode(nesting_prefix, None, &[], None, true)
                                 .intern(),
                             args: vec![thing.into_inner()].into(),
                         },
@@ -285,8 +285,8 @@ impl Expr {
                             .encode(
                                 "",
                                 None,
-                                Default::default(),
-                                Some(args.iter().cloned().map(|it| it.ty).vec().into()),
+                                &[],
+                                Some(&args.iter().cloned().map(|it| it.ty).vec()),
                                 true,
                             )
                             .mangle(),

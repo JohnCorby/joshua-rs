@@ -110,7 +110,7 @@ impl Define {
 
                     ast2::Define::Struct {
                         encoded_name: name
-                            .encode(nesting_prefix, None, generic_replacements, None, true)
+                            .encode(nesting_prefix, None, &generic_replacements, None, true)
                             .intern(),
                         body: body.into(),
                     }
@@ -161,11 +161,12 @@ impl Define {
                     let nesting_prefix = scopes.nesting_prefix();
 
                     scopes.push(Scope::new(true, false, Some(ty.clone())));
-                    let args = args
+                    let args: Rc<Vec<_>> = args
                         .iter()
                         .cloned()
                         .map(|it| it.type_check(scopes, o, true, false))
-                        .res_vec()?;
+                        .res_vec()?
+                        .into();
 
                     // add symbol
                     let scope = scopes.pop();
@@ -191,13 +192,13 @@ impl Define {
                         encoded_name: name
                             .encode(
                                 nesting_prefix,
-                                receiver_ty,
-                                generic_replacements,
+                                receiver_ty.as_ref(),
+                                &generic_replacements,
                                 None,
                                 true,
                             )
                             .intern(),
-                        args: args.into(),
+                        args,
                         body,
                     }
                 } else {
@@ -522,7 +523,7 @@ impl Expr {
                     } => Symbol::new_struct(name, generic_replacements),
                     ty => {
                         return err(
-                            &format!("expected struct type, but got {}", ty.encode(false)),
+                            &format!("expected struct, but got {}", ty.encode(false)),
                             self.span,
                         )
                     }
@@ -601,7 +602,7 @@ impl FuncCall {
         let symbol = scopes.find(
             o,
             &Symbol::new_func(
-                receiver_ty.clone(),
+                receiver_ty,
                 self.name,
                 generic_replacements,
                 args.iter().cloned().map(|it| it.ty).vec().into(),
@@ -609,12 +610,13 @@ impl FuncCall {
             type_hint,
             self.span,
         )?;
-        let (nesting_prefix, generic_replacements) = match symbol {
+        let (nesting_prefix, receiver_ty, generic_replacements) = match &symbol {
             Symbol::Func {
                 nesting_prefix,
-                ref generic_replacements,
+                receiver_ty,
+                generic_replacements,
                 ..
-            } => (nesting_prefix, generic_replacements.clone()),
+            } => (nesting_prefix, receiver_ty, generic_replacements),
             _ => unreachable!(),
         };
         Ok(ast2::Expr {
@@ -623,7 +625,7 @@ impl FuncCall {
                     .name
                     .encode(
                         nesting_prefix,
-                        receiver_ty,
+                        receiver_ty.as_ref(),
                         generic_replacements,
                         None,
                         true,
@@ -655,6 +657,7 @@ impl Type {
                     .into();
 
                 // symbol check
+                // fixme make this actually display the proper error message instead of always saying "could not find struct or generic placeholder"
                 scopes
                     .find(
                         o,
@@ -667,7 +670,7 @@ impl Type {
                         err(
                             &format!(
                                 "could not find struct or generic placeholder {}",
-                                name.encode("", None, generic_replacements, None, false)
+                                name.encode("", None, &generic_replacements, None, false)
                             ),
                             span,
                         )

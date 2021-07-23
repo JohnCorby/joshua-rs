@@ -41,7 +41,7 @@ impl Type {
             } => name.encode(
                 nesting_prefix,
                 None,
-                generic_replacements.clone(),
+                generic_replacements,
                 None,
                 include_nesting_prefixes,
             ),

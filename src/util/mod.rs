@@ -10,9 +10,9 @@ pub trait StrExt {
     fn encode(
         &self,
         nesting_prefix: &str,
-        receiver_ty: Option<Type>,
-        generic_replacements: Rc<Vec<Type>>,
-        arg_types: Option<Rc<Vec<Type>>>,
+        receiver_ty: Option<&Type>,
+        generic_replacements: &[Type],
+        arg_types: Option<&[Type]>,
         include_nesting_prefix: bool,
     ) -> String;
 
@@ -23,9 +23,9 @@ impl StrExt for str {
     fn encode(
         &self,
         nesting_prefix: &str,
-        receiver_ty: Option<Type>,
-        generic_replacements: Rc<Vec<Type>>,
-        arg_types: Option<Rc<Vec<Type>>>,
+        receiver_ty: Option<&Type>,
+        generic_replacements: &[Type],
+        arg_types: Option<&[Type]>,
         include_nesting_prefixes: bool,
     ) -> String {
         let nesting_prefix = if include_nesting_prefixes {

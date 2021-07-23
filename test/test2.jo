@@ -1,127 +1,129 @@
-//void f(i8 a) {}
-//void f(i8 a, i8 b) {}
-//
-//void f<T>(T a) {
-//    void Hello<U>::LOOK_FOR_ME<U>(U a) {}
-//    Hello<u8>::LOOK_FOR_ME<u8>(a as u8)
-//}
-//void f<T>(T a, T b) {}
-//
-//struct S {
-//    i32 n
-//}
-//
-//T `+`<T>(T a, T b) {
-//    T c
-//    c.n = a.n + b.n
-//    ret c
-//}
-//
-//void bruh<T>(T a)
-//    if (false)
-//        bruh<T>(a)
-//
-//
-//struct str {
-//    ptr<u8> ptr
-//    u64 len
-//
-//    str new(ptr<u8> ptr) {
-//        str result
-//        result.ptr = ptr
-//        result.len = 1 as u64
-//
-//        auto chr = <{ *${ptr} }> as u8
-//        until(chr == 0 as u8) {
-//            result.len = result.len + 1 as u64
-//            <{ ${ptr}++ }>
-//            chr = <{ *${ptr} }> as u8
-//        }
-//
-//        ret result
-//    }
-//
-//    void debug_print(str this)
-//        <{ printf("%p %u %s\n", ${this.ptr}, ${this.len}, ${this.ptr}) }>
-//}
-//
-//
-//
-//struct sized_ptr<T> {
-//    ptr<T> ptr
-//    u64 len
-//
-//    sized_ptr<T> new(ptr<T> ptr, u64 len) {
-//        sized_ptr<T> this
-//        this.ptr = ptr
-//        this.len = len
-//        ret this
-//    }
-//
-//    void debug_print(sized_ptr<T> this) {
-//        for (auto i = 0 as u64; i < this.len; i = i + 1 as u64)
-//            <{ printf("%x ", ${this.ptr}[${i}]) }>
-//        for (auto i = 0 as u64; i < this.len; i = i + 1 as u64)
-//            <{ printf("%c", ${this.ptr}[${i}]) }>
-//        <{ printf("\n") }>
-//    }
-//}
-//
-//struct Hello<T> {
-//    T field
-//
-//    void TAKE<U>(Hello<T> this)
-//        if (false)
-//            this.TAKE<U>()
-//}
-//
-//void take(Hello<i8> arg) {}
-//void take_cooler<T>(Hello<T> arg) {}
-//void take_cooler_cooler<T>(Hello<Hello<T>> arg) {}
-//
-//void Hello<T>::yo_what<T>(Hello<T> this) {}
-//void str::bruh_moment() {}
-//
+void f(i8 a) {}
+void f(i8 a, i8 b) {}
+
+void f<T>(T a) {
+    void Hello<U>::LOOK_FOR_ME<U>(U a) {}
+    Hello<u8>::LOOK_FOR_ME<u8>(a as u8)
+}
+void f<T>(T a, T b) {}
+
+struct S {
+    i32 n
+}
+
+T `+`<T>(T a, T b) {
+    T c
+    c.n = a.n + b.n
+    ret c
+}
+
+void bruh<T>(T a)
+    if (false)
+        bruh<T>(a)
+
+
+struct str {
+    ptr<u8> ptr
+    u64 len
+
+    str new(ptr<u8> ptr) {
+        str result
+        result.ptr = ptr
+        result.len = 1 as u64
+
+        auto chr = <{ *${ptr} }> as u8
+        until(chr == 0 as u8) {
+            result.len = result.len + 1 as u64
+            <{ ${ptr}++ }>
+            chr = <{ *${ptr} }> as u8
+        }
+
+        ret result
+    }
+
+    void debug_print(str this)
+        <{ printf("%p %u %s\n", ${this.ptr}, ${this.len}, ${this.ptr}) }>
+}
+
+
+
+struct sized_ptr<T> {
+    ptr<T> ptr
+    u64 len
+
+    sized_ptr<T> new(ptr<T> ptr, u64 len) {
+        sized_ptr<T> this
+        this.ptr = ptr
+        this.len = len
+        ret this
+    }
+
+    void debug_print(sized_ptr<T> this) {
+        for (auto i = 0 as u64; i < this.len; i = i + 1 as u64)
+            <{ printf("%x ", ${this.ptr}[${i}]) }>
+        for (auto i = 0 as u64; i < this.len; i = i + 1 as u64)
+            <{ printf("%c", ${this.ptr}[${i}]) }>
+        <{ printf("\n") }>
+    }
+}
+
+struct Hello<T> {
+    T field
+
+    void TAKE<U>(Hello<T> this)
+        if (false)
+            this.TAKE<U>()
+}
+
+void take(Hello<i8> arg) {}
+void take_cooler<T>(Hello<T> arg) {}
+void take_cooler_cooler<T>(Hello<Hello<T>> arg) {}
+
+void Hello<T>::yo_what<T>(Hello<T> this) {}
+void str::bruh_moment() {}
+
 
 
 i32 main() {
-//    f(1 as i8)
-//    f(1 as i8, 2 as i8)
-//
-//    f<i16>(1 as i16)
-//    f<i16>(1 as i16, 2 as i16)
-//
-//    S s
-//    `+`<S>(s, s)
-//
-//    bruh<i8>(1 as i8)
-//    bruh<i8>(1 as i8)
-//
-//
-//
-//    str str = str::new("beautiful")
-//    str.debug_print()
-//
-//
-//
-//    Hello<i8> hello
-//    hello.TAKE<i64>()
-//    take(hello)
-//    take_cooler<i8>(hello)
-//    take_cooler<i8>(hello)
-//
-//    Hello<Hello<i8>> hello2
-//    take_cooler<Hello<i8>>(hello2)
-//    take_cooler_cooler<i8>(hello2)
-//
-//    Hello<i8>::yo_what<i8>(hello)
-//    hello.yo_what<i8>()
-//
-//
-//    auto sp = sized_ptr<u8>::new("hello", 6 as u64)
-//    sp.debug_print()
+    // funcs
+    f<i8>(1 as i8)
+    f<i8>(1 as i8, 2 as i8)
+
+    f<i16>(1 as i16)
+    f<i16>(1 as i16, 2 as i16)
+
+    S s
+    `+`<S>(s, s)
+
+    bruh<i8>(1 as i8)
+    bruh<i8>(1 as i8)
 
 
+    // method
+    str str = str::new("beautiful")
+    str.debug_print()
+
+
+    // receiver ty and methods with generics
+    Hello<i8> hello
+    hello.TAKE<i64>()
+    take(hello)
+    take_cooler<i8>(hello)
+    take_cooler<i8>(hello)
+
+    Hello<Hello<i8>> hello2
+    take_cooler<Hello<i8>>(hello2)
+    take_cooler_cooler<i8>(hello2)
+
+    Hello<i8>::yo_what<i8>(hello)
+    hello.yo_what<i8>()
+
+
+    auto sp = sized_ptr<u8>::new("hello", 6 as u64)
+    sp.debug_print()
+
+
+    // generic inference
     void a<T, U>(T t, U u) {}
 //    void a<T>(T t, i16 u) {}
     a(1 as i8, 2 as i16)
@@ -135,31 +137,31 @@ i32 main() {
     T c<T>() ret 1 as T
     i8 c = c()
 
+    // nested tests
+    struct Jeff {}
+    void Jeff::method1(Jeff this) {}
+    void func1() {
+        void Jeff::method1(Jeff this) {}
+        struct Jeff {}
+        void Jeff::method2(Jeff this) {}
 
-//    struct Jeff {}
-//    void Jeff::method1(Jeff this) {}
-//    void func1() {
-//        void Jeff::method1(Jeff this) {}
-//        struct Jeff {}
-//        void Jeff::method2(Jeff this) {}
-//
-//        void func1() {
-//            void Jeff::method2(Jeff this) {}
-//        }
-//        void func2() {
-//            void Jeff::method2(Jeff this) {}
-//        }
-//    }
-//    void func2() {
-//        void Jeff::method2(Jeff this) {}
-//
-//        void func1() {
-//            void Jeff::method2(Jeff this) {}
-//        }
-//        void func2() {
-//            void Jeff::method2(Jeff this) {}
-//        }
-//    }
+        void func1() {
+            void Jeff::method2(Jeff this) {}
+        }
+        void func2() {
+            void Jeff::method2(Jeff this) {}
+        }
+    }
+    void func2() {
+        void Jeff::method2(Jeff this) {}
+
+        void func1() {
+            void Jeff::method2(Jeff this) {}
+        }
+        void func2() {
+            void Jeff::method2(Jeff this) {}
+        }
+    }
 
     ret 0 as i32
 }
