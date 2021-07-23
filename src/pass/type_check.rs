@@ -468,7 +468,7 @@ impl Expr {
                             o,
                             &Symbol::new_func(
                                 None,
-                                format!("as {}", ty).intern(),
+                                format!("as {}", ty.encode(true)).intern(),
                                 Default::default(),
                                 vec![thing.ty.clone()].into(),
                             ),
@@ -514,7 +514,12 @@ impl Expr {
                         generic_replacements,
                         ..
                     } => Symbol::new_struct(name, generic_replacements),
-                    ty => return err(&format!("expected struct type, but got {}", ty), self.span),
+                    ty => {
+                        return err(
+                            &format!("expected struct type, but got {}", ty.encode(false)),
+                            self.span,
+                        )
+                    }
                 };
                 let symbol = scopes.find(o, &symbol, None, self.span)?;
                 let field_types = match &symbol {

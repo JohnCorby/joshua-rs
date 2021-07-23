@@ -5,6 +5,9 @@ use std::rc::Rc;
 
 pub trait StrExt {
     /// make a proper name by attaching formatted stuff
+    ///
+    /// NOTE: include nested prefixes for all types except receiver ty
+    /// fixme make this optional
     fn encode(
         &self,
         nesting_prefix: &str,
@@ -24,19 +27,13 @@ impl StrExt for str {
         generic_replacements: Rc<Vec<Type>>,
         arg_types: Option<Rc<Vec<Type>>>,
     ) -> String {
-        let receiver_ty = receiver_ty.map_or(String::new(), |mut it| {
-            // receiver ty will not include nesting prefix
-            if let Type::Struct { nesting_prefix, .. } = &mut it {
-                *nesting_prefix = ""
-            }
-            format!("{}::", it)
-        });
+        let receiver_ty = receiver_ty.map_or(String::new(), |it| format!("{}::", it.encode(false)));
         let generic_replacements = if !generic_replacements.is_empty() {
             format!(
                 "<{}>",
                 generic_replacements
                     .iter()
-                    .map(|it| it.to_string())
+                    .map(|it| it.encode(true))
                     .vec()
                     .join(", ")
             )
@@ -46,7 +43,7 @@ impl StrExt for str {
         let arg_types = if let Some(arg_types) = arg_types {
             format!(
                 "({})",
-                arg_types.iter().map(|it| it.to_string()).vec().join(", ")
+                arg_types.iter().map(|it| it.encode(true)).vec().join(", ")
             )
         } else {
             String::new()

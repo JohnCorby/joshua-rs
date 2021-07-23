@@ -4,7 +4,6 @@ use crate::error::{err, Res};
 use crate::pass::ast2::Type;
 use crate::span::Span;
 use crate::util::StrExt;
-use std::fmt::{Display, Formatter};
 
 impl Type {
     pub fn check(&self, expected: &Self, span: Span) -> Res {
@@ -12,7 +11,14 @@ impl Type {
         if expected == actual {
             Ok(())
         } else {
-            err(&format!("expected {}, but got {}", expected, actual), span)
+            err(
+                &format!(
+                    "expected {}, but got {}",
+                    expected.encode(false),
+                    actual.encode(false)
+                ),
+                span,
+            )
         }
     }
 }
@@ -22,23 +28,28 @@ impl Default for Type {
     }
 }
 
-impl Display for Type {
-    /// also used in code gen
-    ///
-    /// NOTE: structs include nesting prefix
-    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+impl Type {
+    /// also used for display
+    pub fn encode(&self, include_nesting_prefix: bool) -> String {
         use Type::*;
         match self {
-            Primitive(ty) => ty.fmt(f),
+            Primitive(ty) => ty.to_string(),
             Struct {
                 nesting_prefix,
                 name,
                 generic_replacements,
-            } => {
-                f.write_str(&name.encode(nesting_prefix, None, generic_replacements.clone(), None))
-            }
-            Ptr(ty) => write!(f, "ptr<{}>", ty),
-            GenericPlaceholder(name) => f.write_str(name),
+            } => name.encode(
+                if include_nesting_prefix {
+                    nesting_prefix
+                } else {
+                    ""
+                },
+                None,
+                generic_replacements.clone(),
+                None,
+            ),
+            Ptr(ty) => format!("ptr<{}>", ty.encode(include_nesting_prefix)),
+            GenericPlaceholder(name) => name.to_string(),
             _ => panic!("type {:?} shouldn't be displayed or encoded", self),
         }
     }

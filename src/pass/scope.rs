@@ -312,7 +312,7 @@ impl Scopes {
         &mut self,
         o: &mut Output,
         symbol: &Symbol,
-        type_hint: Option<&Type>,
+        _type_hint: Option<&Type>,
         span: Span,
     ) -> Res<Symbol> {
         // first just try normal method

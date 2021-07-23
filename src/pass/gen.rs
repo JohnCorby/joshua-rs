@@ -250,7 +250,7 @@ impl Expr {
                 } else {
                     self::Expr {
                         kind: self::ExprKind::FuncCall {
-                            encoded_name: format!("as {}", self.ty)
+                            encoded_name: format!("as {}", self.ty.encode(true))
                                 .encode(nesting_prefix, None, Default::default(), None)
                                 .intern(),
                             args: vec![thing.into_inner()].into(),
@@ -328,13 +328,13 @@ impl Type {
             Primitive(ty) => o.o.push_str(ty.c_type()),
             Struct { .. } => {
                 o.o.push_str("struct ");
-                o.o.push_str(&self.to_string().mangle())
+                o.o.push_str(&self.encode(true).mangle())
             }
             Ptr(inner) => {
                 inner.deref().clone().gen(o);
                 o.o.push('*');
             }
-            ty => panic!("tried to gen {}", ty),
+            ty => panic!("tried to gen {}", ty.encode(false)),
         }
     }
 }

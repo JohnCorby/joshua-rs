@@ -8,7 +8,7 @@ use crate::pass::replace_generics::GenericMap;
 use crate::pass::scope::{Scope, Scopes, Symbol};
 use crate::span::Span;
 use crate::util::{IterExt, IterResExt, RcExt};
-use indexmap::IndexSet;
+// use indexmap::IndexSet;
 use std::ops::Deref;
 
 fn option_eq<A, B>(a: Option<A>, b: Option<B>, mut eq: impl FnMut(A, B) -> bool) -> bool {
