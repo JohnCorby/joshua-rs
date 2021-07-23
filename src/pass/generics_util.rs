@@ -414,7 +414,7 @@ impl Scopes {
                             .cloned()
                             .map(|it| it.type_check(self, o))
                             .transpose()?;
-                        self.push(Scope::new(None, false, None));
+                        self.push(Scope::new(false, false, None));
                         let other_arg_types = args
                             .iter()
                             .cloned()

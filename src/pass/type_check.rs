@@ -13,7 +13,7 @@ use std::rc::Rc;
 
 impl Program {
     pub fn type_check(self, o: &mut Output) -> Res<ast2::Program> {
-        let mut scopes = Scopes(vec![Scope::new(None, false, None)]);
+        let mut scopes = Scopes(vec![Scope::new(false, false, None)]);
         type_check_prelude(&mut scopes, o);
         let defines = self
             .0
@@ -53,7 +53,7 @@ impl Define {
                                 _ => panic!("struct body shouldn't have {:?}", define),
                             });
 
-                    scopes.push(Scope::new(None, false, None));
+                    scopes.push(Scope::new(false, false, None));
                     let var_defines = var_defines
                         .into_iter()
                         .map(|it| it.type_check(scopes, o, Default::default()))
@@ -144,7 +144,7 @@ impl Define {
 
                 if !generic_placeholders.is_empty() {
                     // add placeholders
-                    scopes.push(Scope::new(None, false, None));
+                    scopes.push(Scope::new(false, false, None));
                     for &placeholder in generic_placeholders.iter() {
                         scopes.add(Symbol::GenericPlaceholder(placeholder), self.span)?;
                     }
@@ -160,15 +160,7 @@ impl Define {
                 if generic_placeholders.is_empty() {
                     let nesting_prefix = scopes.nesting_prefix();
 
-                    scopes.push(Scope::new(
-                        // scope name includes receiver ty
-                        Some(
-                            name.encode("", receiver_ty.clone(), Default::default(), None)
-                                .intern(),
-                        ),
-                        false,
-                        Some(ty.clone()),
-                    ));
+                    scopes.push(Scope::new(true, false, Some(ty.clone())));
                     let args = args
                         .iter()
                         .cloned()
@@ -350,12 +342,12 @@ impl Statement {
                 otherwise,
             } => {
                 let cond = cond.type_check(scopes, o, Some(&PrimitiveType::Bool.ty()))?;
-                scopes.push(Scope::new(None, false, None));
+                scopes.push(Scope::new(true, false, None));
                 let then = then.type_check(scopes, o)?;
                 scopes.pop();
                 let otherwise = otherwise
                     .map(|otherwise| {
-                        scopes.push(Scope::new(None, false, None));
+                        scopes.push(Scope::new(true, false, None));
                         let otherwise = otherwise.type_check(scopes, o);
                         scopes.pop();
                         otherwise
@@ -373,7 +365,7 @@ impl Statement {
             }
             Until { cond, block } => {
                 let cond = cond.type_check(scopes, o, Some(&PrimitiveType::Bool.ty()))?;
-                scopes.push(Scope::new(None, true, None));
+                scopes.push(Scope::new(true, true, None));
                 let block = block.type_check(scopes, o)?;
                 scopes.pop();
 
@@ -388,7 +380,7 @@ impl Statement {
                 update,
                 block,
             } => {
-                scopes.push(Scope::new(None, true, None));
+                scopes.push(Scope::new(true, true, None));
                 let init = init.type_check(scopes, o, false, true)?;
                 let cond = cond.type_check(scopes, o, Some(&PrimitiveType::Bool.ty()))?;
                 let update = update.deref().clone().type_check(scopes, o)?;

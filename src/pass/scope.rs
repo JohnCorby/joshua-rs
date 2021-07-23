@@ -13,6 +13,7 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::Deref;
 use std::rc::Rc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 /// NOTE: hash is only simple way to prevent duplicates. extra checking is needed
 #[allow(clippy::too_many_arguments)]
@@ -203,16 +204,34 @@ impl Scopes {
     }
 }
 
-#[derive(Debug, new)]
+#[derive(Debug)]
 pub struct Scope {
-    nesting_name: Option<&'static str>, // todo give name to ALL blocks, not just funcs
+    /// all blocks that can hold nested funcs and structs have this
+    nesting_id: Option<usize>,
+
     is_loop: bool,
     func_return_type: Option<Type>,
-    #[new(default)]
     return_called: bool,
 
-    #[new(default)]
     pub symbols: HashSet<Symbol>,
+}
+impl Scope {
+    pub fn new(has_nesting_id: bool, is_loop: bool, func_return_type: Option<Type>) -> Self {
+        Self {
+            nesting_id: if has_nesting_id {
+                static ID: AtomicUsize = AtomicUsize::new(0);
+                Some(ID.fetch_add(1, Ordering::Relaxed))
+            } else {
+                None
+            },
+
+            is_loop,
+            func_return_type,
+            return_called: false,
+
+            symbols: Default::default(),
+        }
+    }
 }
 
 impl Scopes {
@@ -220,7 +239,7 @@ impl Scopes {
     pub fn nesting_prefix(&self) -> &'static str {
         self.0
             .iter()
-            .filter_map(|scope| scope.nesting_name.map(|it| format!("{}`", it)))
+            .filter_map(|scope| scope.nesting_id.map(|it| format!("{}`", it)))
             .collect::<String>()
             .intern()
     }

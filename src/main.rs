@@ -2,7 +2,6 @@
 //! - ways to use pointers
 //! - generic inference
 //!todo
-//! - "build scope" pass which will add _____Type and Func symbols to the scope uhhhhh well it's a stack now so we can't pre-build this. darn
 //! - get literals to actually work, you might just have to brute force it, or not idk. you might be able to use generics for this instead :)
 //!todo
 //! - polymorphism??? inheritance???????
