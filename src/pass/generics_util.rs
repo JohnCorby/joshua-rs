@@ -651,14 +651,7 @@ impl Scopes {
                                     continue;
                                 }
 
-                                println!(
-                                    "match! --- {:?} {:?} :: {} < {:?} >( {:?} )",
-                                    ty,
-                                    other_receiver_ty,
-                                    other_name,
-                                    generic_replacements,
-                                    other_arg_types
-                                );
+                                println!("match!");
 
                                 matching_replacements.push(generic_replacements);
                             }

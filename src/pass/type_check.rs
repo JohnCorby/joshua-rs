@@ -603,14 +603,18 @@ impl FuncCall {
             &Symbol::new_func(
                 receiver_ty.clone(),
                 self.name,
-                generic_replacements.clone(),
+                generic_replacements,
                 args.iter().cloned().map(|it| it.ty).vec().into(),
             ),
             type_hint,
             self.span,
         )?;
-        let nesting_prefix = match symbol {
-            Symbol::Func { nesting_prefix, .. } => nesting_prefix,
+        let (nesting_prefix, generic_replacements) = match symbol {
+            Symbol::Func {
+                nesting_prefix,
+                ref generic_replacements,
+                ..
+            } => (nesting_prefix, generic_replacements.clone()),
             _ => unreachable!(),
         };
         Ok(ast2::Expr {
