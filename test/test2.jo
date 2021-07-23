@@ -138,27 +138,27 @@ i32 main() {
 //    Jeff::jeff_methd()
 
     struct Jeff {}
-    void Jeff::method1() {}
+    void Jeff::method1(Jeff this) {}
     void func1() {
-        void Jeff::method1() {}
+        void Jeff::method1(Jeff this) {}
         struct Jeff {}
-        void Jeff::method2() {}
+        void Jeff::method2(Jeff this) {}
 
         void func1() {
-            void Jeff::method2() {}
+            void Jeff::method2(Jeff this) {}
         }
         void func2() {
-            void Jeff::method2() {}
+            void Jeff::method2(Jeff this) {}
         }
     }
     void func2() {
-        void Jeff::method2() {}
+        void Jeff::method2(Jeff this) {}
 
         void func1() {
-            void Jeff::method2() {}
+            void Jeff::method2(Jeff this) {}
         }
         void func2() {
-            void Jeff::method2() {}
+            void Jeff::method2(Jeff this) {}
         }
     }
 

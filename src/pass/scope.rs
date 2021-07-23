@@ -238,13 +238,16 @@ impl Scope {
 }
 
 impl Scopes {
-    /// use for initializing ast nodes
+    /// used in gen with nested funcs and structs
     pub fn nesting_prefix(&self) -> &'static str {
-        self.0
-            .iter()
-            .filter_map(|scope| scope.nesting_id.map(|it| format!("{}`", it)))
-            .collect::<String>()
-            .intern()
+        format!(
+            "{}`",
+            self.0
+                .iter()
+                .filter_map(|scope| scope.nesting_id.map(|it| format!("{:x}", it)))
+                .collect::<String>()
+        )
+        .intern()
     }
 
     pub fn in_loop(&self) -> bool {
