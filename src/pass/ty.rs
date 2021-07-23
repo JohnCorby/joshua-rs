@@ -29,8 +29,8 @@ impl Default for Type {
 }
 
 impl Type {
-    /// also used for display
-    pub fn encode(&self, include_nesting_prefix: bool) -> String {
+    /// used for codegen and display
+    pub fn encode(&self, include_nesting_prefixes: bool) -> String {
         use Type::*;
         match self {
             Primitive(ty) => ty.to_string(),
@@ -39,16 +39,13 @@ impl Type {
                 name,
                 generic_replacements,
             } => name.encode(
-                if include_nesting_prefix {
-                    nesting_prefix
-                } else {
-                    ""
-                },
+                nesting_prefix,
                 None,
                 generic_replacements.clone(),
                 None,
+                include_nesting_prefixes,
             ),
-            Ptr(ty) => format!("ptr<{}>", ty.encode(include_nesting_prefix)),
+            Ptr(ty) => format!("ptr<{}>", ty.encode(include_nesting_prefixes)),
             GenericPlaceholder(name) => name.to_string(),
             _ => panic!("type {:?} shouldn't be displayed or encoded", self),
         }

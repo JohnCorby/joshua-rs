@@ -6,14 +6,14 @@ use std::rc::Rc;
 pub trait StrExt {
     /// make a proper name by attaching formatted stuff
     ///
-    /// NOTE: include nested prefixes for all types except receiver ty
-    /// fixme make this optional
+    /// used for codegen and display
     fn encode(
         &self,
         nesting_prefix: &str,
         receiver_ty: Option<Type>,
         generic_replacements: Rc<Vec<Type>>,
         arg_types: Option<Rc<Vec<Type>>>,
+        include_nesting_prefix: bool,
     ) -> String;
 
     /// mangle string for c usage
@@ -26,14 +26,20 @@ impl StrExt for str {
         receiver_ty: Option<Type>,
         generic_replacements: Rc<Vec<Type>>,
         arg_types: Option<Rc<Vec<Type>>>,
+        include_nesting_prefixes: bool,
     ) -> String {
+        let nesting_prefix = if include_nesting_prefixes {
+            nesting_prefix
+        } else {
+            ""
+        };
         let receiver_ty = receiver_ty.map_or(String::new(), |it| format!("{}::", it.encode(false)));
         let generic_replacements = if !generic_replacements.is_empty() {
             format!(
                 "<{}>",
                 generic_replacements
                     .iter()
-                    .map(|it| it.encode(true))
+                    .map(|it| it.encode(include_nesting_prefixes))
                     .vec()
                     .join(", ")
             )
@@ -43,7 +49,11 @@ impl StrExt for str {
         let arg_types = if let Some(arg_types) = arg_types {
             format!(
                 "({})",
-                arg_types.iter().map(|it| it.encode(true)).vec().join(", ")
+                arg_types
+                    .iter()
+                    .map(|it| it.encode(include_nesting_prefixes))
+                    .vec()
+                    .join(", ")
             )
         } else {
             String::new()

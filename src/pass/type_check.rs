@@ -110,7 +110,7 @@ impl Define {
 
                     ast2::Define::Struct {
                         encoded_name: name
-                            .encode(nesting_prefix, None, generic_replacements, None)
+                            .encode(nesting_prefix, None, generic_replacements, None, true)
                             .intern(),
                         body: body.into(),
                     }
@@ -189,7 +189,13 @@ impl Define {
                     ast2::Define::Func {
                         ty,
                         encoded_name: name
-                            .encode(nesting_prefix, receiver_ty, generic_replacements, None)
+                            .encode(
+                                nesting_prefix,
+                                receiver_ty,
+                                generic_replacements,
+                                None,
+                                true,
+                            )
                             .intern(),
                         args: args.into(),
                         body,
@@ -611,7 +617,13 @@ impl FuncCall {
             kind: ast2::ExprKind::FuncCall {
                 encoded_name: self
                     .name
-                    .encode(nesting_prefix, receiver_ty, generic_replacements, None)
+                    .encode(
+                        nesting_prefix,
+                        receiver_ty,
+                        generic_replacements,
+                        None,
+                        true,
+                    )
                     .intern(),
                 args,
             },
@@ -651,7 +663,7 @@ impl Type {
                         err(
                             &format!(
                                 "could not find struct or generic placeholder {}",
-                                name.encode("", None, generic_replacements, None)
+                                name.encode("", None, generic_replacements, None, false)
                             ),
                             span,
                         )

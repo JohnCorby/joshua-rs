@@ -135,7 +135,8 @@ impl Display for Symbol {
                     "",
                     receiver_ty.clone(),
                     generic_replacements.clone(),
-                    Some(arg_types.clone())
+                    Some(arg_types.clone()),
+                    false
                 )
             ),
             Var { name, .. } => write!(f, "var {}", name),
@@ -146,7 +147,7 @@ impl Display for Symbol {
             } => write!(
                 f,
                 "struct {}",
-                name.encode("", None, generic_replacements.clone(), None)
+                name.encode("", None, generic_replacements.clone(), None, false)
             ),
             GenericPlaceholder(name) => write!(f, "generic placeholder {}", name),
             GenericFunc {
@@ -167,6 +168,7 @@ impl Display for Symbol {
                         .vec()
                         .into(),
                     Some(arg_types.clone()),
+                    false
                 )
             ),
             GenericStruct {
@@ -184,7 +186,8 @@ impl Display for Symbol {
                         .map(|it| Type::GenericPlaceholder(it))
                         .vec()
                         .into(),
-                    None
+                    None,
+                    false
                 )
             ),
         }
