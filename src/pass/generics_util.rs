@@ -8,7 +8,7 @@ use crate::pass::replace_generics::GenericMap;
 use crate::pass::scope::{Scope, Scopes, Symbol};
 use crate::span::Span;
 use crate::util::{IterExt, IterResExt, RcExt};
-use indexmap::IndexSet;
+use std::collections::HashMap;
 use std::ops::Deref;
 
 fn option_eq<A, B>(a: Option<A>, b: Option<B>, mut eq: impl FnMut(A, B) -> bool) -> bool {
@@ -466,19 +466,6 @@ impl Scopes {
     }
 }
 
-// // test
-// fn bruh() {
-//     struct Hello;
-//
-//     fn yes<T>(t: T) {}
-//
-//     fn bruh2() {
-//         struct Hello2;
-//         yes(Hello2);
-//     }
-//     yes(Hello2);
-// }
-
 impl Scopes {
     /// find a generic func with inference
     ///
@@ -505,7 +492,7 @@ impl Scopes {
                     type_hint, receiver_ty, name, arg_types
                 );
 
-                let mut replacements_list = vec![];
+                let mut matching_replacements = vec![];
                 for scope in self.0.iter().rev() {
                     // try to find already specialized version first
                     let specialized_func = scope.symbols.iter().find(|s| match s {
@@ -530,7 +517,7 @@ impl Scopes {
                     // that didn't work
                     // so find candidate generic funcs
                     // and infer replacements from them
-                    replacements_list.clear();
+                    matching_replacements.clear();
                     for s in scope.symbols.iter() {
                         match s {
                             Symbol::GenericFunc {
@@ -551,16 +538,6 @@ impl Scopes {
                                     ast2::Type::placeholder_eq_any,
                                 ) =>
                             {
-                                let mut ty = ty.clone();
-                                let mut other_receiver_ty = other_receiver_ty.clone();
-                                let mut other_arg_types = other_arg_types.deref().clone();
-                                let mut generic_placeholders = generic_placeholders
-                                    .iter()
-                                    .copied()
-                                    .collect::<IndexSet<_>>();
-                                let mut generic_replacements =
-                                    vec![Default::default(); generic_placeholders.len()]; // uninitialized values lol
-
                                 println!(
                                     "candidate? --- {:?} {:?} :: {} < {:?} >( {:?} )",
                                     ty,
@@ -569,6 +546,17 @@ impl Scopes {
                                     generic_placeholders,
                                     other_arg_types
                                 );
+
+                                let mut ty = ty.clone();
+                                let mut other_receiver_ty = other_receiver_ty.clone();
+                                let mut other_arg_types = other_arg_types.deref().clone();
+                                let mut generic_placeholders = generic_placeholders
+                                    .iter()
+                                    .copied()
+                                    .zip(0..)
+                                    .collect::<HashMap<_, _>>();
+                                let mut generic_replacements =
+                                    vec![Default::default(); generic_placeholders.len()]; // uninitialized values lol
 
                                 impl ast2::Type {
                                     /// replace a generic placeholder with a real type lol
@@ -614,10 +602,8 @@ impl Scopes {
                                                 ty.replace_generic(map)
                                             }
 
-                                            let i = generic_placeholders
-                                                .swap_remove_full(&placeholder)
-                                                .unwrap()
-                                                .0;
+                                            let i =
+                                                generic_placeholders.remove(placeholder).unwrap();
                                             generic_replacements[i] = replacement.clone();
                                             continue 'replace_generics;
                                         }
@@ -638,10 +624,7 @@ impl Scopes {
                                             ty.replace_generic(map)
                                         }
 
-                                        let i = generic_placeholders
-                                            .swap_remove_full(&placeholder)
-                                            .unwrap()
-                                            .0;
+                                        let i = generic_placeholders.remove(placeholder).unwrap();
                                         generic_replacements[i] = replacement.clone();
                                     }
                                 }
@@ -677,17 +660,17 @@ impl Scopes {
                                     other_arg_types
                                 );
 
-                                replacements_list.push(generic_replacements);
+                                matching_replacements.push(generic_replacements);
                             }
                             _ => {}
                         }
                     }
-                    if !replacements_list.is_empty() {
+                    if !matching_replacements.is_empty() {
                         break;
                     }
                 }
 
-                let matching_funcs = replacements_list
+                let matching_funcs = matching_replacements
                     .into_iter()
                     .map(|it| {
                         self.add_specialized(
@@ -706,8 +689,9 @@ impl Scopes {
                 if matching_funcs.len() > 1 {
                     return err(
                         &format!(
-                            "could not find {} because it is ambiguous\n\
-                                matching generic candidates:\n{}",
+                            "could not find generic func matching {} because it is ambiguous\n\
+                            candidates:\n{}\n\
+                            try specifying replacements explicitly",
                             symbol,
                             matching_funcs
                                 .iter()

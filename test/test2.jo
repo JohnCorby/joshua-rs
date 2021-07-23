@@ -122,45 +122,44 @@ i32 main() {
 //    sp.debug_print()
 
 
-//    void b<T>(T a, T b, T c) {}
-//    void b<T, T2, T3>(T a, T2 b, T3 c) {}
-//    void b<T, T2, T3, T4, T5>(T a, T2 b, T5 c) {}
-//    b(1 as i8, 2 as i16, 3 as i32)
+    void a<T, U>(T t, U u) {}
+//    void a<T>(T t, i16 u) {}
+    a(1 as i8, 2 as i16)
 
-//    T c<T>() ret 1 as T
-//    i8 c = c()
+    void b<T>(T a, T b, T c) {}
+    void b<T, T2, T3>(T a, T2 b, T3 c) {}
+    void b<T, T2, T3, T4, T5>(T a, T2 b, T5 c) {}
+    b<i8, i16, i32>(1 as i8, 2 as i16, 3 as i32)
+    b(1 as i8, 2 as i16, 3 as i32)
+
+    T c<T>() ret 1 as T
+    i8 c = c()
 
 
-//    struct Jeff {
-//        void jeff_method() {}
+//    struct Jeff {}
+//    void Jeff::method1(Jeff this) {}
+//    void func1() {
+//        void Jeff::method1(Jeff this) {}
+//        struct Jeff {}
+//        void Jeff::method2(Jeff this) {}
+//
+//        void func1() {
+//            void Jeff::method2(Jeff this) {}
+//        }
+//        void func2() {
+//            void Jeff::method2(Jeff this) {}
+//        }
 //    }
-//    Jeff::jeff_method()
-//    Jeff::jeff_methd()
-
-    struct Jeff {}
-    void Jeff::method1(Jeff this) {}
-    void func1() {
-        void Jeff::method1(Jeff this) {}
-        struct Jeff {}
-        void Jeff::method2(Jeff this) {}
-
-        void func1() {
-            void Jeff::method2(Jeff this) {}
-        }
-        void func2() {
-            void Jeff::method2(Jeff this) {}
-        }
-    }
-    void func2() {
-        void Jeff::method2(Jeff this) {}
-
-        void func1() {
-            void Jeff::method2(Jeff this) {}
-        }
-        void func2() {
-            void Jeff::method2(Jeff this) {}
-        }
-    }
+//    void func2() {
+//        void Jeff::method2(Jeff this) {}
+//
+//        void func1() {
+//            void Jeff::method2(Jeff this) {}
+//        }
+//        void func2() {
+//            void Jeff::method2(Jeff this) {}
+//        }
+//    }
 
     ret 0 as i32
 }
