@@ -240,14 +240,11 @@ impl Scope {
 impl Scopes {
     /// used in gen with nested funcs and structs
     pub fn nesting_prefix(&self) -> &'static str {
-        format!(
-            "{}`",
-            self.0
-                .iter()
-                .filter_map(|scope| scope.nesting_id.map(|it| format!("{:x}", it)))
-                .collect::<String>()
-        )
-        .intern()
+        self.0
+            .iter()
+            .filter_map(|scope| scope.nesting_id.map(|it| format!("{:x}`", it)))
+            .collect::<String>()
+            .intern()
     }
 
     pub fn in_loop(&self) -> bool {
@@ -318,7 +315,7 @@ impl Scopes {
         &mut self,
         o: &mut Output,
         symbol: &Symbol,
-        _type_hint: Option<&Type>,
+        type_hint: Option<&Type>,
         span: Span,
     ) -> Res<Symbol> {
         // first just try normal method
@@ -340,12 +337,12 @@ impl Scopes {
             } if !generic_replacements.is_empty() => self.add_specialized(o, symbol, span),
 
             // or do inference from no-replacements func
-            // Symbol::Func {
-            //     generic_replacements,
-            //     ..
-            // } if generic_replacements.is_empty() => {
-            //     self.find_generic_func_inference(o, symbol, type_hint, span)
-            // }
+            Symbol::Func {
+                generic_replacements,
+                ..
+            } if generic_replacements.is_empty() => {
+                self.find_generic_func_inference(o, symbol, type_hint, span)
+            }
             _ => err(&format!("could not find {}", symbol), span),
         }
     }
