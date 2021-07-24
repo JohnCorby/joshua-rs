@@ -109,9 +109,9 @@ impl Define {
                     body.extend(func_defines);
 
                     ast2::Define::Struct {
-                        encoded_name: name
-                            .encode(nesting_prefix, None, &generic_replacements, None, true)
-                            .intern(),
+                        nesting_prefix,
+                        name,
+                        generic_replacements,
                         body: body.into(),
                     }
                 } else {
@@ -189,15 +189,10 @@ impl Define {
 
                     ast2::Define::Func {
                         ty,
-                        encoded_name: name
-                            .encode(
-                                nesting_prefix,
-                                receiver_ty.as_ref(),
-                                &generic_replacements,
-                                None,
-                                true,
-                            )
-                            .intern(),
+                        nesting_prefix,
+                        receiver_ty,
+                        name,
+                        generic_replacements,
                         args,
                         body,
                     }
@@ -502,10 +497,10 @@ impl Expr {
                 mut func_call,
             } => {
                 let receiver = receiver.deref().clone();
-                let receiver_span = receiver.span;
                 func_call.args.modify(|it| it.insert(0, receiver.clone()));
                 func_call.span = self.span;
 
+                let receiver_span = receiver.span;
                 let receiver = receiver.type_check(scopes, o, None)?;
                 func_call.receiver_ty = Some(receiver.ty.into_ast1(receiver_span));
 
@@ -610,31 +605,25 @@ impl FuncCall {
             type_hint,
             self.span,
         )?;
-        let (nesting_prefix, receiver_ty, generic_replacements) = match &symbol {
+        match symbol {
             Symbol::Func {
+                ty,
                 nesting_prefix,
                 receiver_ty,
                 generic_replacements,
                 ..
-            } => (nesting_prefix, receiver_ty, generic_replacements),
+            } => Ok(ast2::Expr {
+                kind: ast2::ExprKind::FuncCall {
+                    nesting_prefix,
+                    receiver_ty,
+                    name: self.name,
+                    generic_replacements,
+                    args,
+                },
+                ty,
+            }),
             _ => unreachable!(),
-        };
-        Ok(ast2::Expr {
-            kind: ast2::ExprKind::FuncCall {
-                encoded_name: self
-                    .name
-                    .encode(
-                        nesting_prefix,
-                        receiver_ty.as_ref(),
-                        generic_replacements,
-                        None,
-                        true,
-                    )
-                    .intern(),
-                args,
-            },
-            ty: symbol.ty(),
-        })
+        }
     }
 }
 

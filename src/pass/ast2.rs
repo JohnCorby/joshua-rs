@@ -11,12 +11,17 @@ pub struct Program(pub Rc<Vec<Define>>);
 #[derive(Debug, Clone)]
 pub enum Define {
     Struct {
-        encoded_name: &'static str,
+        nesting_prefix: &'static str,
+        name: &'static str,
+        generic_replacements: Rc<Vec<Type>>,
         body: Rc<Vec<Define>>,
     },
     Func {
         ty: Type,
-        encoded_name: &'static str,
+        nesting_prefix: &'static str,
+        receiver_ty: Option<Type>,
+        name: &'static str,
+        generic_replacements: Rc<Vec<Type>>,
         args: Rc<Vec<VarDefine>>,
         body: Block,
     },
@@ -99,7 +104,10 @@ pub enum ExprKind {
     // primary
     Literal(Literal),
     FuncCall {
-        encoded_name: &'static str,
+        nesting_prefix: &'static str,
+        receiver_ty: Option<Type>,
+        name: &'static str,
+        generic_replacements: Rc<Vec<Type>>,
         args: Rc<Vec<Expr>>,
     },
     Var(&'static str),
