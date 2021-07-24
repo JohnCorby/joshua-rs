@@ -1,7 +1,7 @@
 //! generic helper stuff
 
 use crate::context::Output;
-use crate::error::{err, IntoErr, Res};
+use crate::error::{err, Res};
 use crate::pass::ast1::*;
 use crate::pass::ast2;
 use crate::pass::replace_generics::GenericMap;
@@ -260,12 +260,11 @@ impl ast2::Type {
 }
 
 impl Scopes {
-    /// create a specialized symbol and return it
-    ///
-    /// assumes the specialized version doesn't already exist
+    /// find a generic symbol
     ///
     /// the created symbol will be at the same scope level as the generic symbol
-    pub fn add_specialized(&mut self, o: &mut Output, symbol: &Symbol, span: Span) -> Res<Symbol> {
+    ///
+    pub fn find_generic(&mut self, o: &mut Output, symbol: &Symbol, span: Span) -> Res<Symbol> {
         match symbol {
             Symbol::Struct {
                 name,
@@ -283,65 +282,70 @@ impl Scopes {
                     return Ok(symbol.clone());
                 }
 
-                // find associated generic symbol
-                let generic_symbol = self
-                    .0
-                    .iter()
-                    .rev()
-                    .map(|scope| &scope.symbols)
-                    .flatten()
-                    .find(|s| symbol.generic_eq_normal(s))
-                    .ok_or_else(|| {
-                        format!("could not find generic struct matching {}", symbol)
-                            .into_err(Some(span))
-                    })?
-                    .clone();
-
-                match generic_symbol {
-                    Symbol::GenericStruct {
-                        span,
-                        generic_placeholders,
-                        mut body,
-
-                        scopes_index,
-                        ..
-                    } => {
-                        let generic_map = generic_placeholders
-                            .iter()
-                            .copied()
-                            .zip(
-                                generic_replacements
-                                    .iter()
-                                    .cloned()
-                                    .map(|it| it.into_ast1(span)),
-                            )
-                            .collect::<GenericMap>();
-
-                        // do replacements
-                        body.modify(|it| {
-                            for define in it {
-                                define.replace_generics(&generic_map)
-                            }
-                        });
-
-                        let scopes_after = self.0.split_off(scopes_index);
-                        Define {
-                            span,
-                            kind: DefineKind::Struct {
-                                name,
-                                generic_placeholders: Default::default(),
-                                body,
-                            },
-                        }
-                        .type_check(self, o, generic_replacements.clone())?
-                        .gen(o);
-
-                        let symbol = self.0.last().unwrap().symbols.get(symbol).unwrap().clone();
-                        self.0.extend(scopes_after);
-                        Ok(symbol)
+                let scopes = self.0.iter().map(|scope| scope.symbols.clone()).vec();
+                for symbols in scopes {
+                    // try to find already specialized version first
+                    if let Some(it) = symbols.get(symbol) {
+                        return Ok(it.clone());
                     }
-                    _ => unreachable!(),
+
+                    // then find generic one and do stuff
+                    // we don't have to worry about ambiguous here
+                    for s in symbols {
+                        match s {
+                            Symbol::GenericStruct {
+                                span,
+                                generic_placeholders,
+                                body,
+
+                                scopes_index,
+                                ..
+                            } if s.generic_eq_normal(symbol) => {
+                                let generic_map = generic_placeholders
+                                    .iter()
+                                    .copied()
+                                    .zip(
+                                        generic_replacements
+                                            .iter()
+                                            .cloned()
+                                            .map(|it| it.into_ast1(span)),
+                                    )
+                                    .collect::<GenericMap>();
+
+                                // do replacements
+                                let mut body = body.clone();
+                                body.modify(|it| {
+                                    for define in it {
+                                        define.replace_generics(&generic_map)
+                                    }
+                                });
+
+                                let scopes_after = self.0.split_off(scopes_index);
+                                Define {
+                                    span,
+                                    kind: DefineKind::Struct {
+                                        name,
+                                        generic_placeholders: Default::default(),
+                                        body,
+                                    },
+                                }
+                                .type_check(self, o, generic_replacements.clone())?
+                                .gen(o);
+
+                                let symbol =
+                                    self.0.last().unwrap().symbols.get(symbol).unwrap().clone();
+                                self.0.extend(scopes_after);
+                                return Ok(symbol);
+                            }
+                            _ => {}
+                        }
+                    }
                 }
+
+                err(
+                    &format!("could not find generic struct matching {}", symbol),
+                    span,
+                )
             }
 
             Symbol::Func {
@@ -351,113 +355,121 @@ impl Scopes {
                 arg_types,
                 ..
             } => {
-                debug_assert!(!generic_replacements.is_empty());
+                {
+                    debug_assert!(!generic_replacements.is_empty());
 
-                // find associated generic symbol
-                let generic_symbol = self
-                    .0
-                    .iter()
-                    .rev()
-                    .map(|scope| &scope.symbols)
-                    .flatten()
-                    .find(|s| symbol.generic_eq_normal(s))
-                    .ok_or_else(|| {
-                        format!("could not find generic func matching {}", symbol)
-                            .into_err(Some(span))
-                    })?
-                    .clone();
-
-                match generic_symbol {
-                    Symbol::GenericFunc {
-                        span,
-                        mut ty_ast1,
-                        mut receiver_ty_ast1,
-                        generic_placeholders,
-                        mut args,
-                        mut body,
-
-                        scopes_index,
-                        ..
-                    } => {
-                        let generic_map = generic_placeholders
-                            .iter()
-                            .copied()
-                            .zip(
-                                generic_replacements
-                                    .iter()
-                                    .cloned()
-                                    .map(|it| it.into_ast1(span)),
-                            )
-                            .collect::<GenericMap>();
-
-                        // do replacements
-                        ty_ast1.replace_generics(&generic_map);
-                        if let Some(it) = &mut receiver_ty_ast1 {
-                            it.replace_generics(&generic_map)
+                    let scopes = self.0.iter().map(|scope| scope.symbols.clone()).vec();
+                    for symbols in scopes {
+                        // try to find already specialized version first
+                        if let Some(it) = symbols.get(symbol) {
+                            return Ok(it.clone());
                         }
-                        args.modify(|it| {
-                            for arg in it {
-                                arg.replace_generics(&generic_map)
-                            }
-                        });
-                        body.0.modify(|it| {
-                            for statement in it {
-                                statement.replace_generics(&generic_map)
-                            }
-                        });
 
-                        let scopes_after = self.0.split_off(scopes_index);
-                        // check that the types actually match
-                        // modified from Define::type_check
-                        let other_receiver_ty = receiver_ty_ast1
-                            .as_ref()
-                            .cloned()
-                            .map(|it| it.type_check(self, o))
-                            .transpose()?;
-                        self.push(Scope::new(false, false, None));
-                        let other_arg_types = args
-                            .iter()
-                            .cloned()
-                            .map(|it| it.type_check(self, o, true, false).map(|it| it.ty))
-                            .res_vec()?;
-                        self.pop();
-                        receiver_ty
-                            .as_ref()
-                            .map(|it| {
-                                it.check(
-                                    other_receiver_ty.as_ref().unwrap(),
-                                    receiver_ty_ast1.as_ref().unwrap().span,
-                                )
-                            })
-                            .transpose()?;
-                        arg_types
-                            .iter()
-                            .zip(other_arg_types.iter())
-                            .zip(args.iter())
-                            .map(|((arg_type, other_arg_type), arg)| {
-                                arg_type.check(other_arg_type, arg.span)
-                            })
-                            .res_vec()?;
+                        // then find generic one and do stuff
+                        // fixme ambiguous can happen
+                        for s in symbols {
+                            match s {
+                                Symbol::GenericFunc {
+                                    span,
+                                    mut ty_ast1,
+                                    mut receiver_ty_ast1,
+                                    generic_placeholders,
+                                    mut args,
+                                    mut body,
 
-                        Define {
-                            span,
-                            kind: DefineKind::Func {
-                                ty: ty_ast1,
-                                receiver_ty: receiver_ty_ast1,
-                                name,
-                                generic_placeholders: Default::default(),
-                                args,
-                                body,
-                            },
+                                    scopes_index,
+                                    ..
+                                } if s.generic_eq_normal(symbol) => {
+                                    let generic_map = generic_placeholders
+                                        .iter()
+                                        .copied()
+                                        .zip(
+                                            generic_replacements
+                                                .iter()
+                                                .cloned()
+                                                .map(|it| it.into_ast1(span)),
+                                        )
+                                        .collect::<GenericMap>();
+
+                                    // do replacements
+                                    ty_ast1.replace_generics(&generic_map);
+                                    if let Some(it) = &mut receiver_ty_ast1 {
+                                        it.replace_generics(&generic_map)
+                                    }
+                                    args.modify(|it| {
+                                        for arg in it {
+                                            arg.replace_generics(&generic_map)
+                                        }
+                                    });
+                                    body.0.modify(|it| {
+                                        for statement in it {
+                                            statement.replace_generics(&generic_map)
+                                        }
+                                    });
+
+                                    let scopes_after = self.0.split_off(scopes_index);
+                                    // check that the types actually match
+                                    // modified from Define::type_check
+                                    let other_receiver_ty = receiver_ty_ast1
+                                        .as_ref()
+                                        .cloned()
+                                        .map(|it| it.type_check(self, o))
+                                        .transpose()?;
+                                    self.push(Scope::new(false, false, None));
+                                    let other_arg_types = args
+                                        .iter()
+                                        .cloned()
+                                        .map(|it| {
+                                            it.type_check(self, o, true, false).map(|it| it.ty)
+                                        })
+                                        .res_vec()?;
+                                    self.pop();
+                                    receiver_ty
+                                        .as_ref()
+                                        .map(|it| {
+                                            it.check(
+                                                other_receiver_ty.as_ref().unwrap(),
+                                                receiver_ty_ast1.as_ref().unwrap().span,
+                                            )
+                                        })
+                                        .transpose()?;
+                                    arg_types
+                                        .iter()
+                                        .zip(other_arg_types.iter())
+                                        .zip(args.iter())
+                                        .map(|((arg_type, other_arg_type), arg)| {
+                                            arg_type.check(other_arg_type, arg.span)
+                                        })
+                                        .res_vec()?;
+
+                                    Define {
+                                        span,
+                                        kind: DefineKind::Func {
+                                            ty: ty_ast1,
+                                            receiver_ty: receiver_ty_ast1,
+                                            name,
+                                            generic_placeholders: Default::default(),
+                                            args,
+                                            body,
+                                        },
+                                    }
+                                    .type_check(self, o, generic_replacements.clone())?
+                                    .gen(o);
+
+                                    let symbol =
+                                        self.0.last().unwrap().symbols.get(symbol).unwrap().clone();
+                                    self.0.extend(scopes_after);
+                                    return Ok(symbol);
+                                }
+                                _ => {}
+                            }
                         }
-                        .type_check(self, o, generic_replacements.clone())?
-                        .gen(o);
-
-                        let symbol = self.0.last().unwrap().symbols.get(symbol).unwrap().clone();
-                        self.0.extend(scopes_after);
-                        Ok(symbol)
                     }
-                    _ => unreachable!(),
+
+                    err(
+                        &format!("could not find generic func matching {}", symbol),
+                        span,
+                    )
                 }
             }
 
@@ -492,10 +504,10 @@ impl Scopes {
                     type_hint, receiver_ty, name, arg_types
                 );
 
-                let mut matching_replacements = vec![];
-                for scope in self.0.iter().rev() {
+                let scopes = self.0.iter().map(|scope| scope.symbols.clone()).vec();
+                for symbols in scopes {
                     // try to find already specialized version first
-                    let specialized_func = scope.symbols.iter().find(|s| match s {
+                    let specialized_func = symbols.iter().find(|s| match s {
                         Symbol::Func {
                             receiver_ty: other_receiver_ty,
                             name: other_name,
@@ -517,12 +529,12 @@ impl Scopes {
                     // that didn't work
                     // so find candidate generic funcs
                     // and infer replacements from them
-                    matching_replacements.clear();
-                    for s in scope.symbols.iter() {
+                    let mut matching_symbols = vec![];
+                    for s in symbols {
                         match s {
                             Symbol::GenericFunc {
-                                ty,
-                                receiver_ty: other_receiver_ty,
+                                mut ty,
+                                receiver_ty: mut other_receiver_ty,
                                 name: other_name,
                                 generic_placeholders,
                                 arg_types: other_arg_types,
@@ -531,7 +543,7 @@ impl Scopes {
                                 receiver_ty.as_ref(),
                                 other_receiver_ty.as_ref(),
                                 ast2::Type::placeholder_eq_any,
-                            ) && name == other_name
+                            ) && name == &other_name
                                 && iter_eq(
                                     arg_types.iter(),
                                     other_arg_types.iter(),
@@ -547,8 +559,6 @@ impl Scopes {
                                     other_arg_types
                                 );
 
-                                let mut ty = ty.clone();
-                                let mut other_receiver_ty = other_receiver_ty.clone();
                                 let mut other_arg_types = other_arg_types.deref().clone();
                                 let mut generic_placeholders = generic_placeholders
                                     .iter()
@@ -653,58 +663,48 @@ impl Scopes {
 
                                 println!("match!");
 
-                                matching_replacements.push(generic_replacements);
+                                let symbol = self.find_generic(
+                                    o,
+                                    &Symbol::new_func(
+                                        receiver_ty.clone(),
+                                        name,
+                                        generic_replacements.into(),
+                                        arg_types.clone(),
+                                    ),
+                                    span,
+                                )?;
+                                matching_symbols.push(symbol);
                             }
                             _ => {}
                         }
                     }
-                    if !matching_replacements.is_empty() {
-                        break;
+                    if matching_symbols.len() > 1 {
+                        return err(
+                            &format!(
+                                "could not find generic func matching {} because it is ambiguous\n\
+                            candidates:\n{}\n\
+                            try specifying replacements explicitly",
+                                symbol,
+                                matching_symbols
+                                    .iter()
+                                    .map(|it| it.to_string())
+                                    .vec()
+                                    .join("\n")
+                            ),
+                            span,
+                        );
+                    } else if matching_symbols.len() == 1 {
+                        return Ok(matching_symbols[0].clone());
                     }
                 }
 
-                let matching_funcs = matching_replacements
-                    .into_iter()
-                    .map(|it| {
-                        self.add_specialized(
-                            o,
-                            &Symbol::new_func(
-                                receiver_ty.clone(),
-                                name,
-                                it.into(),
-                                arg_types.clone(),
-                            ),
-                            span,
-                        )
-                    })
-                    .res_vec()?;
-
-                if matching_funcs.len() > 1 {
-                    return err(
-                        &format!(
-                            "could not find generic func matching {} because it is ambiguous\n\
-                            candidates:\n{}\n\
-                            try specifying replacements explicitly",
-                            symbol,
-                            matching_funcs
-                                .iter()
-                                .map(|it| it.to_string())
-                                .vec()
-                                .join("\n")
-                        ),
-                        span,
-                    );
-                } else if matching_funcs.is_empty() {
-                    err(
-                        &format!(
-                            "could not find {} (including using generic replacement inference)",
-                            symbol
-                        ),
-                        span,
-                    )
-                } else {
-                    Ok(matching_funcs[0].clone())
-                }
+                err(
+                    &format!(
+                        "could not find {} (including using generic replacement inference)",
+                        symbol
+                    ),
+                    span,
+                )
             }
             _ => unreachable!(),
         }

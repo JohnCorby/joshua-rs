@@ -316,15 +316,7 @@ impl Scopes {
         type_hint: Option<&Type>,
         span: Span,
     ) -> Res<Symbol> {
-        // first just try normal method
-        for scope in self.0.iter().rev() {
-            if let Some(existing) = scope.symbols.get(symbol) {
-                return Ok(existing.clone());
-            }
-        }
-
         match symbol {
-            // then do either specialized symbol creation
             Symbol::Struct {
                 generic_replacements,
                 ..
@@ -332,16 +324,25 @@ impl Scopes {
             | Symbol::Func {
                 generic_replacements,
                 ..
-            } if !generic_replacements.is_empty() => self.add_specialized(o, symbol, span),
+            } if !generic_replacements.is_empty() => return self.find_generic(o, symbol, span),
+            _ => {}
+        };
 
-            // or do inference from no-replacements func
+        for scope in self.0.iter().rev() {
+            if let Some(existing) = scope.symbols.get(symbol) {
+                return Ok(existing.clone());
+            }
+        }
+        match symbol {
             Symbol::Func {
                 generic_replacements,
                 ..
             } if generic_replacements.is_empty() => {
-                self.find_generic_func_inference(o, symbol, type_hint, span)
+                return self.find_generic_func_inference(o, symbol, type_hint, span)
             }
-            _ => err(&format!("could not find {}", symbol), span),
+            _ => {}
         }
+
+        err(&format!("could not find {}", symbol), span)
     }
 }
