@@ -282,7 +282,7 @@ impl Scopes {
                     return Ok(symbol.clone());
                 }
 
-                let scopes = self.0.iter().map(|scope| scope.symbols.clone()).vec();
+                let scopes = self.0.iter().map(|scope| scope.symbols.clone()).vec(); // fixme? yikes
                 for symbols in scopes {
                     // try to find already specialized version first
                     if let Some(it) = symbols.get(symbol) {
@@ -358,7 +358,7 @@ impl Scopes {
                 {
                     debug_assert!(!generic_replacements.is_empty());
 
-                    let scopes = self.0.iter().map(|scope| scope.symbols.clone()).vec();
+                    let scopes = self.0.iter().map(|scope| scope.symbols.clone()).vec(); // fixme? yikes
                     for symbols in scopes {
                         // try to find already specialized version first
                         if let Some(it) = symbols.get(symbol) {
@@ -504,7 +504,7 @@ impl Scopes {
                     type_hint, receiver_ty, name, arg_types
                 );
 
-                let scopes = self.0.iter().map(|scope| scope.symbols.clone()).vec();
+                let scopes = self.0.iter().map(|scope| scope.symbols.clone()).vec(); // fixme? yikes
                 for symbols in scopes {
                     // try to find already specialized version first
                     let specialized_func = symbols.iter().find(|s| match s {
