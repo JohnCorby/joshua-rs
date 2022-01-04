@@ -1,25 +1,14 @@
 use crate::error::Res;
 use crate::pass::ast2::Type;
+use extend::ext;
 use std::ops::Deref;
 use std::rc::Rc;
 
-pub trait StrExt {
+#[ext(name = StrExt)]
+pub impl str {
     /// make a proper name by attaching formatted stuff
     ///
     /// used for codegen and display
-    fn encode(
-        &self,
-        nesting_prefix: &str,
-        receiver_ty: Option<&Type>,
-        generic_replacements: &[Type],
-        arg_types: Option<&[Type]>,
-        include_nesting_prefix: bool,
-    ) -> String;
-
-    /// mangle string for c usage
-    fn mangle(&self) -> String;
-}
-impl StrExt for str {
     fn encode(
         &self,
         nesting_prefix: &str,
@@ -69,37 +58,31 @@ impl StrExt for str {
     }
 }
 
-pub trait IterExt: Iterator + Sized {
+#[ext(name = IterExt, supertraits = Iterator)]
+pub impl<T: Iterator> T {
     /// shorthand for `self.collect::<Vec<_>>()`
     fn vec(self) -> Vec<Self::Item> {
         self.collect()
     }
 }
-impl<T: Iterator> IterExt for T {}
 
-pub trait IterResExt<T>: Iterator<Item = Res<T>> + Sized {
+#[ext(name = IterResExt)]
+pub impl<T, I: Iterator<Item = Res<T>>> I {
     /// shorthand for `self.collect::<Res<Vec<_>>>()`
     fn res_vec(self) -> Res<Vec<T>> {
         self.collect()
     }
 }
-impl<T, I: Iterator<Item = Res<T>>> IterResExt<T> for I {}
 
-pub trait RcExt<T> {
+#[ext(name = RcExt)]
+pub impl<T> Rc<T> {
     /// shorthand for `Rc::try_unwrap(self).unwrap()`
-    fn into_inner(self) -> T;
-
-    /// clone `T`, modify it, and then put a new `Rc` in `self`
-    fn modify(&mut self, f: impl FnOnce(&mut T))
-    where
-        T: Clone;
-}
-impl<T> RcExt<T> for Rc<T> {
     fn into_inner(self) -> T {
         Rc::try_unwrap(self)
             .unwrap_or_else(|_| panic!("tried to unwrap Rc when there are still multiple refs"))
     }
 
+    /// clone `T`, modify it, and then put a new `Rc` in `self`
     fn modify(&mut self, f: impl FnOnce(&mut T))
     where
         T: Clone,
