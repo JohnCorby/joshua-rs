@@ -13,7 +13,7 @@
 #![feature(in_band_lifetimes)]
 #![feature(label_break_value)]
 #![feature(hash_set_entry)]
-#![feature(option_result_unwrap_unchecked)]
+#![feature(let_else)]
 
 #[macro_use]
 extern crate pest_derive;

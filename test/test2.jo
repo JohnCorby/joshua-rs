@@ -7,7 +7,7 @@ void f<T>(T a) {
 }
 void f<T>(T a, T b) {}
 void f<T, U>(T a, U b) {}
-//void f<T>(i8 a, T b) {}
+void f<T>(i8 a, T b) {}
 
 struct S {
     i32 n
@@ -90,6 +90,7 @@ i32 main() {
     f<i8>(1 as i8)
     f<i8>(1 as i8, 2 as i8)
 //    f<i16>(1 as i8, 2 as i16)
+    f(1 as i8, 2 as i16)
 
     f<i16>(1 as i16)
     f<i16>(1 as i16, 2 as i16)

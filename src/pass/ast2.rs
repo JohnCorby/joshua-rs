@@ -177,3 +177,4 @@ pub enum Type {
     Auto,
     CCode,
 }
+impl Eq for Type {}

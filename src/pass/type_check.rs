@@ -605,25 +605,23 @@ impl FuncCall {
             type_hint,
             self.span,
         )?;
-        match symbol {
-            Symbol::Func {
-                ty,
+        let Symbol::Func {
+            ty,
+            nesting_prefix,
+            receiver_ty,
+            generic_replacements,
+            ..
+        } = symbol else { unreachable!() };
+        Ok(ast2::Expr {
+            kind: ast2::ExprKind::FuncCall {
                 nesting_prefix,
                 receiver_ty,
+                name: self.name,
                 generic_replacements,
-                ..
-            } => Ok(ast2::Expr {
-                kind: ast2::ExprKind::FuncCall {
-                    nesting_prefix,
-                    receiver_ty,
-                    name: self.name,
-                    generic_replacements,
-                    args,
-                },
-                ty,
-            }),
-            _ => unreachable!(),
-        }
+                args,
+            },
+            ty,
+        })
     }
 }
 
