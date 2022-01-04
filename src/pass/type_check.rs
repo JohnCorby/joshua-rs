@@ -478,10 +478,8 @@ impl Expr {
                             self.span,
                         )?;
                         debug_assert_eq!(ty, symbol.ty());
-                        match symbol {
-                            Symbol::Func { nesting_prefix, .. } => nesting_prefix,
-                            _ => unreachable!(),
-                        }
+                        let Symbol::Func { nesting_prefix, .. } = symbol else { unreachable!() };
+                        nesting_prefix
                     };
 
                 ast2::Expr {
@@ -524,10 +522,7 @@ impl Expr {
                     }
                 };
                 let symbol = scopes.find(o, &symbol, None, self.span)?;
-                let field_types = match &symbol {
-                    Symbol::Struct { field_types, .. } => field_types,
-                    _ => unreachable!(),
-                };
+                let Symbol::Struct { field_types, .. } = &symbol else { unreachable!() };
                 let ty = match field_types.get(&var) {
                     Some(field_type) => field_type.clone(),
                     None => {
