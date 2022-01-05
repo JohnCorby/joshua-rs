@@ -339,6 +339,7 @@ impl Scopes {
             }
 
             Symbol::Func {
+                span,
                 receiver_ty,
                 name,
                 generic_replacements,
@@ -360,7 +361,7 @@ impl Scopes {
                         for s in symbols {
                             match s {
                                 Symbol::GenericFunc {
-                                    span,
+                                    span: generic_span,
                                     ty: generic_ty,
                                     receiver_ty: generic_receiver_ty,
                                     generic_placeholders,
@@ -421,7 +422,7 @@ impl Scopes {
                                             x.check(
                                                 generic_receiver_ty.as_ref().unwrap(),
                                                 // fixme span bodge
-                                                span,
+                                                *span,
                                             )
                                         })
                                         .transpose()?;
@@ -429,15 +430,15 @@ impl Scopes {
                                         .iter()
                                         .zip(generic_arg_types.iter())
                                         .map(|(regular, generic)| {
-                                            generic.check(
-                                                regular, // fixme span bodge
-                                                span,
+                                            regular.check(
+                                                generic, // fixme span bodge
+                                                *span,
                                             )
                                         })
                                         .res_vec()?;
 
                                     Define::Func {
-                                        span,
+                                        span: generic_span,
                                         ty: generic_ty_ast1,
                                         receiver_ty: generic_receiver_ty_ast1,
                                         name: *name,
