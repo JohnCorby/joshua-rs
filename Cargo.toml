@@ -17,6 +17,7 @@ parking_lot = { version = "*", features = ["nightly"] }
 derivative = "*"
 derive-new = "*"
 extend = "*"
+by_address = "*"
 
 [dev-dependencies]
 unindent = "*"

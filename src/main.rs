@@ -14,6 +14,7 @@
 #![feature(label_break_value)]
 #![feature(hash_set_entry)]
 #![feature(let_else)]
+#![feature(once_cell)]
 
 #[macro_use]
 extern crate pest_derive;
@@ -21,6 +22,8 @@ extern crate pest_derive;
 extern crate derivative;
 #[macro_use]
 extern crate derive_new;
+#[macro_use]
+extern crate extend;
 
 use crate::context::{Intern, Output};
 use crate::error::{Err, Res};

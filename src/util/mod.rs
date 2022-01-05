@@ -1,6 +1,5 @@
 use crate::error::Res;
 use crate::pass::ast2::Type;
-use extend::ext;
 use std::ops::Deref;
 use std::rc::Rc;
 
