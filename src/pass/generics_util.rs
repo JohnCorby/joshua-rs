@@ -1,12 +1,12 @@
 //! generic helper stuff
+//! this is awful, fixme please
 
 use crate::context::Output;
 use crate::error::{err, Res};
 use crate::pass::ast1::*;
-use crate::pass::ast2;
 use crate::pass::replace_generics::GenericMap;
 use crate::pass::scope::{Scope, Scopes, Symbol};
-use crate::span::Span;
+use crate::pass::{ast2, Ident};
 use crate::util::{IterExt, IterResExt, RcExt};
 use std::collections::HashMap;
 use std::ops::Deref;
@@ -553,7 +553,7 @@ impl Scopes {
                                 // let mut other_arg_types = other_arg_types.deref().clone();
                                 let mut generic_placeholders = generic_placeholders
                                     .iter()
-                                    .map(|it| ast2::Type::GenericPlaceholder(it))
+                                    .map(|x| ast2::Type::GenericPlaceholder(*x))
                                     .zip(0..)
                                     .collect::<HashMap<_, _>>();
                                 let mut generic_replacements =
@@ -563,12 +563,9 @@ impl Scopes {
                                     /// replace a generic placeholder with a real type lol
                                     ///
                                     /// the same as the whole pass, except does it for ast2 Type instead of ast1
-                                    fn replace_generic(
-                                        &mut self,
-                                        map: (&'static str, &ast2::Type),
-                                    ) {
-                                        use ast2::TypeKind::*;
-                                        match &mut self.kind {
+                                    fn replace_generic(&mut self, map: (Ident, &ast2::Type)) {
+                                        use ast2::Type::*;
+                                        match &mut self {
                                             Struct {
                                                 generic_replacements,
                                                 ..
@@ -711,11 +708,10 @@ impl Scopes {
                                     o,
                                     &Symbol::new_func(
                                         receiver_ty.clone(),
-                                        name,
+                                        *name,
                                         generic_replacements.into(),
                                         arg_types.clone(),
                                     ),
-                                    span,
                                 )?;
                                 matching_symbols.push(symbol);
                             }
@@ -736,7 +732,7 @@ impl Scopes {
                                     .vec()
                                     .join("\n")
                             ),
-                            span,
+                            symbol.name_span(),
                         );
                     } else if matching_symbols.len() == 1 {
                         return Ok(matching_symbols[0].clone());
@@ -748,7 +744,7 @@ impl Scopes {
                         "could not find {} (including using generic replacement inference)",
                         symbol
                     ),
-                    span,
+                    symbol.name_span(),
                 )
             }
 
