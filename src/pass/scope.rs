@@ -20,7 +20,6 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 pub enum Symbol {
     Func {
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
-        #[new(default)]
         span: Span,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         #[new(default)]
@@ -33,18 +32,14 @@ pub enum Symbol {
         generic_replacements: Rc<Vec<Type>>,
         arg_types: Rc<Vec<Type>>,
     },
-    Var {
+    Var(
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         #[new(default)]
-        span: Span,
-        #[derivative(Hash = "ignore", PartialEq = "ignore")]
-        #[new(default)]
-        ty: Type,
-        name: Ident,
-    },
+        Type,
+        Ident,
+    ),
     Struct {
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
-        #[new(default)]
         span: Span,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         #[new(default)]
@@ -53,7 +48,7 @@ pub enum Symbol {
         generic_replacements: Rc<Vec<Type>>,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         #[new(default)]
-        field_types: Rc<HashMap<&'static str, Type>>,
+        field_types: Rc<HashMap<Ident, Type>>,
     },
     /// replaced with concrete type on specialization
     ///
@@ -63,7 +58,6 @@ pub enum Symbol {
     GenericStruct {
         // copied from struct define
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
-        #[new(default)]
         span: Span,
         name: Ident,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
@@ -86,9 +80,8 @@ pub enum Symbol {
 
         // copied from func define
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
-        #[new(default)]
         span: Span,
-        name: &'static str,
+        name: Ident,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         generic_placeholders: Rc<Vec<Ident>>,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
@@ -102,27 +95,36 @@ pub enum Symbol {
     },
 }
 impl Symbol {
-    pub fn ty(&self) -> Type {
+    pub fn ty(&self) -> &Type {
         use Symbol::*;
         match self {
-            Func { ty, .. } | Var { ty, .. } => ty.clone(),
+            Func { ty, .. } | Var(ty, ..) => ty,
             Struct {
                 span,
                 nesting_prefix,
                 name,
                 generic_replacements,
                 ..
-            } => Type::Struct {
+            } => &Type::Struct {
                 span: *span,
                 nesting_prefix: *nesting_prefix,
                 name: *name,
                 generic_replacements: generic_replacements.clone(),
             },
-            GenericPlaceholder(Ident { span, str: name }) => Type::GenericPlaceholder(Ident {
-                span: *span,
-                str: name,
-            }),
+            GenericPlaceholder(Ident(span, name)) => &Type::GenericPlaceholder(Ident(*span, name)),
             _ => panic!("symbol {:?} doesn't have a type", self),
+        }
+    }
+
+    pub fn span(&self) -> Span {
+        use Symbol::*;
+        match self {
+            Func { span, .. } => *span,
+            Var(_, name) => name.0,
+            Struct { span, .. } => *span,
+            GenericPlaceholder(Ident(span, _)) => *span,
+            GenericStruct { span, .. } => *span,
+            GenericFunc { span, .. } => *span,
         }
     }
 }
@@ -149,7 +151,7 @@ impl Display for Symbol {
                     false
                 )
             ),
-            Var { name, .. } => write!(f, "var {}", name),
+            Var(_, name) => write!(f, "var {}", name),
             Struct {
                 name,
                 generic_replacements,
@@ -159,7 +161,7 @@ impl Display for Symbol {
                 "struct {}",
                 name.encode("", None, generic_replacements, None, false)
             ),
-            GenericPlaceholder(Ident { str, .. }) => {
+            GenericPlaceholder(Ident(_, str)) => {
                 write!(f, "generic placeholder {}", str)
             }
             GenericFunc {
@@ -304,7 +306,7 @@ impl Scopes {
 }
 
 impl Scopes {
-    pub fn add(&mut self, symbol: Symbol, span: Span) -> Res {
+    pub fn add(&mut self, symbol: Symbol) -> Res {
         let symbols = &mut self.0.last_mut().unwrap().symbols;
         let existing = match &symbol {
             // placeholders always eq any other placeholder
@@ -315,7 +317,7 @@ impl Scopes {
             _ => symbols.get(&symbol),
         };
         if let Some(existing) = existing {
-            err(&format!("{} already defined", existing), span)
+            err(&format!("{} already defined", existing), symbol.span())
         } else {
             symbols.insert(symbol);
             Ok(())
@@ -328,7 +330,6 @@ impl Scopes {
         o: &mut Output,
         symbol: &Symbol,
         type_hint: Option<&Type>,
-        span: Span,
     ) -> Res<Symbol> {
         match symbol {
             Symbol::Struct {
@@ -338,7 +339,7 @@ impl Scopes {
             | Symbol::Func {
                 generic_replacements,
                 ..
-            } if !generic_replacements.is_empty() => return self.find_generic(o, symbol, span),
+            } if !generic_replacements.is_empty() => return self.find_generic(o, symbol),
             _ => {}
         };
 
@@ -352,11 +353,11 @@ impl Scopes {
                 generic_replacements,
                 ..
             } if generic_replacements.is_empty() => {
-                return self.find_generic_func_inference(o, symbol, type_hint, span)
+                return self.find_generic_func_inference(o, symbol, type_hint)
             }
             _ => {}
         }
 
-        err(&format!("could not find {}", symbol), span)
+        err(&format!("could not find {}", symbol), symbol.span())
     }
 }

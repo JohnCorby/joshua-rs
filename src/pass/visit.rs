@@ -28,14 +28,13 @@ impl Visit for Ident {
     fn visit(node: Node) -> Self {
         debug_assert_eq!(node.kind(), Kind::ident);
         let str = node.str();
-        Self {
-            span: node.span(),
-            str: str
-                .strip_prefix('`')
+        Self(
+            node.span(),
+            str.strip_prefix('`')
                 .unwrap_or(str)
                 .strip_suffix('`')
                 .unwrap_or(str),
-        }
+        )
     }
 }
 
@@ -133,15 +132,17 @@ impl Visit for VarDefine {
 
 impl Visit for Statement {
     fn visit(node: Node) -> Self {
+        let span = node.span();
         use Statement::*;
         match node.kind() {
-            Kind::ret => Return(node.children().next().map(|it| it.visit())),
-            Kind::brk => Break,
-            Kind::cont => Continue,
+            Kind::ret => Return(node.span(), node.children().next().map(|it| it.visit())),
+            Kind::brk => Break(node.span()),
+            Kind::cont => Continue(node.span()),
             Kind::iff => {
                 let mut nodes = node.children();
 
                 If {
+                    span,
                     cond: nodes.next().unwrap().visit(),
                     then: nodes.next().unwrap().visit(),
                     otherwise: nodes.next().map(|it| it.visit()),
@@ -151,6 +152,7 @@ impl Visit for Statement {
                 let mut nodes = node.children();
 
                 Until {
+                    span,
                     cond: nodes.next().unwrap().visit(),
                     block: nodes.next().unwrap().visit(),
                 }
@@ -159,6 +161,7 @@ impl Visit for Statement {
                 let mut nodes = node.children();
 
                 For {
+                    span,
                     init: nodes.next().unwrap().visit(),
                     cond: nodes.next().unwrap().visit(),
                     update: nodes.next().unwrap().visit::<Statement>().into(),
@@ -169,6 +172,7 @@ impl Visit for Statement {
                 let mut nodes = node.children();
 
                 ExprAssign {
+                    span,
                     lvalue: nodes.next().unwrap().visit(),
                     rvalue: nodes.next().unwrap().visit(),
                 }
@@ -218,10 +222,7 @@ impl Visit for Expr {
                 let mut left = nodes.next().unwrap().visit::<Expr>();
                 while let Some(op) = nodes.next() {
                     let old_left = left.clone();
-                    let op = Ident {
-                        span: op.span(),
-                        str: op.str(),
-                    };
+                    let op = Ident(op.span(), op.str());
                     let right = nodes.next().unwrap().visit::<Expr>();
                     left = FuncCall(self::FuncCall {
                         span,
@@ -240,10 +241,7 @@ impl Visit for Expr {
 
                 let mut thing = rev_nodes.next().unwrap().visit::<Expr>();
                 for op in rev_nodes {
-                    let op = Ident {
-                        span: op.span(),
-                        str: op.str(),
-                    };
+                    let op = Ident(op.span(), op.str());
                     let old_thing = thing.clone();
                     thing = FuncCall(self::FuncCall {
                         span,
@@ -303,7 +301,7 @@ impl Visit for Expr {
             Kind::func_call => FuncCall(node.visit()),
             Kind::ident => Var(node.visit()),
 
-            Kind::c_code => CCode(node.visit()),
+            Kind::c_code => CCode(span, node.visit()),
 
             _ => unexpected_kind(node),
         }
@@ -340,11 +338,14 @@ impl Visit for Literal {
     fn visit(node: Node) -> Self {
         use Literal::*;
         match node.kind() {
-            Kind::float_literal => Float(node.str().parse().unwrap()),
-            Kind::int_literal => Int(node.str().parse().unwrap()),
-            Kind::bool_literal => Bool(node.str().parse().unwrap()),
-            Kind::char_literal => Char(node.children().next().unwrap().str().parse().unwrap()),
-            Kind::str_literal => StrZ(node.children().next().unwrap().str()), // todo maybe unescape this so we can actually count the characters?
+            Kind::float_literal => Float(node.span(), node.str().parse().unwrap()),
+            Kind::int_literal => Int(node.span(), node.str().parse().unwrap()),
+            Kind::bool_literal => Bool(node.span(), node.str().parse().unwrap()),
+            Kind::char_literal => Char(
+                node.span(),
+                node.children().next().unwrap().str().parse().unwrap(),
+            ),
+            Kind::str_literal => StrZ(node.span(), node.children().next().unwrap().str()), // todo maybe unescape this so we can actually count the characters?
 
             _ => unexpected_kind(node),
         }

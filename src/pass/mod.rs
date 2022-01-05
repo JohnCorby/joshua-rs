@@ -39,31 +39,31 @@ pub fn compile_program(c_code: &str, path: &Path) -> ExitStatus {
 
 #[derive(Debug, Copy, Clone, Derivative, new)]
 #[derivative(Hash, PartialEq)]
-pub struct Ident {
-    #[derivative(Hash = "ignore", PartialEq = "ignore")]
-    #[new(default)]
-    pub span: Span,
-    pub str: &'static str,
-}
+pub struct Ident(
+    #[derivative(Hash = "ignore", PartialEq = "ignore")] pub Span,
+    pub &'static str,
+);
+
 impl Deref for Ident {
     type Target = str;
     fn deref(&self) -> &Self::Target {
-        self.str
+        self.1
     }
 }
 impl Display for Ident {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-        Display::fmt(self.str, f)
+        Display::fmt(self.1, f)
     }
 }
+impl Eq for Ident {}
 
 #[derive(Debug, Copy, Clone)]
 pub enum Literal {
-    Float(f64),
-    Int(i64),
-    Bool(bool),
-    Char(char),
-    StrZ(&'static str),
+    Float(Span, f64),
+    Int(Span, i64),
+    Bool(Span, bool),
+    Char(Span, char),
+    StrZ(Span, &'static str),
 }
 
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Default, EnumString, Display)]

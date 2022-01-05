@@ -267,7 +267,7 @@ impl Scopes {
     ///
     /// the created symbol will be at the same scope level as the generic symbol
     ///
-    pub fn find_generic(&mut self, o: &mut Output, symbol: &Symbol, span: Span) -> Res<Symbol> {
+    pub fn find_generic(&mut self, o: &mut Output, symbol: &Symbol) -> Res<Symbol> {
         match symbol {
             Symbol::Struct {
                 name,
@@ -489,7 +489,6 @@ impl Scopes {
         o: &mut Output,
         symbol: &Symbol,
         type_hint: Option<&ast2::Type>,
-        span: Span,
     ) -> Res<Symbol> {
         match symbol {
             Symbol::Func {

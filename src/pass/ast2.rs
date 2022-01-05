@@ -49,25 +49,29 @@ pub struct VarDefine {
 
 #[derive(Debug, Clone)]
 pub enum Statement {
-    Return(Option<Expr>),
-    Break,
-    Continue,
+    Return(Span, Option<Expr>),
+    Break(Span),
+    Continue(Span),
     If {
+        span: Span,
         cond: Expr,
         then: Block,
         otherwise: Option<Block>,
     },
     Until {
+        span: Span,
         cond: Expr,
         block: Block,
     },
     For {
+        span: Span,
         init: VarDefine,
         cond: Expr,
         update: Rc<Statement>,
         block: Block,
     },
     ExprAssign {
+        span: Span,
         lvalue: Expr,
         rvalue: Expr,
     },
@@ -99,73 +103,70 @@ pub enum Expr {
     Field {
         span: Span,
         receiver: Rc<Expr>,
-        var: &'static str,
-        ty: Type,
-    },
-
-    // primary
-    Literal {
-        span: Span,
-        value: Literal,
-        ty: Type,
-    },
-    FuncCall {
-        span: Span,
-        nesting_prefix: &'static str,
-        receiver_ty: Option<Type>,
-        name: &'static str,
-        generic_replacements: Rc<Vec<Type>>,
-        args: Rc<Vec<Expr>>,
-        ty: Type,
-    },
-    Var {
         name: Ident,
         ty: Type,
     },
 
-    CCode(CCode),
+    // primary
+    Literal(Literal),
+    FuncCall {
+        span: Span,
+        nesting_prefix: &'static str,
+        receiver_ty: Option<Type>,
+        name: Ident,
+        generic_replacements: Rc<Vec<Type>>,
+        args: Rc<Vec<Expr>>,
+        ty: Type,
+    },
+    Var(Ident, Type),
+
+    CCode(Span, CCode),
 }
 
 impl Expr {
-    pub fn ty(&self) -> Type {
+    pub fn ty(&self) -> &Type {
         use Expr::*;
-        match &self {
+        match self {
             Cast { ty, .. } => ty,
             Field { ty, .. } => ty,
-            Literal { ty, .. } => ty,
+            Literal(literal) => match literal {
+                self::Literal::Float(..) => &Type::Literal(LiteralKind::Float),
+                self::Literal::Int(..) => &Type::Literal(LiteralKind::Int),
+                self::Literal::Bool(..) => &Type::Primitive(PrimitiveKind::Bool),
+                self::Literal::Char(..) => &Type::Primitive(PrimitiveKind::U8),
+                self::Literal::StrZ(..) => &Type::Ptr(Type::Primitive(PrimitiveKind::U8).into()),
+            },
             FuncCall { ty, .. } => ty,
-            Var { ty, .. } => ty,
-            CCode(_) => unimplemented!(),
+            Var(_, ty) => ty,
+            CCode(..) => &Type::CCode,
+        }
+    }
+
+    pub fn span(&self) -> Span {
+        use Expr::*;
+        match self {
+            Cast { span, .. } => *span,
+            Field { span, .. } => *span,
+            Literal(span, _) => *span,
+            FuncCall { span, .. } => *span,
+            Var(name, _) => name.0,
+            CCode(span, ..) => *span,
         }
     }
 
     pub fn check_assignable(&self) -> Res {
         use Expr::*;
-        let is_ptr = matches!(self.ty(), TypeKind::Ptr(_));
-        let is_assignable = match self.kind {
-            Var { name: _ } | Field { .. } => true,
+        let is_ptr = matches!(self.ty(), Type::Ptr(_));
+        let is_assignable = match self {
+            Var(_, _) | Field { .. } => true,
             FuncCall { .. } if is_ptr => true,
             _ => false,
         };
 
         if !is_assignable {
-            err("expr is not assignable", span)
+            err("expr is not assignable", self.span())
         } else {
             Ok(())
-        }
-    }
-}
-
-impl Literal {
-    /// fixme remove this
-    pub fn ty(&self, span: Span) -> Type {
-        use Literal::*;
-        match self {
-            Float(_) => LiteralKind::Float.ty(span),
-            Int(_) => LiteralKind::Int.ty(span),
-            Bool(_) => PrimitiveKind::Bool.ty(span),
-            Char(_) => PrimitiveKind::U8.ty(span),
-            StrZ(_) => Type::Ptr(PrimitiveKind::U8.ty(span).into()),
         }
     }
 }
@@ -215,10 +216,7 @@ impl Type {
 }
 impl Default for Type {
     fn default() -> Self {
-        Self {
-            span: Default::default(),
-            kind: TypeKind::Primitive(PrimitiveKind::Void),
-        }
+        Self::Primitive(PrimitiveKind::Void)
     }
 }
 
@@ -251,12 +249,4 @@ impl Type {
 pub enum LiteralKind {
     Float,
     Int,
-}
-impl LiteralKind {
-    pub const fn ty(&self, span: Span) -> Type {
-        Type {
-            span,
-            kind: TypeKind::Literal(*self),
-        }
-    }
 }

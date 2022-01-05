@@ -39,25 +39,29 @@ pub struct VarDefine {
 
 #[derive(Debug, Clone)]
 pub enum Statement {
-    Return(Option<Expr>),
-    Break,
-    Continue,
+    Return(Span, Option<Expr>),
+    Break(Span),
+    Continue(Span),
     If {
+        span: Span,
         cond: Expr,
         then: Block,
         otherwise: Option<Block>,
     },
     Until {
+        span: Span,
         cond: Expr,
         block: Block,
     },
     For {
+        span: Span,
         init: VarDefine,
         cond: Expr,
         update: Rc<Statement>,
         block: Block,
     },
     ExprAssign {
+        span: Span,
         lvalue: Expr,
         rvalue: Expr,
     },
@@ -101,7 +105,7 @@ pub enum Expr {
     FuncCall(FuncCall),
     Var(Ident),
 
-    CCode(CCode),
+    CCode(Span, CCode),
 }
 
 #[derive(Debug, Clone)]
