@@ -52,7 +52,7 @@ impl Type {
     }
 }
 
-#[derive(Debug, Copy, Clone, Hash, PartialEq, strum::EnumString, strum::Display)]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, EnumString, Display)]
 #[strum(serialize_all = "snake_case")]
 pub enum PrimitiveType {
     I8,

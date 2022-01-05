@@ -48,7 +48,6 @@ pub struct Statement {
     pub kind: StatementKind,
 }
 
-#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone)]
 pub enum StatementKind {
     Return(Option<Expr>),

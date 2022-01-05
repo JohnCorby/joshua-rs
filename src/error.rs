@@ -50,10 +50,8 @@ impl Debug for Err {
     }
 }
 
-pub trait IntoErr {
-    fn into_err(self, span: Option<Span>) -> Err;
-}
-impl<T: ToString> IntoErr for T {
+#[ext(name = IntoErr)]
+pub impl<T: ToString> T {
     fn into_err(self, span: Option<Span>) -> Err {
         Err {
             message: self.to_string(),

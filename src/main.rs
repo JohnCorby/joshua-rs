@@ -24,6 +24,8 @@ extern crate derivative;
 extern crate derive_new;
 #[macro_use]
 extern crate extend;
+#[macro_use]
+extern crate strum;
 
 use crate::context::{Intern, Output};
 use crate::error::{Err, Res};
