@@ -143,7 +143,7 @@ impl Define {
                     }
                 }
 
-                let ty = ty.clone().type_check(scopes, o)?;
+                let ty = ty.type_check(scopes, o)?;
                 let receiver_ty = receiver_ty
                     .as_ref()
                     .cloned()
@@ -164,6 +164,7 @@ impl Define {
                     // add symbol
                     let scope = scopes.pop();
                     scopes.add(Symbol::Func {
+                        span,
                         ty: ty.clone(),
                         nesting_prefix,
                         receiver_ty: receiver_ty.clone(),
@@ -434,7 +435,7 @@ impl CCode {
                 Ok(match part {
                     CCodePart::String(str) => ast2::CCodePart::String(str),
                     CCodePart::Expr(expr) => {
-                        ast2::CCodePart::Expr(expr.type_check(scopes, o, None)?)
+                        ast2::CCodePart::Expr(expr.type_check(scopes, o, None)?.into())
                     }
                 })
             })
@@ -458,28 +459,30 @@ impl Expr {
 
                 // symbol check
                 // fixme hacky as shit
-                let nesting_prefix = if matches!(ty, ast2::Type::Literal(..) | ast2::Type::CCode) {
-                    // casting will always work
-                    ""
-                } else {
-                    let symbol = scopes.find(
-                        o,
-                        &Symbol::new_func(
-                            None,
-                            Ident(
-                                // fixme span bodge
+                let nesting_prefix =
+                    if matches!(thing.ty(), ast2::Type::Literal(..) | ast2::Type::CCode) {
+                        // casting will always work
+                        ""
+                    } else {
+                        let symbol = scopes.find(
+                            o,
+                            &Symbol::new_func(
                                 span,
-                                format!("as {}", ty.encode(true)).intern(),
+                                None,
+                                Ident(
+                                    // fixme span bodge
+                                    span,
+                                    format!("as {}", ty.encode(true)).intern(),
+                                ),
+                                Default::default(),
+                                vec![thing.ty()].into(),
                             ),
-                            Default::default(),
-                            vec![thing.ty()].into(),
-                        ),
-                        None,
-                    )?;
-                    debug_assert_eq!(ty, symbol.ty());
-                    let Symbol::Func { nesting_prefix, .. } = symbol else { unreachable!() };
-                    nesting_prefix
-                };
+                            None,
+                        )?;
+                        debug_assert_eq!(ty, symbol.ty());
+                        let Symbol::Func { nesting_prefix, .. } = symbol else { unreachable!() };
+                        nesting_prefix
+                    };
 
                 ast2::Expr::Cast {
                     span,
@@ -580,6 +583,7 @@ impl FuncCall {
         let symbol = scopes.find(
             o,
             &Symbol::new_func(
+                self.span,
                 receiver_ty,
                 self.name,
                 generic_replacements,
@@ -642,7 +646,6 @@ impl Type {
                         )
                     })?
                     .ty()
-                    .clone()
             }
             Auto => ast2::Type::Auto,
         })

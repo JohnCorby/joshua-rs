@@ -14,11 +14,16 @@ use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 /// NOTE: hash is only simple way to prevent duplicates. extra checking is needed
+///
+/// the spans here are the whole definition on add symbol and the call/reference/whatever on find symbol
 #[allow(clippy::too_many_arguments)]
 #[derive(Debug, Clone, Derivative, new)]
 #[derivative(Hash, PartialEq)]
 pub enum Symbol {
     Func {
+        /// the func definition and the func call
+        #[derivative(Hash = "ignore", PartialEq = "ignore")]
+        span: Span,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         #[new(default)]
         ty: Type,

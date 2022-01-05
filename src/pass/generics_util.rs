@@ -4,9 +4,9 @@
 use crate::context::Output;
 use crate::error::{err, Res};
 use crate::pass::ast1::*;
+use crate::pass::ast2;
 use crate::pass::replace_generics::GenericMap;
 use crate::pass::scope::{Scope, Scopes, Symbol};
-use crate::pass::{ast2, Ident};
 use crate::util::{IterExt, IterResExt, RcExt};
 use std::collections::HashMap;
 use std::ops::Deref;
@@ -484,6 +484,7 @@ impl Scopes {
     ) -> Res<Symbol> {
         match symbol {
             Symbol::Func {
+                span,
                 receiver_ty,
                 name,
                 generic_replacements,
@@ -561,31 +562,31 @@ impl Scopes {
                                 let mut generic_replacements =
                                     vec![Default::default(); generic_placeholders.len()]; // uninitialized values lol
 
-                                impl ast2::Type {
-                                    /// replace a generic placeholder with a real type lol
-                                    ///
-                                    /// the same as the whole pass, except does it for ast2 Type instead of ast1
-                                    fn replace_generic(&mut self, map: (Ident, &ast2::Type)) {
-                                        use ast2::Type::*;
-                                        match self {
-                                            Struct {
-                                                generic_replacements,
-                                                ..
-                                            } => generic_replacements.modify(|replacements| {
-                                                for replacement in replacements {
-                                                    replacement.replace_generic(map)
-                                                }
-                                            }),
-                                            Ptr(inner) => {
-                                                inner.modify(|inner| inner.replace_generic(map))
-                                            }
-                                            GenericPlaceholder(name) if *name == map.0 => {
-                                                *self = map.1.clone()
-                                            }
-                                            _ => {}
-                                        }
-                                    }
-                                }
+                                // impl ast2::Type {
+                                //     /// replace a generic placeholder with a real type lol
+                                //     ///
+                                //     /// the same as the whole pass, except does it for ast2 Type instead of ast1
+                                //     fn replace_generic(&mut self, map: (Ident, &ast2::Type)) {
+                                //         use ast2::Type::*;
+                                //         match self {
+                                //             Struct {
+                                //                 generic_replacements,
+                                //                 ..
+                                //             } => generic_replacements.modify(|replacements| {
+                                //                 for replacement in replacements {
+                                //                     replacement.replace_generic(map)
+                                //                 }
+                                //             }),
+                                //             Ptr(inner) => {
+                                //                 inner.modify(|inner| inner.replace_generic(map))
+                                //             }
+                                //             GenericPlaceholder(name) if *name == map.0 => {
+                                //                 *self = map.1.clone()
+                                //             }
+                                //             _ => {}
+                                //         }
+                                //     }
+                                // }
 
                                 'infer_replacements: while !generic_placeholders.is_empty() {
                                     if let (Some(placeholder), Some(replacement)) =
@@ -593,7 +594,7 @@ impl Scopes {
                                     {
                                         if let Some(&i) = generic_placeholders.get(placeholder) {
                                             generic_replacements[i] = replacement.clone();
-                                            generic_placeholders.remove(&placeholder);
+                                            generic_placeholders.remove(placeholder);
                                             continue 'infer_replacements;
                                         }
                                     }
@@ -709,6 +710,7 @@ impl Scopes {
                                 let symbol = self.find_generic(
                                     o,
                                     &Symbol::new_func(
+                                        *span,
                                         receiver_ty.clone(),
                                         *name,
                                         generic_replacements.into(),

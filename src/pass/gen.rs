@@ -268,7 +268,7 @@ impl Expr {
             } => {
                 let thing = thing.into_inner();
                 // fixme hacky as shit
-                if matches!(thing, Literal(..) | CCode(..)) {
+                if matches!(thing.ty(), Type::Literal(..) | Type::CCode) {
                     o.o.push('(');
                     ty.gen(o);
                     o.o.push_str(") ");
