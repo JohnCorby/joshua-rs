@@ -69,10 +69,7 @@ pub enum Statement {
 pub struct Block(pub Rc<Vec<Statement>>);
 
 #[derive(Debug, Clone)]
-pub struct CCode {
-    pub span: Span,
-    pub parts: Rc<Vec<CCodePart>>,
-}
+pub struct CCode(pub Rc<Vec<CCodePart>>);
 
 #[derive(Debug, Clone)]
 pub enum CCodePart {

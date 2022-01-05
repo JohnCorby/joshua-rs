@@ -430,7 +430,7 @@ impl Block {
 
 impl CCode {
     pub fn type_check(self, scopes: &mut Scopes, o: &mut Output) -> Res<ast2::CCode> {
-        self.parts
+        self.0
             .iter()
             .cloned()
             .map(|part| {
