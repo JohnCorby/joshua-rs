@@ -177,6 +177,8 @@ impl Expr {
 ///
 /// `span` here is set from the expr/define/statement
 /// except when created from `TypeName` where the span is just the type name
+///
+/// fixme type span still sucks
 #[derive(Debug, Clone, Derivative)]
 #[derivative(Hash, PartialEq)]
 pub enum Type {

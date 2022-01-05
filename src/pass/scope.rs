@@ -16,6 +16,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 /// NOTE: hash is only simple way to prevent duplicates. extra checking is needed
 ///
 /// the spans here are the whole definition on add symbol and the call/type name on find symbol
+///
+/// fixme type span still sucks
 #[allow(clippy::too_many_arguments)]
 #[derive(Debug, Clone, Derivative, new)]
 #[derivative(Hash, PartialEq)]
