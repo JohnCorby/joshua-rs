@@ -163,7 +163,7 @@ impl ast2::Type {
                         ast2::Type::placeholder_eq_placeholder,
                     )
             }
-            (Ptr(inner), Ptr(other_inner)) => inner.placeholder_eq_placeholder(other_inner),
+            (Ptr(.., inner), Ptr(.., other_inner)) => inner.placeholder_eq_placeholder(other_inner),
 
             _ => self == other,
         }
@@ -190,7 +190,7 @@ impl ast2::Type {
                         .iter()
                         .eq_by(other_replacements.iter(), ast2::Type::placeholder_eq_any)
             }
-            (Ptr(inner), Ptr(other_inner)) => inner.placeholder_eq_any(other_inner),
+            (Ptr(.., inner), Ptr(.., other_inner)) => inner.placeholder_eq_any(other_inner),
 
             _ => self == other,
         }
@@ -199,14 +199,16 @@ impl ast2::Type {
 
 impl ast2::Type {
     /// revert an ast2 Type back into ast1
-    pub fn into_ast1(self) -> Type {
+    pub fn into_ast1(self) -> TypeName {
         match self {
-            ast2::Type::Primitive(kind) => Type::Primitive(kind),
+            ast2::Type::Primitive(span, kind) => TypeName::Primitive(span, kind),
             ast2::Type::Struct {
+                span,
                 name,
                 generic_replacements,
                 ..
-            } => Type::Named {
+            } => TypeName::Named {
+                span,
                 name,
                 generic_replacements: generic_replacements
                     .iter()
@@ -215,12 +217,15 @@ impl ast2::Type {
                     .vec()
                     .into(),
             },
-            ast2::Type::Ptr(inner) => inner.deref().clone().into_ast1(),
-            ast2::Type::GenericPlaceholder(name) => Type::Named {
+            ast2::Type::Ptr(span, inner) => {
+                TypeName::Ptr(span, inner.deref().clone().into_ast1().into())
+            }
+            ast2::Type::GenericPlaceholder(name) => TypeName::Named {
+                span: name.0,
                 name,
                 generic_replacements: Default::default(),
             },
-            ast2::Type::Auto => Type::Auto,
+            ast2::Type::Auto(span) => TypeName::Auto(span),
             _ => panic!("can't turn ast2 ty {:?} back into ast1", self),
         }
     }
@@ -234,7 +239,7 @@ impl ast2::Type {
                 generic_replacements,
                 ..
             } => generic_replacements.iter().any(Self::contains_placeholder),
-            Ptr(inner) => inner.contains_placeholder(),
+            Ptr(.., inner) => inner.contains_placeholder(),
             _ => false,
         }
     }
@@ -318,12 +323,11 @@ impl Scopes {
 
                 err(
                     &format!("could not find generic struct matching {}", symbol),
-                    symbol.name_span(),
+                    symbol.span(),
                 )
             }
 
             Symbol::Func {
-                span,
                 receiver_ty,
                 name,
                 generic_replacements,
@@ -379,7 +383,7 @@ impl Scopes {
                                             arg.replace_generics(&generic_map)
                                         }
                                     });
-                                    other_body.0.modify(|x| {
+                                    other_body.1.modify(|x| {
                                         for statement in x {
                                             statement.replace_generics(&generic_map)
                                         }
@@ -402,23 +406,12 @@ impl Scopes {
                                     self.pop();
                                     receiver_ty
                                         .as_ref()
-                                        .map(|x| {
-                                            x.check(
-                                                other_receiver_ty.as_ref().unwrap(),
-                                                // fixme span bodge
-                                                *span,
-                                            )
-                                        })
+                                        .map(|x| x.check(other_receiver_ty.as_ref().unwrap()))
                                         .transpose()?;
                                     arg_types
                                         .iter()
                                         .zip(other_arg_types.iter())
-                                        .map(|(regular, generic)| {
-                                            regular.check(
-                                                generic, // fixme span bodge
-                                                *span,
-                                            )
-                                        })
+                                        .map(|(regular, generic)| regular.check(generic))
                                         .res_vec()?;
 
                                     Define::Func {
@@ -445,7 +438,7 @@ impl Scopes {
 
                     err(
                         &format!("could not find generic func matching {}", symbol),
-                        symbol.name_span(),
+                        symbol.span(),
                     )
                 }
             }
@@ -717,7 +710,7 @@ impl Scopes {
                                     .vec()
                                     .join("\n")
                             ),
-                            symbol.name_span(),
+                            symbol.span(),
                         );
                     } else if matching_symbols.len() == 1 {
                         return Ok(matching_symbols[0].clone());
@@ -729,7 +722,7 @@ impl Scopes {
                         "could not find {} (including using generic replacement inference)",
                         symbol
                     ),
-                    symbol.name_span(),
+                    symbol.span(),
                 )
             }
 

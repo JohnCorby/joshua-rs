@@ -5,7 +5,7 @@
 use crate::context::{Intern, Output};
 use crate::error::{err, Res};
 use crate::pass::ast2::Type;
-use crate::pass::{ast1, Ident, PrimitiveKind};
+use crate::pass::{ast1, Ident};
 use crate::span::Span;
 use crate::util::{IterExt, StrExt};
 use std::collections::{HashMap, HashSet};
@@ -15,7 +15,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 /// NOTE: hash is only simple way to prevent duplicates. extra checking is needed
 ///
-/// the spans here are the whole definition on add symbol and the call/reference/whatever on find symbol
+/// the spans here are the whole definition on add symbol and the call/type name on find symbol
 #[allow(clippy::too_many_arguments)]
 #[derive(Debug, Clone, Derivative, new)]
 #[derivative(Hash, PartialEq)]
@@ -35,12 +35,15 @@ pub enum Symbol {
         arg_types: Rc<Vec<Type>>,
     },
     Var(
+        #[derivative(Hash = "ignore", PartialEq = "ignore")] Span,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         #[new(default)]
         Type,
         Ident,
     ),
     Struct {
+        #[derivative(Hash = "ignore", PartialEq = "ignore")]
+        span: Span,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         #[new(default)]
         nesting_prefix: &'static str,
@@ -93,13 +96,15 @@ impl Symbol {
     pub fn ty(&self) -> Type {
         use Symbol::*;
         match self {
-            Func { ty, .. } | Var(ty, ..) => ty.clone(),
+            Func { ty, .. } | Var(_, ty, _) => ty.clone(),
             Struct {
+                span,
                 nesting_prefix,
                 name,
                 generic_replacements,
                 ..
             } => Type::Struct {
+                span: *span,
                 nesting_prefix: *nesting_prefix,
                 name: *name,
                 generic_replacements: generic_replacements.clone(),
@@ -109,17 +114,29 @@ impl Symbol {
         }
     }
 
-    pub fn name_span(&self) -> Span {
+    // pub fn name_span(&self) -> Span {
+    //     use Symbol::*;
+    //     match self {
+    //         Func { name, .. } => name,
+    //         Var(.., name) => name,
+    //         Struct { name, .. } => name,
+    //         GenericPlaceholder(name) => name,
+    //         GenericStruct { name, .. } => name,
+    //         GenericFunc { name, .. } => name,
+    //     }
+    //     .0
+    // }
+
+    pub fn span(&self) -> Span {
         use Symbol::*;
         match self {
-            Func { name, .. } => name,
-            Var(.., name) => name,
-            Struct { name, .. } => name,
-            GenericPlaceholder(name) => name,
-            GenericStruct { name, .. } => name,
-            GenericFunc { name, .. } => name,
+            Func { span, .. } => *span,
+            Var(span, ..) => *span,
+            Struct { span, .. } => *span,
+            GenericPlaceholder(name) => name.0,
+            GenericStruct { span, .. } => *span,
+            GenericFunc { span, .. } => *span,
         }
-        .0
     }
 }
 impl Eq for Symbol {}
@@ -287,7 +304,7 @@ impl Scopes {
     /// note: only checks one current scope and outer ones
     pub fn check_return_called(&self, span: Span) -> Res {
         let return_called = self.0.last().unwrap().return_called;
-        let is_void = self.func_return_type() == &Type::Primitive(PrimitiveKind::Void);
+        let is_void = self.func_return_type() == &Default::default();
 
         if !return_called && !is_void {
             err("return was never called for non-void func", span)
@@ -309,7 +326,7 @@ impl Scopes {
             _ => symbols.get(&symbol),
         };
         if let Some(existing) = existing {
-            err(&format!("{} already defined", existing), symbol.name_span())
+            err(&format!("{} already defined", existing), symbol.span())
         } else {
             symbols.insert(symbol);
             Ok(())
@@ -350,6 +367,6 @@ impl Scopes {
             _ => {}
         }
 
-        err(&format!("could not find {}", symbol), symbol.name_span())
+        err(&format!("could not find {}", symbol), symbol.span())
     }
 }

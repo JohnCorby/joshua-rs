@@ -6,14 +6,14 @@ use crate::util::RcExt;
 use std::collections::HashMap;
 
 /// maps placeholder names to replacement types
-pub type GenericMap = HashMap<Ident, Type>;
+pub type GenericMap = HashMap<Ident, TypeName>;
 
 impl Define {
     pub fn replace_generics(&mut self, generic_map: &GenericMap) {
         use Define::*;
         match self {
-            Struct { body, .. } => body.modify(|it| {
-                for define in it {
+            Struct { body, .. } => body.modify(|x| {
+                for define in x {
                     define.replace_generics(generic_map)
                 }
             }),
@@ -28,8 +28,8 @@ impl Define {
                 if let Some(receiver_ty) = receiver_ty {
                     receiver_ty.replace_generics(generic_map)
                 }
-                args.modify(|it| {
-                    for arg in it {
+                args.modify(|x| {
+                    for arg in x {
                         arg.replace_generics(generic_map)
                     }
                 });
@@ -101,7 +101,7 @@ impl Statement {
 
 impl Block {
     pub fn replace_generics(&mut self, generic_map: &GenericMap) {
-        self.0.modify(|statements| {
+        self.1.modify(|statements| {
             for statement in statements {
                 statement.replace_generics(generic_map)
             }
@@ -111,10 +111,10 @@ impl Block {
 
 impl CCode {
     pub fn replace_generics(&mut self, generic_map: &GenericMap) {
-        self.0.modify(|parts| {
+        self.1.modify(|parts| {
             for part in parts {
                 match part {
-                    CCodePart::String(_) => {}
+                    CCodePart::String(..) => {}
                     CCodePart::Expr(expr) => expr.replace_generics(generic_map),
                 }
             }
@@ -127,7 +127,7 @@ impl Expr {
         use Expr::*;
         match self {
             Cast { thing, ty, .. } => {
-                thing.modify(|it| it.replace_generics(generic_map));
+                thing.modify(|x| x.replace_generics(generic_map));
                 ty.replace_generics(generic_map);
             }
             MethodCall {
@@ -135,13 +135,13 @@ impl Expr {
                 func_call,
                 ..
             } => {
-                receiver.modify(|it| it.replace_generics(generic_map));
+                receiver.modify(|x| x.replace_generics(generic_map));
                 func_call.replace_generics(generic_map);
             }
-            Field { receiver, .. } => receiver.modify(|it| it.replace_generics(generic_map)),
-            Literal(_) => {}
+            Field { receiver, .. } => receiver.modify(|x| x.replace_generics(generic_map)),
+            Literal(..) => {}
             FuncCall(func_call) => func_call.replace_generics(generic_map),
-            Var(_) => {}
+            Var(..) => {}
             CCode(.., c_code) => c_code.replace_generics(generic_map),
         }
     }
@@ -165,11 +165,11 @@ impl FuncCall {
     }
 }
 
-impl Type {
+impl TypeName {
     pub fn replace_generics(&mut self, generic_map: &GenericMap) {
-        use Type::*;
+        use TypeName::*;
         match self {
-            Ptr(inner) => inner.modify(|it| it.replace_generics(generic_map)),
+            Ptr(.., inner) => inner.modify(|x| x.replace_generics(generic_map)),
             Named {
                 name,
                 generic_replacements,
@@ -180,8 +180,8 @@ impl Type {
                     *self = generic_map[name].clone();
                 } else {
                     // we are a struct
-                    generic_replacements.modify(|it| {
-                        for replacement in it {
+                    generic_replacements.modify(|x| {
+                        for replacement in x {
                             replacement.replace_generics(generic_map)
                         }
                     });

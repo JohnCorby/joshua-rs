@@ -87,7 +87,7 @@ pub fn type_check_prelude(scopes: &mut Scopes, o: &mut Output) {
     let defines = Node::parse(i.intern(), Kind::program)
         .unwrap()
         .visit::<Program>()
-        .0
+        .1
         .into_inner();
     for define in defines {
         let define = define.type_check(scopes, o, Default::default()).unwrap();

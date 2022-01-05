@@ -5,7 +5,7 @@ use crate::span::Span;
 use std::rc::Rc;
 
 #[derive(Debug, Clone)]
-pub struct Program(pub Rc<Vec<Define>>);
+pub struct Program(pub Span, pub Rc<Vec<Define>>);
 
 #[derive(Debug, Clone)]
 pub enum Define {
@@ -17,8 +17,8 @@ pub enum Define {
     },
     Func {
         span: Span,
-        ty: Type,
-        receiver_ty: Option<Type>,
+        ty: TypeName,
+        receiver_ty: Option<TypeName>,
         name: Ident,
         generic_placeholders: Rc<Vec<Ident>>,
         args: Rc<Vec<VarDefine>>,
@@ -32,7 +32,7 @@ pub enum Define {
 #[derive(Debug, Clone)]
 pub struct VarDefine {
     pub span: Span,
-    pub ty: Type,
+    pub ty: TypeName,
     pub name: Ident,
     pub value: Option<Expr>,
 }
@@ -70,14 +70,14 @@ pub enum Statement {
 }
 
 #[derive(Debug, Clone)]
-pub struct Block(pub Rc<Vec<Statement>>);
+pub struct Block(pub Span, pub Rc<Vec<Statement>>);
 
 #[derive(Debug, Clone)]
-pub struct CCode(pub Rc<Vec<CCodePart>>);
+pub struct CCode(pub Span, pub Rc<Vec<CCodePart>>);
 
 #[derive(Debug, Clone)]
 pub enum CCodePart {
-    String(&'static str),
+    String(Span, &'static str),
     Expr(Expr),
 }
 
@@ -86,7 +86,7 @@ pub enum Expr {
     Cast {
         span: Span,
         thing: Rc<Expr>,
-        ty: Type,
+        ty: TypeName,
     },
 
     MethodCall {
@@ -101,30 +101,33 @@ pub enum Expr {
     },
 
     // primary
-    Literal(Literal),
+    Literal(Span, Literal),
     FuncCall(FuncCall),
     Var(Ident),
 
-    CCode(Span, CCode),
+    CCode(CCode),
 }
 
 #[derive(Debug, Clone)]
 pub struct FuncCall {
     pub span: Span,
-    pub receiver_ty: Option<Type>,
+    pub receiver_ty: Option<TypeName>,
     pub name: Ident,
-    pub generic_replacements: Rc<Vec<Type>>,
+    pub generic_replacements: Rc<Vec<TypeName>>,
     pub args: Rc<Vec<Expr>>,
 }
 
+/// `span` is usually just the type name
+/// except when converting from ast2, where it might be the whole expr/define/statement
 #[derive(Debug, Clone)]
-pub enum Type {
-    Primitive(PrimitiveKind),
+pub enum TypeName {
+    Primitive(Span, PrimitiveKind),
     Named {
+        span: Span,
         name: Ident,
-        generic_replacements: Rc<Vec<Type>>,
+        generic_replacements: Rc<Vec<TypeName>>,
     },
-    Ptr(Rc<Type>),
+    Ptr(Span, Rc<TypeName>),
 
-    Auto,
+    Auto(Span),
 }

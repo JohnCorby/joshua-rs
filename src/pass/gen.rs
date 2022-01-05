@@ -8,7 +8,7 @@ use std::ops::Deref;
 
 impl Program {
     pub fn gen(self, mut o: Output) -> String {
-        for define in self.0.into_inner() {
+        for define in self.1.into_inner() {
             define.gen(&mut o);
         }
         debug_assert!(o.o.is_empty());
@@ -236,7 +236,7 @@ impl Statement {
 impl Block {
     pub fn gen(self, o: &mut Output) {
         o.o.push_str("{\n");
-        for statement in self.0.into_inner() {
+        for statement in self.1.into_inner() {
             statement.gen(o);
         }
         o.o.push_str("}\n");
@@ -246,9 +246,9 @@ impl Block {
 impl CCode {
     pub fn gen(self, o: &mut Output) {
         o.o.push_str("/*<{*/");
-        for part in self.0.into_inner() {
+        for part in self.1.into_inner() {
             match part {
-                CCodePart::String(str) => o.o.push_str(str),
+                CCodePart::String(.., str) => o.o.push_str(str),
                 CCodePart::Expr(expr) => expr.gen(o),
             }
         }
@@ -268,7 +268,7 @@ impl Expr {
             } => {
                 let thing = thing.into_inner();
                 // fixme hacky as shit
-                if matches!(thing.ty(), Type::Literal(..) | Type::CCode) {
+                if matches!(thing.ty(), Type::Literal(..) | Type::CCode(..)) {
                     o.o.push('(');
                     ty.gen(o);
                     o.o.push_str(") ");
@@ -294,7 +294,7 @@ impl Expr {
                 let receiver = receiver.into_inner();
                 let receiver_ty = receiver.ty();
                 receiver.gen(o);
-                if matches!(receiver_ty, Type::Ptr(_)) {
+                if matches!(receiver_ty, Type::Ptr(..)) {
                     o.o.push_str("->") // fixme this does a deref... do we want that? maybe put a & to make it a pointer again
                 } else {
                     o.o.push('.')
@@ -302,7 +302,7 @@ impl Expr {
                 o.o.push_str(&name.mangle());
             }
 
-            Literal(literal) => literal.gen(o),
+            Literal(.., literal) => literal.gen(o),
             FuncCall {
                 nesting_prefix,
                 receiver_ty,
@@ -367,12 +367,12 @@ impl Type {
     pub fn gen(self, o: &mut Output) {
         use Type::*;
         match self {
-            Primitive(ty) => o.o.push_str(ty.c_type()),
+            Primitive(.., ty) => o.o.push_str(ty.c_type()),
             Struct { .. } => {
                 o.o.push_str("struct ");
                 o.o.push_str(&self.encode(true).mangle())
             }
-            Ptr(inner) => {
+            Ptr(.., inner) => {
                 inner.deref().clone().gen(o);
                 o.o.push('*');
             }

@@ -1,3 +1,4 @@
+use crate::error::warn_internal;
 use crate::parse::Kind;
 use pest::error::Error;
 use pest::error::ErrorVariant::CustomError;
@@ -26,11 +27,17 @@ impl From<Span> for pest::Span<'static> {
 
 impl Display for Span {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+        if self.i.is_empty() {
+            warn_internal("Display on Span::default()")
+        }
         Display::fmt(&self.i[self.start..self.end], f)
     }
 }
 impl Debug for Span {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+        if self.i.is_empty() {
+            warn_internal("Debug on Span::default()")
+        }
         f.debug_struct("Span")
             .field("str", &&self.i[self.start..self.end])
             .field("start", &self.start)

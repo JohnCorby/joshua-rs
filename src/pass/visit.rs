@@ -41,6 +41,7 @@ impl Visit for Ident {
 impl Visit for Program {
     fn visit(node: Node) -> Self {
         Self(
+            node.span(),
             node.children_checked(Kind::program)
                 .filter_map(|node| match node.kind() {
                     Kind::EOI => None,
@@ -188,20 +189,24 @@ impl Visit for Statement {
 
 impl Visit for Block {
     fn visit(node: Node) -> Self {
-        Self(node.children_checked(Kind::block).visit_rest().into())
+        Self(
+            node.span(),
+            node.children_checked(Kind::block).visit_rest().into(),
+        )
     }
 }
 
 impl Visit for CCode {
     fn visit(node: Node) -> Self {
         Self(
+            node.span(),
             node.children_checked(Kind::c_code)
                 .into_iter()
-                .map(|it| match it.kind() {
-                    Kind::c_code_str => CCodePart::String(it.str()),
-                    Kind::expr => CCodePart::Expr(it.visit()),
+                .map(|x| match x.kind() {
+                    Kind::c_code_str => CCodePart::String(x.span(), x.str()),
+                    Kind::expr => CCodePart::Expr(x.visit()),
 
-                    _ => unexpected_kind(it),
+                    _ => unexpected_kind(x),
                 })
                 .vec()
                 .into(),
@@ -297,11 +302,11 @@ impl Visit for Expr {
             }
 
             // primary
-            Kind::literal => Literal(node.children().next().unwrap().visit()),
+            Kind::literal => Literal(span, node.children().next().unwrap().visit()),
             Kind::func_call => FuncCall(node.visit()),
             Kind::ident => Var(node.visit()),
 
-            Kind::c_code => CCode(span, node.visit()),
+            Kind::c_code => CCode(node.visit()),
 
             _ => unexpected_kind(node),
         }
@@ -338,41 +343,43 @@ impl Visit for Literal {
     fn visit(node: Node) -> Self {
         use Literal::*;
         match node.kind() {
-            Kind::float_literal => Float(node.span(), node.str().parse().unwrap()),
-            Kind::int_literal => Int(node.span(), node.str().parse().unwrap()),
-            Kind::bool_literal => Bool(node.span(), node.str().parse().unwrap()),
-            Kind::char_literal => Char(
-                node.span(),
-                node.children().next().unwrap().str().parse().unwrap(),
-            ),
-            Kind::str_literal => StrZ(node.span(), node.children().next().unwrap().str()), // todo maybe unescape this so we can actually count the characters?
+            Kind::float_literal => Float(node.str().parse().unwrap()),
+            Kind::int_literal => Int(node.str().parse().unwrap()),
+            Kind::bool_literal => Bool(node.str().parse().unwrap()),
+            Kind::char_literal => Char(node.children().next().unwrap().str().parse().unwrap()),
+            Kind::str_literal => StrZ(node.children().next().unwrap().str()), // todo maybe unescape this so we can actually count the characters?
 
             _ => unexpected_kind(node),
         }
     }
 }
 
-impl Visit for Type {
+impl Visit for TypeName {
     fn visit(node: Node) -> Self {
         let node = node.children_checked(Kind::ty).next().unwrap();
-        use Type::*;
+        use TypeName::*;
+        let span = node.span();
         match node.kind() {
-            Kind::primitive => Primitive(node.str().parse().unwrap()),
-            Kind::ptr => Ptr(node.children().next().unwrap().visit::<Type>().into()),
+            Kind::primitive => Primitive(span, node.str().parse().unwrap()),
+            Kind::ptr => Ptr(
+                span,
+                node.children().next().unwrap().visit::<TypeName>().into(),
+            ),
             Kind::named => {
                 let mut nodes = node.children();
                 Named {
+                    span,
                     name: nodes.next().unwrap().visit(),
                     generic_replacements: nodes
                         .next()
                         .unwrap()
                         .children_checked(Kind::generic_replacements)
-                        .map(|it| it.visit())
+                        .map(|x| x.visit())
                         .vec()
                         .into(),
                 }
             }
-            Kind::auto => Auto,
+            Kind::auto => Auto(span),
 
             _ => unexpected_kind(node),
         }

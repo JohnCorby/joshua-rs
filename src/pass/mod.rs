@@ -59,11 +59,11 @@ impl Eq for Ident {}
 
 #[derive(Debug, Copy, Clone)]
 pub enum Literal {
-    Float(Span, f64),
-    Int(Span, i64),
-    Bool(Span, bool),
-    Char(Span, char),
-    StrZ(Span, &'static str),
+    Float(f64),
+    Int(i64),
+    Bool(bool),
+    Char(char),
+    StrZ(&'static str),
 }
 
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Default, EnumString, Display)]
