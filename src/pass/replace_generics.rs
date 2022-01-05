@@ -108,7 +108,7 @@ impl Block {
 
 impl CCode {
     pub fn replace_generics(&mut self, generic_map: &GenericMap) {
-        self.0.modify(|parts| {
+        self.parts.modify(|parts| {
             for part in parts {
                 match part {
                     CCodePart::String(_) => {}

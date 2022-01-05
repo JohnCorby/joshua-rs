@@ -3,7 +3,7 @@
 use crate::error::unexpected_kind;
 use crate::parse::{Kind, Node, Nodes};
 use crate::pass::ast1::*;
-use crate::pass::ast2::Literal;
+use crate::pass::Ident;
 use crate::util::IterExt;
 
 pub trait Visit {
@@ -14,14 +14,20 @@ impl Node {
     pub fn visit<V: Visit>(self) -> V {
         V::visit(self)
     }
+}
 
-    fn visit_ident(&self) -> &'static str {
-        debug_assert_eq!(self.kind(), Kind::ident);
-        let str = self.str();
-        str.strip_prefix('`')
-            .unwrap_or(str)
-            .strip_suffix('`')
-            .unwrap_or(str)
+impl Visit for Ident {
+    fn visit(node: Node) -> Self {
+        debug_assert_eq!(node.kind(), Kind::ident);
+        let str = node.str();
+        Self {
+            span: node.span(),
+            str: str
+                .strip_prefix('`')
+                .unwrap_or(str)
+                .strip_suffix('`')
+                .unwrap_or(str),
+        }
     }
 }
 
@@ -326,9 +332,9 @@ impl Visit for FuncCall {
     }
 }
 
-impl Visit for Literal {
+impl Visit for LiteralKind {
     fn visit(node: Node) -> Self {
-        use Literal::*;
+        use LiteralKind::*;
         match node.kind() {
             Kind::float_literal => Float(node.str().parse().unwrap()),
             Kind::int_literal => Int(node.str().parse().unwrap()),
@@ -347,7 +353,9 @@ impl Visit for Type {
         let span = node.span();
         use TypeKind::*;
         let ty = match node.kind() {
-            Kind::primitive => Primitive(node.str().parse().unwrap()),
+            Kind::primitive => Primitive {
+                kind: node.str().parse().unwrap(),
+            },
             Kind::ptr => Ptr(node.children().next().unwrap().visit::<Type>().into()),
             Kind::named => {
                 let mut nodes = node.children();

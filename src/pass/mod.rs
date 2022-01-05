@@ -1,3 +1,6 @@
+use crate::span::Span;
+use std::fmt::{Display, Formatter};
+use std::ops::Deref;
 use std::path::Path;
 use std::process::{Command, ExitStatus};
 
@@ -7,7 +10,6 @@ pub mod gen;
 pub mod generics_util;
 pub mod replace_generics;
 pub mod scope;
-pub mod ty;
 pub mod type_check;
 pub mod visit;
 
@@ -33,4 +35,70 @@ pub fn compile_program(c_code: &str, path: &Path) -> ExitStatus {
         println!("exit code: {}", status);
     }
     status
+}
+
+#[derive(Debug, Copy, Clone, Derivative, new)]
+#[derivative(Hash, PartialEq)]
+pub struct Ident {
+    #[derivative(Hash = "ignore", PartialEq = "ignore")]
+    #[new(default)]
+    pub span: Span,
+    pub str: &'static str,
+}
+impl Deref for Ident {
+    type Target = str;
+    fn deref(&self) -> &Self::Target {
+        self.str
+    }
+}
+impl Display for Ident {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+        Display::fmt(self.str, f)
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+pub enum Literal {
+    Float(f64),
+    Int(i64),
+    Bool(bool),
+    Char(char),
+    StrZ(&'static str),
+}
+
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Default, EnumString, Display)]
+#[strum(serialize_all = "snake_case")]
+pub enum PrimitiveKind {
+    I8,
+    U8,
+    I16,
+    U16,
+    I32,
+    U32,
+    I64,
+    U64,
+    F32,
+    F64,
+    Bool,
+    #[default]
+    Void,
+}
+impl PrimitiveKind {
+    pub const fn c_type(&self) -> &str {
+        use PrimitiveKind::*;
+        match self {
+            I8 => "signed char",
+            U8 => "unsigned char",
+            I16 => "signed short",
+            U16 => "unsigned short",
+            I32 => "signed int",
+            U32 => "unsigned int",
+            I64 => "signed long long",
+            U64 => "unsigned long long",
+            F32 => "float",
+            F64 => "double",
+            Bool => "unsigned char",
+            Void => "void",
+        }
+    }
 }

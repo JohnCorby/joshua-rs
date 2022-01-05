@@ -430,7 +430,7 @@ impl Block {
 
 impl CCode {
     pub fn type_check(self, scopes: &mut Scopes, o: &mut Output) -> Res<ast2::CCode> {
-        self.0
+        self.parts
             .iter()
             .cloned()
             .map(|part| {
@@ -462,7 +462,7 @@ impl Expr {
                 // symbol check
                 // fixme hacky as shit
                 let nesting_prefix =
-                    if matches!(thing.ty, ast2::Type::Literal(_) | ast2::Type::CCode) {
+                    if matches!(self.ty, ast2::Type::Literal(_) | ast2::Type::CCode) {
                         // casting will always work
                         ""
                     } else {
@@ -625,7 +625,7 @@ impl Type {
         let span = self.span;
         use TypeKind::*;
         Ok(match self.kind {
-            Primitive(ty) => ast2::Type::Primitive(ty),
+            Primitive { kind: ty } => ast2::Type::Primitive(ty),
             Ptr(inner) => ast2::Type::Ptr(inner.deref().clone().type_check(scopes, o)?.into()),
             Named {
                 name,

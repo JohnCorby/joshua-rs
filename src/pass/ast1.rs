@@ -1,40 +1,26 @@
 //! pre-type-checked
 
-use crate::pass::ast2::Literal;
-use crate::pass::ty::PrimitiveType;
+use crate::pass::{Ident, Literal, PrimitiveKind};
 use crate::span::Span;
 use std::rc::Rc;
 
 #[derive(Debug, Clone)]
 pub struct Program(pub Rc<Vec<Define>>);
 
-#[derive(Debug, Copy, Clone, Derivative, new)]
-#[derivative(Hash, PartialEq)]
-pub struct GenericPlaceholder {
-    #[derivative(Hash = "ignore", PartialEq = "ignore")]
-    #[new(default)]
-    pub span: Span,
-    pub name: &'static str,
-}
-
-#[derive(Debug, Clone, Derivative, new)]
-pub struct Define {
-    pub span: Span,
-    pub kind: DefineKind,
-}
-
 #[derive(Debug, Clone)]
-pub enum DefineKind {
+pub enum Define {
     Struct {
-        name: &'static str,
-        generic_placeholders: Rc<Vec<GenericPlaceholder>>,
+        span: Span,
+        name: Ident,
+        generic_placeholders: Rc<Vec<Ident>>,
         body: Rc<Vec<Define>>,
     },
     Func {
+        span: Span,
         ty: Type,
         receiver_ty: Option<Type>,
-        name: &'static str,
-        generic_placeholders: Rc<Vec<GenericPlaceholder>>,
+        name: Ident,
+        generic_placeholders: Rc<Vec<Ident>>,
         args: Rc<Vec<VarDefine>>,
         body: Block,
     },
@@ -47,18 +33,12 @@ pub enum DefineKind {
 pub struct VarDefine {
     pub span: Span,
     pub ty: Type,
-    pub name: &'static str,
+    pub name: Ident,
     pub value: Option<Expr>,
 }
 
 #[derive(Debug, Clone)]
-pub struct Statement {
-    pub span: Span,
-    pub kind: StatementKind,
-}
-
-#[derive(Debug, Clone)]
-pub enum StatementKind {
+pub enum Statement {
     Return(Option<Expr>),
     Break,
     Continue,
@@ -89,7 +69,10 @@ pub enum StatementKind {
 pub struct Block(pub Rc<Vec<Statement>>);
 
 #[derive(Debug, Clone)]
-pub struct CCode(pub Rc<Vec<CCodePart>>);
+pub struct CCode {
+    pub span: Span,
+    pub parts: Rc<Vec<CCodePart>>,
+}
 
 #[derive(Debug, Clone)]
 pub enum CCodePart {
@@ -98,31 +81,28 @@ pub enum CCodePart {
 }
 
 #[derive(Debug, Clone)]
-pub struct Expr {
-    pub span: Span,
-    pub kind: ExprKind,
-}
-
-#[derive(Debug, Clone)]
-pub enum ExprKind {
+pub enum Expr {
     Cast {
+        span: Span,
         thing: Rc<Expr>,
         ty: Type,
     },
 
     MethodCall {
+        span: Span,
         receiver: Rc<Expr>,
         func_call: FuncCall,
     },
     Field {
+        span: Span,
         receiver: Rc<Expr>,
-        var: &'static str,
+        name: Ident,
     },
 
     // primary
     Literal(Literal),
     FuncCall(FuncCall),
-    Var(&'static str),
+    Var(Ident),
 
     CCode(CCode),
 }
@@ -131,22 +111,17 @@ pub enum ExprKind {
 pub struct FuncCall {
     pub span: Span,
     pub receiver_ty: Option<Type>,
-    pub name: &'static str,
+    pub name: Ident,
     pub generic_replacements: Rc<Vec<Type>>,
     pub args: Rc<Vec<Expr>>,
 }
 
 #[derive(Debug, Clone)]
-pub struct Type {
-    pub span: Span,
-    pub kind: TypeKind,
-}
-
-#[derive(Debug, Clone)]
-pub enum TypeKind {
-    Primitive(PrimitiveType),
+pub enum Type {
+    Primitive(PrimitiveKind),
     Named {
-        name: &'static str,
+        span: Span,
+        name: Ident,
         generic_replacements: Rc<Vec<Type>>,
     },
     Ptr(Rc<Type>),

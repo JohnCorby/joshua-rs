@@ -341,9 +341,9 @@ impl Expr {
     }
 }
 
-impl Literal {
+impl LiteralKind {
     pub fn gen(self, o: &mut Output) {
-        use Literal::*;
+        use LiteralKind::*;
         o.o.push_str(&match self {
             Float(value) => value.to_string(),
             Int(value) => value.to_string(),

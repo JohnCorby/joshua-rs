@@ -219,7 +219,7 @@ impl ast2::Type {
         Type {
             span: self.span,
             kind: match self.kind {
-                ast2::TypeKind::Primitive(p) => TypeKind::Primitive(p),
+                ast2::TypeKind::Primitive(p) => TypeKind::Primitive { kind: p },
                 ast2::TypeKind::Struct {
                     name,
                     generic_replacements,
@@ -234,7 +234,7 @@ impl ast2::Type {
                         .into(),
                 },
                 ast2::TypeKind::Ptr(inner) => inner.deref().clone().into_ast1().kind,
-                ast2::TypeKind::GenericPlaceholder(GenericPlaceholder { span, name }) => Type {
+                ast2::TypeKind::GenericPlaceholder(SpannedStr { span, str: name }) => Type {
                     span,
                     kind: TypeKind::Named {
                         name,

@@ -4,14 +4,12 @@
 
 use crate::context::{Intern, Output};
 use crate::error::{err, Res};
-use crate::pass::ast1;
-use crate::pass::ast2::{Type, TypeKind};
-use crate::pass::ty::PrimitiveType;
+use crate::pass::ast2::Type;
+use crate::pass::{ast1, Ident, PrimitiveKind};
 use crate::span::Span;
 use crate::util::{IterExt, StrExt};
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Display, Formatter};
-use std::ops::Deref;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -31,7 +29,7 @@ pub enum Symbol {
         #[new(default)]
         nesting_prefix: &'static str,
         receiver_ty: Option<Type>,
-        name: &'static str,
+        name: Ident,
         generic_replacements: Rc<Vec<Type>>,
         arg_types: Rc<Vec<Type>>,
     },
@@ -42,7 +40,7 @@ pub enum Symbol {
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         #[new(default)]
         ty: Type,
-        name: &'static str,
+        name: Ident,
     },
     Struct {
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
@@ -51,7 +49,7 @@ pub enum Symbol {
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         #[new(default)]
         nesting_prefix: &'static str,
-        name: &'static str,
+        name: Ident,
         generic_replacements: Rc<Vec<Type>>,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         #[new(default)]
@@ -61,15 +59,15 @@ pub enum Symbol {
     ///
     /// this should only ever show up in
     /// generic func receiver type, ret type, or arg types
-    GenericPlaceholder(ast1::GenericPlaceholder),
+    GenericPlaceholder(Ident),
     GenericStruct {
         // copied from struct define
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         #[new(default)]
         span: Span,
-        name: &'static str,
+        name: Ident,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
-        generic_placeholders: Rc<Vec<ast1::GenericPlaceholder>>,
+        generic_placeholders: Rc<Vec<Ident>>,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         body: Rc<Vec<ast1::Define>>,
 
@@ -90,13 +88,9 @@ pub enum Symbol {
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         #[new(default)]
         span: Span,
-        #[derivative(Hash = "ignore", PartialEq = "ignore")]
-        ty_ast1: ast1::Type,
-        #[derivative(Hash = "ignore", PartialEq = "ignore")]
-        receiver_ty_ast1: Option<ast1::Type>,
         name: &'static str,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
-        generic_placeholders: Rc<Vec<ast1::GenericPlaceholder>>,
+        generic_placeholders: Rc<Vec<Ident>>,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         args: Rc<Vec<ast1::VarDefine>>,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
@@ -111,25 +105,23 @@ impl Symbol {
     pub fn ty(&self) -> Type {
         use Symbol::*;
         match self {
-            Func { ty, .. } | Var { ty, .. } => ty.deref().clone(),
+            Func { ty, .. } | Var { ty, .. } => ty.clone(),
             Struct {
                 span,
                 nesting_prefix,
                 name,
                 generic_replacements,
                 ..
-            } => Type {
+            } => Type::Struct {
                 span: *span,
-                kind: TypeKind::Struct {
-                    nesting_prefix: *nesting_prefix,
-                    name: *name,
-                    generic_replacements: generic_replacements.clone(),
-                },
+                nesting_prefix: *nesting_prefix,
+                name: *name,
+                generic_replacements: generic_replacements.clone(),
             },
-            GenericPlaceholder(ast1::GenericPlaceholder { span, name }) => Type {
+            GenericPlaceholder(Ident { span, str: name }) => Type::GenericPlaceholder(Ident {
                 span: *span,
-                kind: TypeKind::GenericPlaceholder(ast1::GenericPlaceholder { span: *span, name }),
-            },
+                str: name,
+            }),
             _ => panic!("symbol {:?} doesn't have a type", self),
         }
     }
@@ -167,8 +159,8 @@ impl Display for Symbol {
                 "struct {}",
                 name.encode("", None, generic_replacements, None, false)
             ),
-            GenericPlaceholder(ast1::GenericPlaceholder { name, .. }) => {
-                write!(f, "generic placeholder {}", name)
+            GenericPlaceholder(Ident { str, .. }) => {
+                write!(f, "generic placeholder {}", str)
             }
             GenericFunc {
                 span,
@@ -185,10 +177,7 @@ impl Display for Symbol {
                     receiver_ty.as_ref(),
                     &generic_placeholders
                         .iter()
-                        .map(|it| Type {
-                            span: *span,
-                            kind: TypeKind::GenericPlaceholder(*it)
-                        })
+                        .map(|it| Type::GenericPlaceholder(*it))
                         .vec(),
                     Some(arg_types),
                     false
@@ -207,10 +196,7 @@ impl Display for Symbol {
                     None,
                     &generic_placeholders
                         .iter()
-                        .map(|it| Type {
-                            span: *span,
-                            kind: TypeKind::GenericPlaceholder(*it)
-                        })
+                        .map(|it| Type::GenericPlaceholder(*it))
                         .vec(),
                     None,
                     false
@@ -307,7 +293,7 @@ impl Scopes {
     /// note: only checks one current scope and outer ones
     pub fn check_return_called(&self, span: Span) -> Res {
         let return_called = self.0.last().unwrap().return_called;
-        let is_void = self.func_return_type().kind == TypeKind::Primitive(PrimitiveType::Void);
+        let is_void = self.func_return_type() == &Type::Primitive(PrimitiveKind::Void);
 
         if !return_called && !is_void {
             err("return was never called for non-void func", span)
