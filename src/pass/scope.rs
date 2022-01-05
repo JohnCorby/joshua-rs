@@ -120,7 +120,7 @@ impl Symbol {
         use Symbol::*;
         match self {
             Func { span, .. } => *span,
-            Var(_, name) => name.0,
+            Var(.., name) => name.0,
             Struct { span, .. } => *span,
             GenericPlaceholder(Ident(span, _)) => *span,
             GenericStruct { span, .. } => *span,
@@ -151,7 +151,7 @@ impl Display for Symbol {
                     false
                 )
             ),
-            Var(_, name) => write!(f, "var {}", name),
+            Var(.., name) => write!(f, "var {}", name),
             Struct {
                 name,
                 generic_replacements,
@@ -161,11 +161,10 @@ impl Display for Symbol {
                 "struct {}",
                 name.encode("", None, generic_replacements, None, false)
             ),
-            GenericPlaceholder(Ident(_, str)) => {
-                write!(f, "generic placeholder {}", str)
+            GenericPlaceholder(name) => {
+                write!(f, "generic placeholder {}", name)
             }
             GenericFunc {
-                span,
                 receiver_ty,
                 name,
                 generic_placeholders,
@@ -186,7 +185,6 @@ impl Display for Symbol {
                 )
             ),
             GenericStruct {
-                span,
                 name,
                 generic_placeholders,
                 ..

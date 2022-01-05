@@ -137,7 +137,7 @@ impl Expr {
                 self::Literal::StrZ(..) => &Type::Ptr(Type::Primitive(PrimitiveKind::U8).into()),
             },
             FuncCall { ty, .. } => ty,
-            Var(_, ty) => ty,
+            Var(.., ty) => ty,
             CCode(..) => &Type::CCode,
         }
     }
@@ -147,7 +147,13 @@ impl Expr {
         match self {
             Cast { span, .. } => *span,
             Field { span, .. } => *span,
-            Literal(span, _) => *span,
+            Literal(literal) => match literal {
+                self::Literal::Float(span, ..) => *span,
+                self::Literal::Int(span, ..) => *span,
+                self::Literal::Bool(span, ..) => *span,
+                self::Literal::Char(span, ..) => *span,
+                self::Literal::StrZ(span, ..) => *span,
+            },
             FuncCall { span, .. } => *span,
             Var(name, _) => name.0,
             CCode(span, ..) => *span,

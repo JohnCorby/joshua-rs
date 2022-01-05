@@ -9,8 +9,8 @@ pub type GenericMap = HashMap<&'static str, Type>;
 
 impl Define {
     pub fn replace_generics(&mut self, generic_map: &GenericMap) {
-        use DefineKind::*;
-        match &mut self.kind {
+        use Define::*;
+        match &mut self {
             Struct { body, .. } => body.modify(|it| {
                 for define in it {
                     define.replace_generics(generic_map)
@@ -51,19 +51,20 @@ impl VarDefine {
 
 impl Statement {
     pub fn replace_generics(&mut self, generic_map: &GenericMap) {
-        use StatementKind::*;
-        match &mut self.kind {
-            Return(value) => {
+        use Statement::*;
+        match &mut self {
+            Return(.., value) => {
                 if let Some(value) = value {
                     value.replace_generics(generic_map)
                 }
             }
-            Break => {}
-            Continue => {}
+            Break(..) => {}
+            Continue(..) => {}
             If {
                 cond,
                 then,
                 otherwise,
+                ..
             } => {
                 cond.replace_generics(generic_map);
                 then.replace_generics(generic_map);
@@ -71,7 +72,7 @@ impl Statement {
                     otherwise.replace_generics(generic_map)
                 }
             }
-            Until { cond, block } => {
+            Until { cond, block, .. } => {
                 cond.replace_generics(generic_map);
                 block.replace_generics(generic_map)
             }
@@ -80,13 +81,14 @@ impl Statement {
                 cond,
                 update,
                 block,
+                ..
             } => {
                 init.replace_generics(generic_map);
                 cond.replace_generics(generic_map);
                 update.modify(|it| it.replace_generics(generic_map));
                 block.replace_generics(generic_map);
             }
-            ExprAssign { lvalue, rvalue } => {
+            ExprAssign { lvalue, rvalue, .. } => {
                 lvalue.replace_generics(generic_map);
                 rvalue.replace_generics(generic_map)
             }
@@ -121,8 +123,8 @@ impl CCode {
 
 impl Expr {
     pub fn replace_generics(&mut self, generic_map: &GenericMap) {
-        use ExprKind::*;
-        match &mut self.kind {
+        use Expr::*;
+        match &mut self {
             Cast { thing, ty, .. } => {
                 thing.modify(|it| it.replace_generics(generic_map));
                 ty.replace_generics(generic_map);
@@ -130,6 +132,7 @@ impl Expr {
             MethodCall {
                 receiver,
                 func_call,
+                ..
             } => {
                 receiver.modify(|it| it.replace_generics(generic_map));
                 func_call.replace_generics(generic_map);
@@ -138,7 +141,7 @@ impl Expr {
             Literal(_) => {}
             FuncCall(func_call) => func_call.replace_generics(generic_map),
             Var(_) => {}
-            CCode(c_code) => c_code.replace_generics(generic_map),
+            CCode(.., c_code) => c_code.replace_generics(generic_map),
         }
     }
 }
@@ -163,16 +166,17 @@ impl FuncCall {
 
 impl Type {
     pub fn replace_generics(&mut self, generic_map: &GenericMap) {
-        use TypeKind::*;
-        match &mut self.kind {
+        use Type::*;
+        match &mut self {
             Ptr(inner) => inner.modify(|it| it.replace_generics(generic_map)),
             Named {
                 name,
                 generic_replacements,
+                ..
             } => {
-                if generic_map.contains_key(name) {
+                if generic_map.contains_key(name.1) {
                     // we are a generic placeholder
-                    *self = generic_map[name].clone();
+                    *self = generic_map[name.1].clone();
                 } else {
                     // we are a struct
                     generic_replacements.modify(|it| {
