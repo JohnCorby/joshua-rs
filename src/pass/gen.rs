@@ -39,8 +39,8 @@ impl Program {
 
 impl Define {
     pub fn gen(self, o: &mut Output) {
-        use Define::*;
-        match self {
+        use DefineKind::*;
+        match self.kind {
             Struct {
                 nesting_prefix,
                 name,
@@ -164,8 +164,8 @@ impl VarDefine {
 
 impl Statement {
     pub fn gen(self, o: &mut Output) {
-        use Statement::*;
-        match self {
+        use StatementKind::*;
+        match self.kind {
             Return(value) => {
                 o.o.push_str("return");
                 if let Some(value) = value {
@@ -259,22 +259,24 @@ impl Expr {
                 nesting_prefix,
                 thing,
             } => {
+                let thing = thing.into_inner();
                 // fixme hacky as shit
-                if matches!(thing.ty, Type::Literal(_) | Type::CCode) {
+                if matches!(thing.ty.kind, TypeKind::Literal(_) | TypeKind::CCode) {
                     o.o.push('(');
                     self.ty.gen(o);
                     o.o.push_str(") ");
-                    thing.into_inner().gen(o);
+                    thing.gen(o);
                 } else {
                     self::Expr {
+                        span: self.span,
                         kind: self::ExprKind::FuncCall {
                             nesting_prefix,
                             receiver_ty: None,
                             name: format!("as {}", self.ty.encode(true)).intern(),
                             generic_replacements: Default::default(),
-                            args: vec![thing.into_inner()].into(),
+                            args: vec![thing].into(),
                         },
-                        ty: Default::default(),
+                        ty: thing.ty,
                     }
                     .gen(o);
                 }
@@ -284,7 +286,7 @@ impl Expr {
                 let receiver = receiver.into_inner();
                 let receiver_ty = receiver.ty.clone();
                 receiver.gen(o);
-                if matches!(receiver_ty, Type::Ptr(_)) {
+                if matches!(receiver_ty.kind, TypeKind::Ptr(_)) {
                     o.o.push_str("->") // fixme this does a deref... do we want that? maybe put a & to make it a pointer again
                 } else {
                     o.o.push('.')
@@ -354,8 +356,8 @@ impl Literal {
 
 impl Type {
     pub fn gen(self, o: &mut Output) {
-        use Type::*;
-        match self {
+        use TypeKind::*;
+        match self.kind {
             Primitive(ty) => o.o.push_str(ty.c_type()),
             Struct { .. } => {
                 o.o.push_str("struct ");
@@ -365,7 +367,7 @@ impl Type {
                 inner.deref().clone().gen(o);
                 o.o.push('*');
             }
-            ty => panic!("tried to gen {}", ty.encode(false)),
+            _ => panic!("tried to gen {}", self.encode(false)),
         }
     }
 }

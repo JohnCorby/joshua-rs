@@ -8,7 +8,16 @@ use std::rc::Rc;
 #[derive(Debug, Clone)]
 pub struct Program(pub Rc<Vec<Define>>);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Copy, Clone, Derivative, new)]
+#[derivative(Hash, PartialEq)]
+pub struct GenericPlaceholder {
+    #[derivative(Hash = "ignore", PartialEq = "ignore")]
+    #[new(default)]
+    pub span: Span,
+    pub name: &'static str,
+}
+
+#[derive(Debug, Clone, Derivative, new)]
 pub struct Define {
     pub span: Span,
     pub kind: DefineKind,
@@ -18,14 +27,14 @@ pub struct Define {
 pub enum DefineKind {
     Struct {
         name: &'static str,
-        generic_placeholders: Rc<Vec<&'static str>>,
+        generic_placeholders: Rc<Vec<GenericPlaceholder>>,
         body: Rc<Vec<Define>>,
     },
     Func {
         ty: Type,
         receiver_ty: Option<Type>,
         name: &'static str,
-        generic_placeholders: Rc<Vec<&'static str>>,
+        generic_placeholders: Rc<Vec<GenericPlaceholder>>,
         args: Rc<Vec<VarDefine>>,
         body: Block,
     },

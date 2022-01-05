@@ -15,6 +15,7 @@
 #![feature(hash_set_entry)]
 #![feature(let_else)]
 #![feature(once_cell)]
+#![feature(derive_default_enum)]
 
 #[macro_use]
 extern crate pest_derive;

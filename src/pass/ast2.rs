@@ -1,6 +1,7 @@
 //! post-type-checked
 
 use crate::error::{err, Res};
+use crate::pass::ast1::GenericPlaceholder;
 use crate::pass::ty::{LiteralType, PrimitiveType};
 use crate::span::Span;
 use std::rc::Rc;
@@ -9,7 +10,13 @@ use std::rc::Rc;
 pub struct Program(pub Rc<Vec<Define>>);
 
 #[derive(Debug, Clone)]
-pub enum Define {
+pub struct Define {
+    pub span: Span,
+    pub kind: DefineKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum DefineKind {
     Struct {
         nesting_prefix: &'static str,
         name: &'static str,
@@ -35,6 +42,7 @@ pub enum Define {
 
 #[derive(Debug, Clone)]
 pub struct VarDefine {
+    pub span: Span,
     pub ty: Type,
     pub name: &'static str,
     pub value: Option<Expr>,
@@ -44,7 +52,13 @@ pub struct VarDefine {
 }
 
 #[derive(Debug, Clone)]
-pub enum Statement {
+pub struct Statement {
+    pub span: Span,
+    pub kind: StatementKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum StatementKind {
     Return(Option<Expr>),
     Break,
     Continue,
@@ -85,6 +99,7 @@ pub enum CCodePart {
 
 #[derive(Debug, Clone)]
 pub struct Expr {
+    pub span: Span,
     pub kind: ExprKind,
     pub ty: Type,
 }
@@ -118,7 +133,7 @@ pub enum ExprKind {
 impl Expr {
     pub fn check_assignable(&self, span: Span) -> Res {
         use ExprKind::*;
-        let is_ptr = matches!(self.ty, Type::Ptr(_));
+        let is_ptr = matches!(self.ty.kind, TypeKind::Ptr(_));
         let is_assignable = match self.kind {
             Var(_) | Field { .. } => true,
             FuncCall { .. } if is_ptr => true,
@@ -143,14 +158,17 @@ pub enum Literal {
 }
 
 impl Literal {
-    pub fn ty(&self) -> Type {
+    pub fn ty(&self, span: Span) -> Type {
         use Literal::*;
         match self {
-            Float(_) => LiteralType::Float.ty(),
-            Int(_) => LiteralType::Int.ty(),
-            Bool(_) => PrimitiveType::Bool.ty(),
-            Char(_) => PrimitiveType::U8.ty(),
-            StrZ(_) => Type::Ptr(PrimitiveType::U8.ty().into()),
+            Float(_) => LiteralType::Float.ty(span),
+            Int(_) => LiteralType::Int.ty(span),
+            Bool(_) => PrimitiveType::Bool.ty(span),
+            Char(_) => PrimitiveType::U8.ty(span),
+            StrZ(_) => Type {
+                span,
+                kind: TypeKind::Ptr(PrimitiveType::U8.ty(span).into()),
+            },
         }
     }
 }
@@ -158,7 +176,16 @@ impl Literal {
 /// NOTE: hash is only simple way to prevent duplicates. extra checking is needed
 #[derive(Debug, Clone, Derivative)]
 #[derivative(Hash, PartialEq)]
-pub enum Type {
+pub struct Type {
+    #[derivative(Hash = "ignore", PartialEq = "ignore")]
+    pub span: Span,
+    pub kind: TypeKind,
+}
+
+/// NOTE: hash is only simple way to prevent duplicates. extra checking is needed
+#[derive(Debug, Clone, Derivative)]
+#[derivative(Hash, PartialEq)]
+pub enum TypeKind {
     Primitive(PrimitiveType),
     /// type version of the symbol
     Struct {
@@ -172,7 +199,7 @@ pub enum Type {
     /// fixme merge these into generics when we get type inference
     Literal(LiteralType),
     /// type version of the symbol
-    GenericPlaceholder(&'static str),
+    GenericPlaceholder(GenericPlaceholder),
     /// for inferring with var define and probably other stuff later
     Auto,
     CCode,

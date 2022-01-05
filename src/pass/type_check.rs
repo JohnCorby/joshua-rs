@@ -146,7 +146,7 @@ impl Define {
                     // add placeholders
                     scopes.push(Scope::new(false, false, None));
                     for &placeholder in generic_placeholders.iter() {
-                        scopes.add(Symbol::GenericPlaceholder(placeholder), self.span)?;
+                        scopes.add(Symbol::GenericPlaceholder { name: placeholder }, self.span)?;
                     }
                 }
 

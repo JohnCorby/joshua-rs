@@ -155,8 +155,8 @@ impl Symbol {
 impl ast2::Type {
     /// placeholder will match any other PLACEHOLDER
     fn placeholder_eq_placeholder(&self, other: &Self) -> bool {
-        use ast2::Type::*;
-        match (self, other) {
+        use ast2::TypeKind::*;
+        match (&self.kind, &other.kind) {
             (GenericPlaceholder(_), GenericPlaceholder(_)) => true,
             (
                 Struct {
@@ -184,8 +184,8 @@ impl ast2::Type {
     }
     /// placeholder will match any other TYPE
     fn placeholder_eq_any(&self, other: &Self) -> bool {
-        use ast2::Type::*;
-        match (self, other) {
+        use ast2::TypeKind::*;
+        match (&self.kind, &other.kind) {
             (_, GenericPlaceholder(_)) | (GenericPlaceholder(_), _) => true,
             (
                 Struct {
@@ -215,12 +215,12 @@ impl ast2::Type {
 
 impl ast2::Type {
     /// revert an ast2 Type back into ast1
-    pub fn into_ast1(self, span: Span) -> Type {
+    pub fn into_ast1(self) -> Type {
         Type {
-            span,
-            kind: match self {
-                ast2::Type::Primitive(p) => TypeKind::Primitive(p),
-                ast2::Type::Struct {
+            span: self.span,
+            kind: match self.kind {
+                ast2::TypeKind::Primitive(p) => TypeKind::Primitive(p),
+                ast2::TypeKind::Struct {
                     name,
                     generic_replacements,
                     ..
@@ -229,16 +229,19 @@ impl ast2::Type {
                     generic_replacements: generic_replacements
                         .iter()
                         .cloned()
-                        .map(|it| it.into_ast1(span))
+                        .map(|it| it.into_ast1())
                         .vec()
                         .into(),
                 },
-                ast2::Type::Ptr(inner) => inner.deref().clone().into_ast1(span).kind,
-                ast2::Type::GenericPlaceholder(name) => TypeKind::Named {
-                    name,
-                    generic_replacements: Default::default(),
+                ast2::TypeKind::Ptr(inner) => inner.deref().clone().into_ast1().kind,
+                ast2::TypeKind::GenericPlaceholder(GenericPlaceholder { span, name }) => Type {
+                    span,
+                    kind: TypeKind::Named {
+                        name,
+                        generic_replacements: Default::default(),
+                    },
                 },
-                ast2::Type::Auto => TypeKind::Auto,
+                ast2::TypeKind::Auto => TypeKind::Auto,
                 _ => panic!("can't turn ast2 ty {:?} back into ast1", self),
             },
         }
@@ -246,8 +249,8 @@ impl ast2::Type {
 
     /// check if self has a placeholder type in it
     fn contains_placeholder(&self) -> bool {
-        use ast2::Type::*;
-        match self {
+        use ast2::TypeKind::*;
+        match &self.kind {
             GenericPlaceholder(_) => true,
             Struct {
                 generic_replacements,
@@ -308,7 +311,7 @@ impl Scopes {
                                         generic_replacements
                                             .iter()
                                             .cloned()
-                                            .map(|it| it.into_ast1(span)),
+                                            .map(|it| it.into_ast1()),
                                     )
                                     .collect::<GenericMap>();
 
@@ -386,7 +389,7 @@ impl Scopes {
                                             generic_replacements
                                                 .iter()
                                                 .cloned()
-                                                .map(|it| it.into_ast1(span)),
+                                                .map(|it| it.into_ast1()),
                                         )
                                         .collect::<GenericMap>();
 
@@ -575,8 +578,8 @@ impl Scopes {
                                         &mut self,
                                         map: (&'static str, &ast2::Type),
                                     ) {
-                                        use ast2::Type::*;
-                                        match self {
+                                        use ast2::TypeKind::*;
+                                        match &mut self.kind {
                                             Struct {
                                                 generic_replacements,
                                                 ..

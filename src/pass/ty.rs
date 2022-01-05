@@ -1,7 +1,7 @@
 //! helper stuff for `ast2::Type`
 
 use crate::error::{err, Res};
-use crate::pass::ast2::Type;
+use crate::pass::ast2::{Type, TypeKind};
 use crate::span::Span;
 use crate::util::StrExt;
 
@@ -24,15 +24,18 @@ impl Type {
 }
 impl Default for Type {
     fn default() -> Self {
-        Self::Primitive(PrimitiveType::Void)
+        Self {
+            span: Default::default(),
+            kind: TypeKind::Primitive(PrimitiveType::Void),
+        }
     }
 }
 
 impl Type {
     /// used for codegen and display
     pub fn encode(&self, include_nesting_prefixes: bool) -> String {
-        use Type::*;
-        match self {
+        use TypeKind::*;
+        match &self.kind {
             Primitive(ty) => ty.to_string(),
             Struct {
                 nesting_prefix,
@@ -52,7 +55,7 @@ impl Type {
     }
 }
 
-#[derive(Debug, Copy, Clone, Hash, PartialEq, EnumString, Display)]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Default, EnumString, Display)]
 #[strum(serialize_all = "snake_case")]
 pub enum PrimitiveType {
     I8,
@@ -66,11 +69,15 @@ pub enum PrimitiveType {
     F32,
     F64,
     Bool,
+    #[default]
     Void,
 }
 impl PrimitiveType {
-    pub const fn ty(&self) -> Type {
-        Type::Primitive(*self)
+    pub const fn ty(&self, span: Span) -> Type {
+        Type {
+            span,
+            kind: TypeKind::Primitive(*self),
+        }
     }
 
     pub const fn c_type(&self) -> &str {
@@ -98,7 +105,10 @@ pub enum LiteralType {
     Int,
 }
 impl LiteralType {
-    pub const fn ty(&self) -> Type {
-        Type::Literal(*self)
+    pub const fn ty(&self, span: Span) -> Type {
+        Type {
+            span,
+            kind: TypeKind::Literal(*self),
+        }
     }
 }

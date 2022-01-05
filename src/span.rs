@@ -4,7 +4,7 @@ use pest::error::ErrorVariant::CustomError;
 use std::fmt::{Debug, Display, Formatter};
 use std::mem::transmute;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Default)]
 pub struct Span {
     i: &'static str,
     start: usize,

@@ -2,7 +2,6 @@ use crate::error::{IntoErr, Res};
 use crate::span::Span;
 use crate::util::IterExt;
 use console::style;
-use pest::error::Error;
 use pest::iterators::{Pair, Pairs};
 use pest::Parser;
 use std::fmt::{Debug, Display, Formatter};
