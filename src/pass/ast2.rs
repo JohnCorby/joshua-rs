@@ -88,7 +88,7 @@ pub struct CCode(pub Rc<Vec<CCodePart>>);
 #[derive(Debug, Clone)]
 pub enum CCodePart {
     String(&'static str),
-    Expr(Box<Expr>),
+    Expr(Expr),
 }
 
 #[derive(Debug, Clone)]

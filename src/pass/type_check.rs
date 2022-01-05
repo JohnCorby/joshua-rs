@@ -435,7 +435,7 @@ impl CCode {
                 Ok(match part {
                     CCodePart::String(str) => ast2::CCodePart::String(str),
                     CCodePart::Expr(expr) => {
-                        ast2::CCodePart::Expr(expr.type_check(scopes, o, None)?.into())
+                        ast2::CCodePart::Expr(expr.type_check(scopes, o, None)?)
                     }
                 })
             })
