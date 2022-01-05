@@ -1,7 +1,7 @@
 use crate::parse::{Kind, Node};
 use crate::pass::ast1::Program;
 use crate::pass::scope::Scopes;
-use crate::pass::ty::PrimitiveType;
+use crate::pass::PrimitiveKind;
 use crate::util::RcExt;
 use by_address::ByAddress;
 use parking_lot::Mutex;
@@ -29,8 +29,8 @@ pub fn type_check_prelude(scopes: &mut Scopes, o: &mut Output) {
         i: &mut String,
         ops: &[&str],
         num_args: usize,
-        arg_tys: &[PrimitiveType],
-        ret_ty: Option<PrimitiveType>,
+        arg_tys: &[PrimitiveKind],
+        ret_ty: Option<PrimitiveKind>,
     ) {
         for &op in ops {
             for &arg_ty in arg_tys {
@@ -50,7 +50,7 @@ pub fn type_check_prelude(scopes: &mut Scopes, o: &mut Output) {
         }
     }
 
-    use PrimitiveType::*;
+    use PrimitiveKind::*;
     let num_prims = &[I8, U8, I16, U16, I32, U32, I64, U64, F32, F64];
 
     // binary
