@@ -185,8 +185,6 @@ pub enum Type {
     /// type version of the symbol
     Struct {
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
-        span: Span,
-        #[derivative(Hash = "ignore", PartialEq = "ignore")]
         nesting_prefix: &'static str,
         name: Ident,
         generic_replacements: Rc<Vec<Type>>,

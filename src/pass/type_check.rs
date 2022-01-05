@@ -49,7 +49,7 @@ impl Define {
                         body.iter()
                             .cloned()
                             .partition::<Vec<_>, _>(|define| match define {
-                                Var(_) => true,
+                                Var(..) => true,
                                 Func { .. } => false,
                                 _ => panic!("struct body shouldn't have {:?}", define),
                             });
@@ -64,7 +64,6 @@ impl Define {
                     // add symbol
                     let nesting_prefix = scopes.nesting_prefix();
                     scopes.add(Symbol::Struct {
-                        span,
                         nesting_prefix,
                         name,
                         generic_replacements: generic_replacements.clone(),
@@ -86,8 +85,6 @@ impl Define {
                             // set func receiver ty to struct
                             if let Func { receiver_ty, .. } = &mut it {
                                 *receiver_ty = Some(Type::Named {
-                                    // fixme span bodge
-                                    span: name.0,
                                     name,
                                     generic_replacements: generic_replacements
                                         .iter()
@@ -167,7 +164,6 @@ impl Define {
                     // add symbol
                     let scope = scopes.pop();
                     scopes.add(Symbol::Func {
-                        span,
                         ty: ty.clone(),
                         nesting_prefix,
                         receiver_ty: receiver_ty.clone(),
@@ -195,22 +191,20 @@ impl Define {
                     let arg_types = args
                         .iter()
                         .cloned()
-                        .map(|it| it.type_check(scopes, o, true, false).map(|it| it.ty))
+                        .map(|x| x.type_check(scopes, o, true, false).map(|x| x.ty))
                         .res_vec()?
                         .into();
                     scopes.pop();
 
                     // add symbol
                     scopes.add(Symbol::GenericFunc {
-                        receiver_ty,
-                        arg_types,
-
-                        ty,
-
                         span,
+                        ty,
+                        receiver_ty,
                         name,
                         generic_placeholders,
                         args,
+                        arg_types,
                         body,
 
                         scopes_index: scopes.0.len(),
@@ -471,10 +465,10 @@ impl Expr {
                     let symbol = scopes.find(
                         o,
                         &Symbol::new_func(
-                            span,
                             None,
                             Ident(
-                                Default::default(),
+                                // fixme span bodge
+                                span,
                                 format!("as {}", ty.encode(true)).intern(),
                             ),
                             Default::default(),
@@ -518,11 +512,10 @@ impl Expr {
                 // field check
                 let symbol = match receiver.ty().clone() {
                     ast2::Type::Struct {
-                        span,
                         name,
                         generic_replacements,
                         ..
-                    } => Symbol::new_struct(span, name, generic_replacements),
+                    } => Symbol::new_struct(name, generic_replacements),
                     ty => {
                         return err(
                             &format!("expected struct, but got {}", ty.encode(false)),
@@ -587,7 +580,6 @@ impl FuncCall {
         let symbol = scopes.find(
             o,
             &Symbol::new_func(
-                self.span,
                 receiver_ty,
                 self.name,
                 generic_replacements,
@@ -621,7 +613,6 @@ impl Type {
             Primitive(kind) => ast2::Type::Primitive(kind),
             Ptr(inner) => ast2::Type::Ptr(inner.deref().clone().type_check(scopes, o)?.into()),
             Named {
-                span,
                 name,
                 generic_replacements,
             } => {
@@ -637,7 +628,7 @@ impl Type {
                 scopes
                     .find(
                         o,
-                        &Symbol::new_struct(span, name, generic_replacements.clone()),
+                        &Symbol::new_struct(name, generic_replacements.clone()),
                         None,
                     )
                     .or_else(|_| scopes.find(o, &Symbol::new_generic_placeholder(name), None))
@@ -647,7 +638,7 @@ impl Type {
                                 "could not find struct or generic placeholder {}",
                                 name.encode("", None, &generic_replacements, None, false)
                             ),
-                            span,
+                            name.0,
                         )
                     })?
                     .ty()

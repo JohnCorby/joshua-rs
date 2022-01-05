@@ -121,7 +121,6 @@ pub struct FuncCall {
 pub enum Type {
     Primitive(PrimitiveKind),
     Named {
-        span: Span,
         name: Ident,
         generic_replacements: Rc<Vec<Type>>,
     },

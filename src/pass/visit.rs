@@ -363,7 +363,6 @@ impl Visit for Type {
             Kind::named => {
                 let mut nodes = node.children();
                 Named {
-                    span,
                     name: nodes.next().unwrap().visit(),
                     generic_replacements: nodes
                         .next()

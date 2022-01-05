@@ -20,8 +20,6 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 pub enum Symbol {
     Func {
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
-        span: Span,
-        #[derivative(Hash = "ignore", PartialEq = "ignore")]
         #[new(default)]
         ty: Type,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
@@ -40,8 +38,6 @@ pub enum Symbol {
     ),
     Struct {
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
-        span: Span,
-        #[derivative(Hash = "ignore", PartialEq = "ignore")]
         #[new(default)]
         nesting_prefix: &'static str,
         name: Ident,
@@ -56,7 +52,6 @@ pub enum Symbol {
     /// generic func receiver type, ret type, or arg types
     GenericPlaceholder(Ident),
     GenericStruct {
-        // copied from struct define
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         span: Span,
         name: Ident,
@@ -70,22 +65,18 @@ pub enum Symbol {
         scopes_index: usize,
     },
     GenericFunc {
-        // used only for eq/hash
-        receiver_ty: Option<Type>,
-        arg_types: Rc<Vec<Type>>,
-
-        /// used only for generic inference
-        #[derivative(Hash = "ignore", PartialEq = "ignore")]
-        ty: Type,
-
-        // copied from func define
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         span: Span,
+        #[derivative(Hash = "ignore", PartialEq = "ignore")]
+        ty: Type,
+        receiver_ty: Option<Type>,
         name: Ident,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         generic_placeholders: Rc<Vec<Ident>>,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         args: Rc<Vec<ast1::VarDefine>>,
+        /// calculated ONCE from args
+        arg_types: Rc<Vec<Type>>,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         body: ast1::Block,
 
@@ -100,32 +91,31 @@ impl Symbol {
         match self {
             Func { ty, .. } | Var(ty, ..) => ty,
             Struct {
-                span,
                 nesting_prefix,
                 name,
                 generic_replacements,
                 ..
             } => &Type::Struct {
-                span: *span,
                 nesting_prefix: *nesting_prefix,
                 name: *name,
                 generic_replacements: generic_replacements.clone(),
             },
-            GenericPlaceholder(Ident(span, name)) => &Type::GenericPlaceholder(Ident(*span, name)),
+            GenericPlaceholder(name) => &Type::GenericPlaceholder(*name),
             _ => panic!("symbol {:?} doesn't have a type", self),
         }
     }
 
-    pub fn span(&self) -> Span {
+    pub fn name_span(&self) -> Span {
         use Symbol::*;
         match self {
-            Func { span, .. } => *span,
-            Var(.., name) => name.0,
-            Struct { span, .. } => *span,
-            GenericPlaceholder(Ident(span, _)) => *span,
-            GenericStruct { span, .. } => *span,
-            GenericFunc { span, .. } => *span,
+            Func { name, .. } => name,
+            Var(.., name) => name,
+            Struct { name, .. } => name,
+            GenericPlaceholder(name) => name,
+            GenericStruct { name, .. } => name,
+            GenericFunc { name, .. } => name,
         }
+        .0
     }
 }
 impl Eq for Symbol {}
@@ -315,7 +305,7 @@ impl Scopes {
             _ => symbols.get(&symbol),
         };
         if let Some(existing) = existing {
-            err(&format!("{} already defined", existing), symbol.span())
+            err(&format!("{} already defined", existing), symbol.name_span())
         } else {
             symbols.insert(symbol);
             Ok(())
@@ -356,6 +346,6 @@ impl Scopes {
             _ => {}
         }
 
-        err(&format!("could not find {}", symbol), symbol.span())
+        err(&format!("could not find {}", symbol), symbol.name_span())
     }
 }
