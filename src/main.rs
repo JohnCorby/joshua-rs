@@ -16,6 +16,7 @@
 #![feature(let_else)]
 #![feature(once_cell)]
 #![feature(derive_default_enum)]
+#![feature(iter_order_by)]
 
 #[macro_use]
 extern crate pest_derive;

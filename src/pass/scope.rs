@@ -21,7 +21,6 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 #[derivative(Hash, PartialEq)]
 pub enum Symbol {
     Func {
-        /// the func definition and the func call
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
         span: Span,
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
