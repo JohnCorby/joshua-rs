@@ -86,21 +86,21 @@ pub enum Symbol {
     },
 }
 impl Symbol {
-    pub fn ty(&self) -> &Type {
+    pub fn ty(&self) -> Type {
         use Symbol::*;
         match self {
-            Func { ty, .. } | Var(ty, ..) => ty,
+            Func { ty, .. } | Var(ty, ..) => ty.clone(),
             Struct {
                 nesting_prefix,
                 name,
                 generic_replacements,
                 ..
-            } => &Type::Struct {
+            } => Type::Struct {
                 nesting_prefix: *nesting_prefix,
                 name: *name,
                 generic_replacements: generic_replacements.clone(),
             },
-            GenericPlaceholder(name) => &Type::GenericPlaceholder(*name),
+            GenericPlaceholder(name) => Type::GenericPlaceholder(*name),
             _ => panic!("symbol {:?} doesn't have a type", self),
         }
     }

@@ -124,21 +124,21 @@ pub enum Expr {
 }
 
 impl Expr {
-    pub fn ty(&self) -> &Type {
+    pub fn ty(&self) -> Type {
         use Expr::*;
         match self {
-            Cast { ty, .. } => ty,
-            Field { ty, .. } => ty,
+            Cast { ty, .. } => ty.clone(),
+            Field { ty, .. } => ty.clone(),
             Literal(literal) => match literal {
-                self::Literal::Float(..) => &Type::Literal(LiteralKind::Float),
-                self::Literal::Int(..) => &Type::Literal(LiteralKind::Int),
-                self::Literal::Bool(..) => &Type::Primitive(PrimitiveKind::Bool),
-                self::Literal::Char(..) => &Type::Primitive(PrimitiveKind::U8),
-                self::Literal::StrZ(..) => &Type::Ptr(Type::Primitive(PrimitiveKind::U8).into()),
+                self::Literal::Float(..) => Type::Literal(LiteralKind::Float),
+                self::Literal::Int(..) => Type::Literal(LiteralKind::Int),
+                self::Literal::Bool(..) => Type::Primitive(PrimitiveKind::Bool),
+                self::Literal::Char(..) => Type::Primitive(PrimitiveKind::U8),
+                self::Literal::StrZ(..) => Type::Ptr(Type::Primitive(PrimitiveKind::U8).into()),
             },
-            FuncCall { ty, .. } => ty,
-            Var(.., ty) => ty,
-            CCode(..) => &Type::CCode,
+            FuncCall { ty, .. } => ty.clone(),
+            Var(.., ty) => ty.clone(),
+            CCode(..) => Type::CCode,
         }
     }
 

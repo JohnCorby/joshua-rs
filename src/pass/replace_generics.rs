@@ -11,7 +11,7 @@ pub type GenericMap = HashMap<Ident, Type>;
 impl Define {
     pub fn replace_generics(&mut self, generic_map: &GenericMap) {
         use Define::*;
-        match &mut self {
+        match self {
             Struct { body, .. } => body.modify(|it| {
                 for define in it {
                     define.replace_generics(generic_map)
@@ -53,7 +53,7 @@ impl VarDefine {
 impl Statement {
     pub fn replace_generics(&mut self, generic_map: &GenericMap) {
         use Statement::*;
-        match &mut self {
+        match self {
             Return(.., value) => {
                 if let Some(value) = value {
                     value.replace_generics(generic_map)
@@ -125,7 +125,7 @@ impl CCode {
 impl Expr {
     pub fn replace_generics(&mut self, generic_map: &GenericMap) {
         use Expr::*;
-        match &mut self {
+        match self {
             Cast { thing, ty, .. } => {
                 thing.modify(|it| it.replace_generics(generic_map));
                 ty.replace_generics(generic_map);
@@ -168,7 +168,7 @@ impl FuncCall {
 impl Type {
     pub fn replace_generics(&mut self, generic_map: &GenericMap) {
         use Type::*;
-        match &mut self {
+        match self {
             Ptr(inner) => inner.modify(|it| it.replace_generics(generic_map)),
             Named {
                 name,

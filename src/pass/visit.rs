@@ -355,7 +355,6 @@ impl Visit for Literal {
 impl Visit for Type {
     fn visit(node: Node) -> Self {
         let node = node.children_checked(Kind::ty).next().unwrap();
-        let span = node.span();
         use Type::*;
         match node.kind() {
             Kind::primitive => Primitive(node.str().parse().unwrap()),

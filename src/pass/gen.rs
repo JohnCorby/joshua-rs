@@ -2,6 +2,7 @@
 
 use crate::context::{Intern, Output};
 use crate::pass::ast2::*;
+use crate::pass::{Ident, Literal};
 use crate::util::{IterExt, RcExt, StrExt};
 use std::ops::Deref;
 
@@ -39,13 +40,14 @@ impl Program {
 
 impl Define {
     pub fn gen(self, o: &mut Output) {
-        use DefineKind::*;
-        match self.kind {
+        use Define::*;
+        match self {
             Struct {
                 nesting_prefix,
                 name,
                 generic_replacements,
                 body,
+                ..
             } => {
                 let old_o = std::mem::take(&mut o.o);
 
@@ -77,6 +79,7 @@ impl Define {
                 generic_replacements,
                 args,
                 body,
+                ..
             } => {
                 let old_o = std::mem::take(&mut o.o);
 
@@ -85,7 +88,7 @@ impl Define {
                 // special case for entry point
                 if nesting_prefix.is_empty()
                     && receiver_ty.is_none()
-                    && name == "main"
+                    && name == Ident(Default::default(), "main")
                     && generic_replacements.is_empty()
                     && args.is_empty()
                 {
@@ -164,9 +167,9 @@ impl VarDefine {
 
 impl Statement {
     pub fn gen(self, o: &mut Output) {
-        use StatementKind::*;
-        match self.kind {
-            Return(value) => {
+        use Statement::*;
+        match self {
+            Return(.., value) => {
                 o.o.push_str("return");
                 if let Some(value) = value {
                     o.o.push(' ');
@@ -174,12 +177,13 @@ impl Statement {
                 }
                 o.o.push_str(";\n");
             }
-            Break => o.o.push_str("break;\n"),
-            Continue => o.o.push_str("continue;\n"),
+            Break(..) => o.o.push_str("break;\n"),
+            Continue(..) => o.o.push_str("continue;\n"),
             If {
                 cond,
                 then,
                 otherwise,
+                ..
             } => {
                 o.o.push_str("if (");
                 cond.gen(o);
@@ -189,7 +193,7 @@ impl Statement {
                     otherwise.gen(o);
                 }
             }
-            Until { cond, block } => {
+            Until { cond, block, .. } => {
                 o.o.push_str("while (!(");
                 cond.gen(o);
                 o.o.push_str(")) ");
@@ -200,6 +204,7 @@ impl Statement {
                 cond,
                 update,
                 block,
+                ..
             } => {
                 o.o.push_str("for (");
                 init.gen(o);
@@ -213,7 +218,7 @@ impl Statement {
                 o.o.push_str(") ");
                 block.gen(o);
             }
-            ExprAssign { lvalue, rvalue } => {
+            ExprAssign { lvalue, rvalue, .. } => {
                 lvalue.gen(o);
                 o.o.push_str(" = ");
                 rvalue.gen(o);
@@ -253,45 +258,48 @@ impl CCode {
 
 impl Expr {
     pub fn gen(self, o: &mut Output) {
-        use ExprKind::*;
-        match self.kind {
+        use Expr::*;
+        match self {
             Cast {
                 nesting_prefix,
                 thing,
+                span,
+                ty,
             } => {
                 let thing = thing.into_inner();
                 // fixme hacky as shit
-                if matches!(thing.ty.kind, TypeKind::Literal(_) | TypeKind::CCode) {
+                if matches!(thing, Literal(..) | CCode(..)) {
                     o.o.push('(');
-                    self.ty.gen(o);
+                    ty.gen(o);
                     o.o.push_str(") ");
                     thing.gen(o);
                 } else {
-                    self::Expr {
-                        span: self.span,
-                        kind: self::ExprKind::FuncCall {
-                            nesting_prefix,
-                            receiver_ty: None,
-                            name: format!("as {}", self.ty.encode(true)).intern(),
-                            generic_replacements: Default::default(),
-                            args: vec![thing].into(),
-                        },
-                        ty: thing.ty,
+                    self::Expr::FuncCall {
+                        span,
+                        nesting_prefix,
+                        receiver_ty: None,
+                        name: Ident(
+                            Default::default(),
+                            format!("as {}", ty.encode(true)).intern(),
+                        ),
+                        generic_replacements: Default::default(),
+                        args: vec![thing].into(),
+                        ty,
                     }
                     .gen(o);
                 }
             }
 
-            Field { receiver, var } => {
+            Field { receiver, name, .. } => {
                 let receiver = receiver.into_inner();
-                let receiver_ty = receiver.ty.clone();
+                let receiver_ty = receiver.ty();
                 receiver.gen(o);
-                if matches!(receiver_ty.kind, TypeKind::Ptr(_)) {
+                if matches!(receiver_ty, Type::Ptr(_)) {
                     o.o.push_str("->") // fixme this does a deref... do we want that? maybe put a & to make it a pointer again
                 } else {
                     o.o.push('.')
                 }
-                o.o.push_str(&var.mangle());
+                o.o.push_str(&name.mangle());
             }
 
             Literal(literal) => literal.gen(o),
@@ -301,11 +309,12 @@ impl Expr {
                 name,
                 generic_replacements,
                 args,
+                ..
             } => {
                 // special case for entry point
                 if nesting_prefix.is_empty()
                     && receiver_ty.is_none()
-                    && name == "main"
+                    && name == Ident(Default::default(), "main")
                     && generic_replacements.is_empty()
                     && args.is_empty()
                 {
@@ -317,7 +326,7 @@ impl Expr {
                                 nesting_prefix,
                                 receiver_ty.as_ref(),
                                 &generic_replacements,
-                                Some(&args.iter().cloned().map(|it| it.ty).vec()),
+                                Some(&args.iter().map(|x| x.ty()).vec()),
                                 true,
                             )
                             .mangle(),
@@ -334,30 +343,30 @@ impl Expr {
                 }
                 o.o.push(')');
             }
-            Var(name) => o.o.push_str(&name.mangle()),
+            Var(name, ..) => o.o.push_str(&name.mangle()),
 
-            CCode(c_code) => c_code.gen(o),
+            CCode(.., c_code) => c_code.gen(o),
         }
     }
 }
 
-impl LiteralKind {
+impl Literal {
     pub fn gen(self, o: &mut Output) {
-        use LiteralKind::*;
+        use Literal::*;
         o.o.push_str(&match self {
-            Float(value) => value.to_string(),
-            Int(value) => value.to_string(),
-            Bool(value) => (value as u8).to_string(),
-            Char(value) => format!("'{}'", value),
-            StrZ(value) => format!("\"{}\"", value), // fixme maybe we dont want these being a ptr to a global and zero terminated? oh well
+            Float(.., value) => value.to_string(),
+            Int(.., value) => value.to_string(),
+            Bool(.., value) => (value as u8).to_string(),
+            Char(.., value) => format!("'{}'", value),
+            StrZ(.., value) => format!("\"{}\"", value), // fixme maybe we dont want these being a ptr to a global and zero terminated? oh well
         })
     }
 }
 
 impl Type {
     pub fn gen(self, o: &mut Output) {
-        use TypeKind::*;
-        match self.kind {
+        use Type::*;
+        match self {
             Primitive(ty) => o.o.push_str(ty.c_type()),
             Struct { .. } => {
                 o.o.push_str("struct ");

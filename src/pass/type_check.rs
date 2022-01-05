@@ -254,7 +254,7 @@ impl VarDefine {
         let (ty, value) = if matches!(self.ty, Type::Auto) {
             if let Some(value) = self.value {
                 let value = value.type_check(scopes, o, None)?;
-                let ty = value.ty().clone();
+                let ty = value.ty();
                 (ty, Some(value))
             } else {
                 return err("cannot infer type", self.span);
@@ -300,7 +300,7 @@ impl Statement {
                 value
                     .as_ref()
                     .map(|it| it.ty())
-                    .unwrap_or(&ast2::Type::Primitive(PrimitiveKind::Void))
+                    .unwrap_or(ast2::Type::Primitive(PrimitiveKind::Void))
                     .check(scopes.func_return_type(), span)?;
 
                 ast2::Statement::Return(span, value)
@@ -394,11 +394,11 @@ impl Statement {
                 rvalue,
             } => {
                 let lvalue = lvalue.type_check(scopes, o, None)?;
-                let rvalue = rvalue.type_check(scopes, o, Some(lvalue.ty()))?;
+                let rvalue = rvalue.type_check(scopes, o, Some(&lvalue.ty()))?;
 
                 // check matching
                 lvalue.check_assignable()?;
-                rvalue.ty().check(lvalue.ty(), span)?;
+                rvalue.ty().check(&lvalue.ty(), span)?;
 
                 ast2::Statement::ExprAssign {
                     span,
@@ -458,7 +458,7 @@ impl Expr {
 
                 // symbol check
                 // fixme hacky as shit
-                let nesting_prefix = if matches!(self, Self::Literal(..) | Self::CCode(..)) {
+                let nesting_prefix = if matches!(ty, ast2::Type::Literal(..) | ast2::Type::CCode) {
                     // casting will always work
                     ""
                 } else {
@@ -472,11 +472,11 @@ impl Expr {
                                 format!("as {}", ty.encode(true)).intern(),
                             ),
                             Default::default(),
-                            vec![thing.ty().clone()].into(),
+                            vec![thing.ty()].into(),
                         ),
                         None,
                     )?;
-                    debug_assert_eq!(&ty, symbol.ty());
+                    debug_assert_eq!(ty, symbol.ty());
                     let Symbol::Func { nesting_prefix, .. } = symbol else { unreachable!() };
                     nesting_prefix
                 };
@@ -510,7 +510,7 @@ impl Expr {
                 let receiver = receiver.deref().clone().type_check(scopes, o, None)?;
 
                 // field check
-                let symbol = match receiver.ty().clone() {
+                let symbol = match receiver.ty() {
                     ast2::Type::Struct {
                         name,
                         generic_replacements,
@@ -541,7 +541,7 @@ impl Expr {
             FuncCall(func_call) => func_call.type_check(scopes, o, type_hint)?,
             Var(name) => {
                 // symbol check
-                let ty = scopes.find(o, &Symbol::new_var(name), None)?.ty().clone();
+                let ty = scopes.find(o, &Symbol::new_var(name), None)?.ty();
                 ast2::Expr::Var(name, ty)
             }
             CCode(span, c_code) => ast2::Expr::CCode(span, c_code.type_check(scopes, o)?),
@@ -583,7 +583,7 @@ impl FuncCall {
                 receiver_ty,
                 self.name,
                 generic_replacements,
-                args.iter().map(|it| it.ty().clone()).vec().into(),
+                args.iter().map(|it| it.ty()).vec().into(),
             ),
             type_hint,
         )?;

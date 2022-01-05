@@ -226,7 +226,7 @@ impl ast2::Type {
                 name,
                 generic_replacements: generic_replacements
                     .iter()
-                    .clone()
+                    .cloned()
                     .map(|x| x.into_ast1())
                     .vec()
                     .into(),
@@ -474,6 +474,8 @@ impl Scopes {
     /// find a generic func with inference
     ///
     /// the goal is the figure out what the generic replacements are without actually being given them
+    ///
+    /// fixme very very bad
     pub fn find_generic_func_inference(
         &mut self,
         o: &mut Output,
@@ -524,8 +526,8 @@ impl Scopes {
                     'find_symbols: for s in symbols {
                         match s {
                             Symbol::GenericFunc {
-                                mut ty,
-                                receiver_ty: mut other_receiver_ty,
+                                ty,
+                                receiver_ty: other_receiver_ty,
                                 name: other_name,
                                 generic_placeholders,
                                 arg_types: other_arg_types,
@@ -565,7 +567,7 @@ impl Scopes {
                                     /// the same as the whole pass, except does it for ast2 Type instead of ast1
                                     fn replace_generic(&mut self, map: (Ident, &ast2::Type)) {
                                         use ast2::Type::*;
-                                        match &mut self {
+                                        match self {
                                             Struct {
                                                 generic_replacements,
                                                 ..

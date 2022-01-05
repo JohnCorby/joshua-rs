@@ -7,7 +7,6 @@ use by_address::ByAddress;
 use parking_lot::Mutex;
 use std::collections::HashSet;
 use std::lazy::SyncLazy;
-use std::sync::atomic::AtomicPtr;
 
 #[derive(Default)]
 pub struct Output {
