@@ -20,7 +20,7 @@ impl From<Pair<'static, Kind>> for Node {
 impl Node {
     /// parse an input string into a node based on a kind
     pub fn parse(input: &'static str, kind: Kind) -> Res<Self> {
-        let result: Result<Pairs<'static, Kind>, Error<Kind>> = inner::Parser::parse(kind, input);
+        let result = inner::Parser::parse(kind, input);
         result
             .map(|pairs| Nodes::from(pairs).next().unwrap())
             .map_err(|e| e.into_err(None))
