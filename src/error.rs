@@ -5,7 +5,7 @@ use std::fmt::{Debug, Display, Formatter};
 
 pub type Res<T = ()> = Result<T, Err>;
 pub struct Err {
-    pub message: String,
+    message: String,
     /// should only be None when internal error
     span: Option<Span>,
     backtrace: Backtrace,
