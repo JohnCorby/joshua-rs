@@ -501,7 +501,7 @@ impl Scopes {
                     // so find candidate generic funcs
                     // and infer replacements from them
                     let mut matching_symbols = vec![];
-                    'find_symbols: for s in symbols {
+                    'find_symbol: for s in symbols {
                         match s {
                             Symbol::GenericFunc {
                                 receiver_ty: other_receiver_ty,
@@ -576,7 +576,7 @@ impl Scopes {
 
                                         // nothing was replaced, but there are still placeholders, so no match
                                         // fixme we actually allow unused placeholders elsewhere, so make that not possible please
-                                        continue 'find_symbols;
+                                        continue 'find_symbol;
                                     }
 
                                     replacements
@@ -646,7 +646,7 @@ impl Scopes {
                                     if let Err(err) = res {
                                         println!("type check failed for receiver_ty: {}", err);
                                         self.0.extend(scopes_after);
-                                        continue 'find_symbols;
+                                        continue 'find_symbol;
                                     }
                                     let res = arg_types
                                         .iter()
@@ -654,9 +654,9 @@ impl Scopes {
                                         .map(|(i, x)| x.check(&other_arg_types[i], args[i].span))
                                         .res_vec();
                                     if let Err(err) = res {
-                                        println!("type check failed for receiver_ty: {}", err);
+                                        println!("type check failed for arg_types: {}", err);
                                         self.0.extend(scopes_after);
-                                        continue 'find_symbols;
+                                        continue 'find_symbol;
                                     }
 
                                     Define::Func {
