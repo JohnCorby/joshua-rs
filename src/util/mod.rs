@@ -75,6 +75,14 @@ pub impl<T, I: Iterator<Item = Res<T>>> I {
 
 #[ext(name = RcExt)]
 pub impl<T> Rc<T> {
+    /// get clone of inner value
+    fn cloned(&self) -> T
+    where
+        T: Clone,
+    {
+        self.deref().clone()
+    }
+
     /// shorthand for `Rc::try_unwrap(self).unwrap()`
     fn into_inner(self) -> T {
         Rc::try_unwrap(self)
@@ -86,7 +94,7 @@ pub impl<T> Rc<T> {
     where
         T: Clone,
     {
-        let mut t = self.deref().deref().clone();
+        let mut t = self.cloned();
         f(&mut t);
         *self = t.into();
     }

@@ -10,7 +10,6 @@ use crate::pass::scope::{Scope, Scopes, Symbol};
 use crate::span::Span;
 use crate::util::{IterExt, IterResExt, RcExt};
 use std::collections::HashMap;
-use std::ops::Deref;
 use std::rc::Rc;
 
 #[ext]
@@ -218,7 +217,7 @@ impl ast2::Type {
                     .vec()
                     .into(),
             },
-            ast2::Type::Ptr(inner) => Type::Ptr(span, inner.deref().clone().into_ast1(span).into()),
+            ast2::Type::Ptr(inner) => Type::Ptr(span, inner.cloned().into_ast1(span).into()),
             ast2::Type::GenericPlaceholder(name) => Type::Named {
                 span,
                 name: Ident(span, name),

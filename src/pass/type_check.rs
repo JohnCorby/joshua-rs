@@ -8,7 +8,6 @@ use crate::pass::scope::{Scope, Scopes, Symbol};
 use crate::pass::PrimitiveKind;
 use crate::util::{IterExt, IterResExt, RcExt, StrExt};
 use std::collections::HashMap;
-use std::ops::Deref;
 use std::rc::Rc;
 
 impl Program {
@@ -385,7 +384,7 @@ impl Statement {
                 let init = init.type_check(scopes, o, false, true)?;
                 let cond =
                     cond.type_check(scopes, o, Some(&ast2::Type::Primitive(PrimitiveKind::Bool)))?;
-                let update = update.deref().clone().type_check(scopes, o)?;
+                let update = update.cloned().type_check(scopes, o)?;
                 let block = block.type_check(scopes, o)?;
                 scopes.pop();
 
@@ -462,7 +461,7 @@ impl Expr {
         Ok(match self {
             Cast { span, thing, ty } => {
                 let ty = ty.type_check(scopes, o)?;
-                let thing = thing.deref().clone().type_check(scopes, o, Some(&ty))?;
+                let thing = thing.cloned().type_check(scopes, o, Some(&ty))?;
 
                 // symbol check
                 // fixme hacky as shit
@@ -498,7 +497,7 @@ impl Expr {
                 receiver,
                 mut func_call,
             } => {
-                let receiver = receiver.deref().clone();
+                let receiver = receiver.cloned();
                 func_call.args.modify(|x| x.insert(0, receiver.clone()));
                 func_call.span = span;
 
@@ -513,7 +512,7 @@ impl Expr {
                 receiver,
                 name,
             } => {
-                let receiver = receiver.deref().clone().type_check(scopes, o, None)?;
+                let receiver = receiver.cloned().type_check(scopes, o, None)?;
 
                 // field check
                 let symbol = match receiver.ty() {
@@ -616,7 +615,7 @@ impl Type {
         use Type::*;
         Ok(match self {
             Primitive(.., kind) => ast2::Type::Primitive(kind),
-            Ptr(.., inner) => ast2::Type::Ptr(inner.deref().clone().type_check(scopes, o)?.into()),
+            Ptr(.., inner) => ast2::Type::Ptr(inner.cloned().type_check(scopes, o)?.into()),
             Named {
                 span,
                 name,

@@ -4,7 +4,6 @@ use crate::context::{Intern, Output};
 use crate::pass::ast2::*;
 use crate::pass::Literal;
 use crate::util::{IterExt, RcExt, StrExt};
-use std::ops::Deref;
 
 impl Program {
     pub fn gen(self, mut o: Output) -> String {
@@ -366,7 +365,7 @@ impl Type {
                 o.o.push_str(&self.encode(true).mangle())
             }
             Ptr(inner) => {
-                inner.deref().clone().gen(o);
+                inner.cloned().gen(o);
                 o.o.push('*');
             }
             _ => panic!("tried to gen {}", self.encode(false)),

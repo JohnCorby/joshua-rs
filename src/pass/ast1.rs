@@ -37,6 +37,7 @@ pub struct VarDefine {
     pub value: Option<Expr>,
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone)]
 pub enum Statement {
     Return(Span, Option<Expr>),

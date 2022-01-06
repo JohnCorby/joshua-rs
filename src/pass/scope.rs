@@ -18,7 +18,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 /// the spans here are the whole definition on add symbol and the call/type name on find symbol
 ///
 /// fixme type span still sucks
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments, clippy::large_enum_variant)]
 #[derive(Debug, Clone, Derivative, new)]
 #[derivative(Hash, PartialEq)]
 pub enum Symbol {
