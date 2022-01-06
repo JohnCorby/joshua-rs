@@ -514,8 +514,8 @@ impl Scopes {
                                 mut receiver_ty_ast1,
                                 name_ast1,
                                 generic_placeholders,
-                                args,
-                                body,
+                                mut args,
+                                mut body,
 
                                 scopes_index,
                             } if receiver_ty
@@ -602,10 +602,21 @@ impl Scopes {
                                         .collect::<GenericMap>();
 
                                     // do replacements
+                                    // do replacements
                                     ty_ast1.replace_generics(&generic_map);
                                     if let Some(x) = &mut receiver_ty_ast1 {
                                         x.replace_generics(&generic_map)
                                     }
+                                    args.modify(|x| {
+                                        for arg in x {
+                                            arg.replace_generics(&generic_map)
+                                        }
+                                    });
+                                    body.1.modify(|x| {
+                                        for statement in x {
+                                            statement.replace_generics(&generic_map)
+                                        }
+                                    });
 
                                     let scopes_after = self.0.split_off(scopes_index);
                                     // check that the types actually match
@@ -616,14 +627,6 @@ impl Scopes {
                                         .map(|x| x.type_check(self, o))
                                         .transpose()?;
                                     self.push(Scope::new(false, false, None));
-                                    println!(
-                                        "{:#?}",
-                                        self.0
-                                            .iter()
-                                            .flat_map(|x| &x.symbols)
-                                            .map(|x| x.to_string())
-                                            .vec()
-                                    );
                                     let other_arg_types = args
                                         .iter()
                                         .cloned()
@@ -667,6 +670,16 @@ impl Scopes {
                                     .type_check(self, o, generic_replacements.clone())?
                                     .gen(o);
 
+                                    // inject replacements into symbol
+                                    let symbol = &{
+                                        let mut symbol = symbol.clone();
+                                        let Symbol::Func {
+                                            generic_replacements: gr,
+                                            ..
+                                        } = &mut symbol else { unreachable!() };
+                                        *gr = generic_replacements;
+                                        symbol
+                                    };
                                     let symbol =
                                         self.0.last().unwrap().symbols.get(symbol).unwrap().clone();
                                     self.0.extend(scopes_after);
