@@ -493,6 +493,7 @@ impl Scopes {
                         _ => false,
                     });
                     if let Some(x) = specialized_func {
+                        println!("specialized! --- {}", x);
                         return Ok(x.clone());
                     }
 
@@ -565,7 +566,7 @@ impl Scopes {
                                             }
                                         }
 
-                                        if let (Some(placeholder), replacement) = (type_hint, &ty) {
+                                        if let (placeholder, Some(replacement)) = (&ty, type_hint) {
                                             if let Some(&i) = placeholders.get(placeholder) {
                                                 replacements[i] = replacement.clone();
                                                 placeholders.remove(placeholder);
@@ -686,7 +687,7 @@ impl Scopes {
                                     symbol
                                 };
 
-                                println!("match!");
+                                println!("match! --- {}", symbol);
                                 matching_symbols.push(symbol);
                             }
                             _ => {}
