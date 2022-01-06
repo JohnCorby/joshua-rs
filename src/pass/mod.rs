@@ -29,7 +29,7 @@ pub fn compile_program(c_code: &str, path: &Path) -> ExitStatus {
     if status.success() {
         println!("running");
         let status = Command::new(out_path).status().unwrap();
-        println!("exit code: {}", status);
+        println!("{}", status);
     }
     status
 }
