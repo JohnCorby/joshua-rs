@@ -56,7 +56,7 @@ pub fn type_check_prelude(scopes: &mut Scopes, o: &mut Output) {
     op_funcs(&mut i, &["+", "-", "*", "/"], 2, num_prims, None);
     op_funcs(
         &mut i,
-        &["%"],
+        &["%", "&", "^", "|"],
         2,
         &[I8, U8, I16, U16, I32, U32, I64, U64],
         None,
@@ -68,7 +68,7 @@ pub fn type_check_prelude(scopes: &mut Scopes, o: &mut Output) {
         num_prims,
         Some(Bool),
     );
-    op_funcs(&mut i, &["==", "!="], 2, &[Bool], Some(Bool));
+    op_funcs(&mut i, &["==", "!=", "&&", "||"], 2, &[Bool], None);
 
     // unary
     op_funcs(&mut i, &["-"], 1, num_prims, None);

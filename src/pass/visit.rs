@@ -220,7 +220,15 @@ impl Visit for Expr {
         use Expr::*;
         match node.kind() {
             Kind::expr => node.children().next().unwrap().visit(),
-            Kind::equality_expr | Kind::compare_expr | Kind::add_expr | Kind::mul_expr => {
+            Kind::log_or_expr
+            | Kind::log_and_expr
+            | Kind::bit_or_expr
+            | Kind::bit_xor_expr
+            | Kind::bit_and_expr
+            | Kind::equality_expr
+            | Kind::compare_expr
+            | Kind::add_expr
+            | Kind::mul_expr => {
                 // left assoc
                 let mut nodes = node.children();
 

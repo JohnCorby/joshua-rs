@@ -70,7 +70,17 @@ auto = { "auto" }
 named = { ident ~ generic_replacements }
 
 
-expr = !{ equality_expr }
+expr = !{ log_or_expr }
+log_or_expr = { log_and_expr ~ (log_or_op ~ log_and_expr)* }
+log_or_op = { "||" }
+log_and_expr = { bit_or_expr ~ (log_and_op ~ bit_or_expr)* }
+log_and_op = { "&&" }
+bit_or_expr = { bit_xor_expr ~ (bit_or_op ~ bit_xor_expr)* }
+bit_or_op = { "|" }
+bit_xor_expr = { bit_and_expr ~ (bit_xor_op ~ bit_and_expr)* }
+bit_xor_op = { "^" }
+bit_and_expr = { equality_expr ~ (bit_and_op ~ equality_expr)* }
+bit_and_op = { "&" }
 equality_expr = { compare_expr ~ (equality_op ~ compare_expr)* }
 equality_op = { "==" | "!=" }
 compare_expr = { add_expr ~ (compare_op ~ add_expr)* }

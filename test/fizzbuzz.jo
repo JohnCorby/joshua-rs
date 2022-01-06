@@ -1,6 +1,8 @@
 void main() {
     for (auto i = 0 as u64; i < 100 as u64; i = i + 1 as u64) {
-        if (i % 3 as u64 == 0 as u64)
+        if (i % 3 as u64 == 0 as u64 && i % 5 as u64 == 0 as u64)
+            <{puts("fizzbuzz")}>
+        else if (i % 3 as u64 == 0 as u64)
             <{puts("fizz")}>
         else if (i % 5 as u64 == 0 as u64)
             <{puts("buzz")}>
