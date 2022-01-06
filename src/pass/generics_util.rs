@@ -284,16 +284,13 @@ impl Scopes {
                                 scopes_index,
                                 ..
                             } if s.generic_eq_normal(symbol) => {
-                                let generic_map =
-                                    generic_placeholders
-                                        .iter()
-                                        .map(|x| x.1)
-                                        .zip(
-                                            generic_replacements.iter().cloned().enumerate().map(
-                                                |(i, x)| x.into_ast1(generic_placeholders[i].0),
-                                            ),
-                                        )
-                                        .collect::<GenericMap>();
+                                let generic_map = generic_placeholders
+                                    .iter()
+                                    .enumerate()
+                                    .map(|(i, x)| {
+                                        (x.1, generic_replacements[i].clone().into_ast1(x.0))
+                                    })
+                                    .collect::<GenericMap>();
 
                                 // do replacements
                                 body.modify(|x| {
@@ -362,12 +359,10 @@ impl Scopes {
                                 } if s.generic_eq_normal(symbol) => {
                                     let generic_map = generic_placeholders
                                         .iter()
-                                        .map(|x| x.1)
-                                        .zip(
-                                            generic_replacements.iter().cloned().enumerate().map(
-                                                |(i, x)| x.into_ast1(generic_placeholders[i].0),
-                                            ),
-                                        )
+                                        .enumerate()
+                                        .map(|(i, x)| {
+                                            (x.1, generic_replacements[i].clone().into_ast1(x.0))
+                                        })
                                         .collect::<GenericMap>();
 
                                     // do replacements

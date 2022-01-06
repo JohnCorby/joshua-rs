@@ -132,9 +132,7 @@ pub struct FuncCall {
 }
 
 /// `span` is usually just the type name
-/// except when converting from ast2, where it might be the whole expr/define/statement?????
-///
-/// fixme type span still sucks
+/// except when converting from ast2, where it might be something different. oh well
 #[derive(Debug, Clone)]
 pub enum Type {
     Primitive(Span, PrimitiveKind),
