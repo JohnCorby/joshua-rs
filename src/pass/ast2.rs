@@ -1,29 +1,27 @@
 //! post-type-checked
 
 use crate::error::{err, Res};
-use crate::pass::{Ident, Literal, PrimitiveKind};
+use crate::pass::{Literal, PrimitiveKind};
 use crate::span::Span;
 use crate::util::StrExt;
 use std::rc::Rc;
 
 #[derive(Debug, Clone)]
-pub struct Program(pub Span, pub Rc<Vec<Define>>);
+pub struct Program(pub Rc<Vec<Define>>);
 
 #[derive(Debug, Clone)]
 pub enum Define {
     Struct {
-        span: Span,
         nesting_prefix: &'static str,
-        name: Ident,
+        name: &'static str,
         generic_replacements: Rc<Vec<Type>>,
         body: Rc<Vec<Define>>,
     },
     Func {
-        span: Span,
         ty: Type,
         nesting_prefix: &'static str,
         receiver_ty: Option<Type>,
-        name: Ident,
+        name: &'static str,
         generic_replacements: Rc<Vec<Type>>,
         args: Rc<Vec<VarDefine>>,
         body: Block,
@@ -38,9 +36,8 @@ pub enum Define {
 
 #[derive(Debug, Clone)]
 pub struct VarDefine {
-    pub span: Span,
     pub ty: Type,
-    pub name: Ident,
+    pub name: &'static str,
     pub value: Option<Expr>,
 
     /// used for gen. kinda hacky, oh well
@@ -49,29 +46,25 @@ pub struct VarDefine {
 
 #[derive(Debug, Clone)]
 pub enum Statement {
-    Return(Span, Option<Expr>),
-    Break(Span),
-    Continue(Span),
+    Return(Option<Expr>),
+    Break,
+    Continue,
     If {
-        span: Span,
         cond: Expr,
         then: Block,
         otherwise: Option<Block>,
     },
     Until {
-        span: Span,
         cond: Expr,
         block: Block,
     },
     For {
-        span: Span,
         init: VarDefine,
         cond: Expr,
         update: Rc<Statement>,
         block: Block,
     },
     ExprAssign {
-        span: Span,
         lvalue: Expr,
         rvalue: Expr,
     },
@@ -80,45 +73,42 @@ pub enum Statement {
 }
 
 #[derive(Debug, Clone)]
-pub struct Block(pub Span, pub Rc<Vec<Statement>>);
+pub struct Block(pub Rc<Vec<Statement>>);
 
 #[derive(Debug, Clone)]
-pub struct CCode(pub Span, pub Rc<Vec<CCodePart>>);
+pub struct CCode(pub Rc<Vec<CCodePart>>);
 
 #[derive(Debug, Clone)]
 pub enum CCodePart {
-    String(Span, &'static str),
+    String(&'static str),
     Expr(Expr),
 }
 
 #[derive(Debug, Clone)]
 pub enum Expr {
     Cast {
-        span: Span,
         nesting_prefix: &'static str,
         thing: Rc<Expr>,
         ty: Type,
     },
 
     Field {
-        span: Span,
         receiver: Rc<Expr>,
-        name: Ident,
+        name: &'static str,
         ty: Type,
     },
 
     // primary
-    Literal(Span, Literal),
+    Literal(Literal),
     FuncCall {
-        span: Span,
         nesting_prefix: &'static str,
         receiver_ty: Option<Type>,
-        name: Ident,
+        name: &'static str,
         generic_replacements: Rc<Vec<Type>>,
         args: Rc<Vec<Expr>>,
         ty: Type,
     },
-    Var(Ident, Type),
+    Var(&'static str, Type),
 
     CCode(CCode),
 }
@@ -129,34 +119,20 @@ impl Expr {
         match self {
             Cast { ty, .. } => ty.clone(),
             Field { ty, .. } => ty.clone(),
-            Literal(span, literal) => match literal {
-                self::Literal::Float(..) => Type::Literal(*span, LiteralKind::Float),
-                self::Literal::Int(..) => Type::Literal(*span, LiteralKind::Int),
-                self::Literal::Bool(..) => Type::Primitive(*span, PrimitiveKind::Bool),
-                self::Literal::Char(..) => Type::Primitive(*span, PrimitiveKind::U8),
-                self::Literal::StrZ(..) => {
-                    Type::Ptr(*span, Type::Primitive(*span, PrimitiveKind::U8).into())
-                }
+            Literal(literal) => match literal {
+                self::Literal::Float(..) => Type::Literal(LiteralKind::Float),
+                self::Literal::Int(..) => Type::Literal(LiteralKind::Int),
+                self::Literal::Bool(..) => Type::Primitive(PrimitiveKind::Bool),
+                self::Literal::Char(..) => Type::Primitive(PrimitiveKind::U8),
+                self::Literal::StrZ(..) => Type::Ptr(Type::Primitive(PrimitiveKind::U8).into()),
             },
             FuncCall { ty, .. } => ty.clone(),
             Var(.., ty) => ty.clone(),
-            CCode(c_code) => Type::CCode(c_code.0),
+            CCode(..) => Type::CCode,
         }
     }
 
-    pub fn span(&self) -> Span {
-        use Expr::*;
-        match self {
-            Cast { span, .. } => *span,
-            Field { span, .. } => *span,
-            Literal(span, ..) => *span,
-            FuncCall { span, .. } => *span,
-            Var(name, _) => name.0,
-            CCode(c_code) => c_code.0,
-        }
-    }
-
-    pub fn check_assignable(&self) -> Res {
+    pub fn check_assignable(&self, err_span: Span) -> Res {
         use Expr::*;
         let is_ptr = matches!(self.ty(), Type::Ptr(..));
         let is_assignable = match self {
@@ -166,7 +142,7 @@ impl Expr {
         };
 
         if !is_assignable {
-            err("expr is not assignable", self.span())
+            err("expr is not assignable", err_span)
         } else {
             Ok(())
         }
@@ -175,59 +151,36 @@ impl Expr {
 
 /// NOTE: hash is only simple way to prevent duplicates. extra checking is needed
 ///
-/// `span` here is set from the expr/define/statement
-/// except when created from `TypeName` where the span is just the type name
-///
-/// fixme type span still sucks
+/// used as both a type name and for storing type info
 #[derive(Debug, Clone, Derivative)]
 #[derivative(Hash, PartialEq)]
 pub enum Type {
-    Primitive(
-        #[derivative(Hash = "ignore", PartialEq = "ignore")] Span,
-        PrimitiveKind,
-    ),
+    Primitive(PrimitiveKind),
     /// type version of the symbol
     Struct {
         #[derivative(Hash = "ignore", PartialEq = "ignore")]
-        span: Span,
-        #[derivative(Hash = "ignore", PartialEq = "ignore")]
         nesting_prefix: &'static str,
-        name: Ident,
+        name: &'static str,
         generic_replacements: Rc<Vec<Type>>,
     },
-    Ptr(
-        #[derivative(Hash = "ignore", PartialEq = "ignore")] Span,
-        Rc<Type>,
-    ),
+    Ptr(Rc<Type>),
 
     /// fixme merge these into generics when we get type inference
-    Literal(
-        #[derivative(Hash = "ignore", PartialEq = "ignore")] Span,
-        LiteralKind,
-    ),
+    Literal(LiteralKind),
     /// type version of the symbol
-    GenericPlaceholder(Ident),
+    GenericPlaceholder(&'static str),
     /// for inferring with var define and probably other stuff later
-    Auto(#[derivative(Hash = "ignore", PartialEq = "ignore")] Span),
-    CCode(#[derivative(Hash = "ignore", PartialEq = "ignore")] Span),
+    Auto,
+    CCode,
 }
 impl Eq for Type {}
-
-impl Type {
-    pub fn span(&self) -> Span {
-        use Type::*;
-        match self {
-            Primitive(span, ..) => *span,
-            Struct { span, .. } => *span,
-            Ptr(span, ..) => *span,
-            Literal(span, ..) => *span,
-            GenericPlaceholder(name) => name.0,
-            Auto(span) => *span,
-            CCode(span) => *span,
-        }
+impl Default for Type {
+    fn default() -> Self {
+        Self::Primitive(PrimitiveKind::Void)
     }
-
-    pub fn check(&self, expected: &Self) -> Res {
+}
+impl Type {
+    pub fn check(&self, expected: &Self, err_span: Span) -> Res {
         let actual = self;
         if expected == actual {
             Ok(())
@@ -238,28 +191,20 @@ impl Type {
                     expected.encode(false),
                     actual.encode(false)
                 ),
-                self.span(),
+                err_span,
             )
         }
     }
-}
-impl Default for Type {
-    fn default() -> Self {
-        Self::Primitive(Default::default(), PrimitiveKind::Void)
-    }
-}
 
-impl Type {
     /// used for codegen and display
     pub fn encode(&self, include_nesting_prefixes: bool) -> String {
         use Type::*;
         match &self {
-            Primitive(.., kind) => kind.to_string(),
+            Primitive(kind) => kind.to_string(),
             Struct {
                 nesting_prefix,
                 name,
                 generic_replacements,
-                ..
             } => name.encode(
                 nesting_prefix,
                 None,
@@ -267,7 +212,7 @@ impl Type {
                 None,
                 include_nesting_prefixes,
             ),
-            Ptr(.., ty) => format!("ptr<{}>", ty.encode(include_nesting_prefixes)),
+            Ptr(ty) => format!("ptr<{}>", ty.encode(include_nesting_prefixes)),
             GenericPlaceholder(name) => name.to_string(),
             _ => panic!("type {:?} shouldn't be displayed or encoded", self),
         }

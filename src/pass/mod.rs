@@ -1,6 +1,3 @@
-use crate::span::Span;
-use std::fmt::{Display, Formatter};
-use std::ops::Deref;
 use std::path::Path;
 use std::process::{Command, ExitStatus};
 
@@ -36,26 +33,6 @@ pub fn compile_program(c_code: &str, path: &Path) -> ExitStatus {
     }
     status
 }
-
-#[derive(Debug, Copy, Clone, Derivative, new)]
-#[derivative(Hash, PartialEq)]
-pub struct Ident(
-    #[derivative(Hash = "ignore", PartialEq = "ignore")] pub Span,
-    pub &'static str,
-);
-
-impl Deref for Ident {
-    type Target = str;
-    fn deref(&self) -> &Self::Target {
-        self.1
-    }
-}
-impl Display for Ident {
-    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-        Display::fmt(self.1, f)
-    }
-}
-impl Eq for Ident {}
 
 #[derive(Debug, Copy, Clone)]
 pub enum Literal {

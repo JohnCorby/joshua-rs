@@ -3,7 +3,7 @@
 use crate::error::unexpected_kind;
 use crate::parse::{Kind, Node, Nodes};
 use crate::pass::ast1::*;
-use crate::pass::{Ident, Literal};
+use crate::pass::Literal;
 use crate::util::IterExt;
 
 pub trait Visit {
@@ -354,17 +354,14 @@ impl Visit for Literal {
     }
 }
 
-impl Visit for TypeName {
+impl Visit for Type {
     fn visit(node: Node) -> Self {
         let node = node.children_checked(Kind::ty).next().unwrap();
-        use TypeName::*;
+        use Type::*;
         let span = node.span();
         match node.kind() {
             Kind::primitive => Primitive(span, node.str().parse().unwrap()),
-            Kind::ptr => Ptr(
-                span,
-                node.children().next().unwrap().visit::<TypeName>().into(),
-            ),
+            Kind::ptr => Ptr(span, node.children().next().unwrap().visit::<Type>().into()),
             Kind::named => {
                 let mut nodes = node.children();
                 Named {

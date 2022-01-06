@@ -1,12 +1,11 @@
 //! replaces generic placeholders with real types
 
 use crate::pass::ast1::*;
-use crate::pass::Ident;
 use crate::util::RcExt;
 use std::collections::HashMap;
 
 /// maps placeholder names to replacement types
-pub type GenericMap = HashMap<Ident, TypeName>;
+pub type GenericMap = HashMap<&'static str, Type>;
 
 impl Define {
     pub fn replace_generics(&mut self, generic_map: &GenericMap) {
@@ -165,9 +164,9 @@ impl FuncCall {
     }
 }
 
-impl TypeName {
+impl Type {
     pub fn replace_generics(&mut self, generic_map: &GenericMap) {
-        use TypeName::*;
+        use Type::*;
         match self {
             Ptr(.., inner) => inner.modify(|x| x.replace_generics(generic_map)),
             Named {
@@ -175,9 +174,9 @@ impl TypeName {
                 generic_replacements,
                 ..
             } => {
-                if generic_map.contains_key(name) {
+                if generic_map.contains_key(name.1) {
                     // we are a generic placeholder
-                    *self = generic_map[name].clone();
+                    *self = generic_map[name.1].clone();
                 } else {
                     // we are a struct
                     generic_replacements.modify(|x| {

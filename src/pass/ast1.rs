@@ -1,6 +1,6 @@
 //! pre-type-checked
 
-use crate::pass::{Ident, Literal, PrimitiveKind};
+use crate::pass::{Literal, PrimitiveKind};
 use crate::span::Span;
 use std::rc::Rc;
 
@@ -17,8 +17,8 @@ pub enum Define {
     },
     Func {
         span: Span,
-        ty: TypeName,
-        receiver_ty: Option<TypeName>,
+        ty: Type,
+        receiver_ty: Option<Type>,
         name: Ident,
         generic_placeholders: Rc<Vec<Ident>>,
         args: Rc<Vec<VarDefine>>,
@@ -32,7 +32,7 @@ pub enum Define {
 #[derive(Debug, Clone)]
 pub struct VarDefine {
     pub span: Span,
-    pub ty: TypeName,
+    pub ty: Type,
     pub name: Ident,
     pub value: Option<Expr>,
 }
@@ -86,7 +86,7 @@ pub enum Expr {
     Cast {
         span: Span,
         thing: Rc<Expr>,
-        ty: TypeName,
+        ty: Type,
     },
 
     MethodCall {
@@ -107,29 +107,57 @@ pub enum Expr {
 
     CCode(CCode),
 }
+impl Expr {
+    pub fn span(&self) -> Span {
+        use Expr::*;
+        match self {
+            Cast { span, .. } => *span,
+            MethodCall { span, .. } => *span,
+            Field { span, .. } => *span,
+            Literal(span, ..) => *span,
+            FuncCall(func_call) => func_call.span,
+            Var(name) => name.0,
+            CCode(c_code) => c_code.0,
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct FuncCall {
     pub span: Span,
-    pub receiver_ty: Option<TypeName>,
+    pub receiver_ty: Option<Type>,
     pub name: Ident,
-    pub generic_replacements: Rc<Vec<TypeName>>,
+    pub generic_replacements: Rc<Vec<Type>>,
     pub args: Rc<Vec<Expr>>,
 }
 
 /// `span` is usually just the type name
-/// except when converting from ast2, where it might be the whole expr/define/statement
+/// except when converting from ast2, where it might be the whole expr/define/statement?????
 ///
 /// fixme type span still sucks
 #[derive(Debug, Clone)]
-pub enum TypeName {
+pub enum Type {
     Primitive(Span, PrimitiveKind),
     Named {
         span: Span,
         name: Ident,
-        generic_replacements: Rc<Vec<TypeName>>,
+        generic_replacements: Rc<Vec<Type>>,
     },
-    Ptr(Span, Rc<TypeName>),
+    Ptr(Span, Rc<Type>),
 
     Auto(Span),
 }
+impl Type {
+    pub fn span(&self) -> Span {
+        use Type::*;
+        match self {
+            Primitive(span, ..) => *span,
+            Named { span, .. } => *span,
+            Ptr(span, ..) => *span,
+            Auto(span) => *span,
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct Ident(pub Span, pub &'static str);
