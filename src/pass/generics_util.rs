@@ -591,7 +591,7 @@ impl Scopes {
                                     other_arg_types
                                 );
 
-                                // copied from Scopes::find_generic
+                                // modified from Scopes::find_generic
                                 let symbol = {
                                     let generic_map = generic_placeholders
                                         .iter()
@@ -616,6 +616,14 @@ impl Scopes {
                                         .map(|x| x.type_check(self, o))
                                         .transpose()?;
                                     self.push(Scope::new(false, false, None));
+                                    println!(
+                                        "{:#?}",
+                                        self.0
+                                            .iter()
+                                            .flat_map(|x| &x.symbols)
+                                            .map(|x| x.to_string())
+                                            .vec()
+                                    );
                                     let other_arg_types = args
                                         .iter()
                                         .cloned()
