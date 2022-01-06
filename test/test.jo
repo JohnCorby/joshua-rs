@@ -2,13 +2,13 @@
 
 
 T `+`<T>(T a, T b) {
-//    ret a + b
-    ret `+`<T>(a, b)
+    ret a + b
+//    ret `+`<T>(a, b)
 }
 
 T template_func<T>(T a) {
-//    ret a + a
-    ret `+`<T>(a, a)
+    ret a + a
+//    ret `+`<T>(a, a)
 }
 void template_func<T>(T a, T b) {}
 void template_func(i32 a) {}
@@ -49,8 +49,8 @@ im gimme_im() {
 
 
 
-/// pretend this is a method of baba_booey
-f32 `baba_booey::kill_yourself`(baba_booey this, i32 a, f32 b, bool c) {
+/// this is a method of baba_booey
+f32 baba_booey::kill_yourself(baba_booey this, i32 a, f32 b, bool c) {
     <{puts("woah! this is the method kill_yourself of baba_booey")}>
 
     template_func<f32>(1 as f32)
@@ -58,7 +58,7 @@ f32 `baba_booey::kill_yourself`(baba_booey this, i32 a, f32 b, bool c) {
 
     ret 11565 as f32
 }
-f32 `baba_booey::kill_yourself`(baba_booey this, i32 a, f32 b) {
+f32 baba_booey::kill_yourself(baba_booey this, i32 a, f32 b) {
     <{puts("woah! this is the method kill_yourself but the other one of baba_booey")}>
     ret 4915.95010 as f32
 }
@@ -132,7 +132,13 @@ i32 main() {
 
 
     im im
-    `+`<im>(im, im)
+    im `+`(im a, im b) {
+        <{puts("ERROR: cannot add `im`s")}>
+        <{exit(1)}>
+        im im
+        ret im
+    }
+//    `+`<im>(im, im)
 //    `+`(im, im)
 //    im + im
 

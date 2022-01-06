@@ -97,6 +97,7 @@ i32 main() {
 
     S s
     `+`<S>(s, s)
+    s + s
 
     bruh<i8>(1 as i8)
     bruh<i8>(1 as i8)
@@ -165,6 +166,14 @@ i32 main() {
             void Jeff::method2(Jeff this) {}
         }
     }
+
+    str `+`(str a, str b) {
+        <{puts("ERROR: cannot add strings")}>
+        <{exit(1)}>
+        str str
+        ret str
+    }
+    auto hi = str::new("hello") + str::new("hello")
 
     ret 0 as i32
 }

@@ -603,7 +603,6 @@ impl Scopes {
                                         .collect::<GenericMap>();
 
                                     // do replacements
-                                    // do replacements
                                     ty_ast1.replace_generics(&generic_map);
                                     if let Some(x) = &mut receiver_ty_ast1 {
                                         x.replace_generics(&generic_map)
